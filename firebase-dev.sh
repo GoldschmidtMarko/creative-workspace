@@ -5,7 +5,7 @@
 
 # Set Firebase environment variables
 export FUNCTIONS_DISCOVERY_TIMEOUT=30
-export GOOGLE_APPLICATION_CREDENTIALS="/mnt/c/Users/marko-pc/Desktop/git/web-mtg-life-clicker/web-mtg-life-clicker-409305bd6744.json"
+export GOOGLE_APPLICATION_CREDENTIALS="/mnt/c/Users/marko-pc/Desktop/git/creative-workspace/creative-workspace-359a0-firebase-adminsdk-fbsvc-9828266c8e.json"
 
 if [ -z "$FIREBASE_TOKEN" ]; then
     echo "Error: FIREBASE_TOKEN environment variable is not set"
@@ -70,6 +70,13 @@ case "$1" in
     "start-emulators")
         echo "Starting Firebase emulators..."
         kill_port_processes
+        
+        # Install Python dependencies for functions if they exist
+        if [ -d "functions" ]; then
+            echo "📦 Syncing Python dependencies..."
+            (cd functions && source venv/bin/activate && pip install -r requirements.txt)
+        fi
+        
         firebase emulators:start --token "$FIREBASE_TOKEN"
         ;;
     "test-functions")

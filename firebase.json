@@ -20,11 +20,24 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/html/index.html"
+      }
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "emulators": {
     "auth": {
       "port": 9099
+    },
+    "firestore": {
+      "port": 8080
     },
     "functions": {
       "port": 5001
