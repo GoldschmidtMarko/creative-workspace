@@ -28,7 +28,7 @@ MEMORY_CACHE = {
 }
 
 # Set global options
-set_global_options(max_instances=10, timeout_sec=120, memory=512)
+set_global_options(max_instances=10, timeout_sec=540, memory=512)
 
 # Configuration for scraping
 HEADERS = {
@@ -47,12 +47,12 @@ def get_tournament_player_links(url):
             cache = db.collection("tournament_cache").document(url_hash).get()
             if cache.exists:
                 data = cache.to_dict()
-                if datetime.now(timezone.utc) < data['expires_at']:
+                if datetime.now(timezone.utc) < data['expires_at'] and data.get('entries'):
                     return data['entries']
         except: pass
     
     # Check Memory Cache
-    if url_hash in MEMORY_CACHE["tournaments"]:
+    if url_hash in MEMORY_CACHE["tournaments"] and MEMORY_CACHE["tournaments"][url_hash]:
         return MEMORY_CACHE["tournaments"][url_hash]
 
     print(f"Scraping tournament page: {url}")
@@ -63,23 +63,26 @@ def get_tournament_player_links(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        table = soup.find('table', class_='ruler')
-        if not table: return []
+        tables = soup.find_all('table', class_='ruler')
+        if not tables: return []
             
         entries = []
         group_id = 1
-        for row in table.find_all('tr'):
-            cells = row.find_all('td')
-            if len(cells) < 2: continue
-            status = cells[0].get_text(strip=True)
-            if not status or "Spieler" in status: continue
-            
-            player_links = cells[1].find_all('a', href=re.compile(r'player\.aspx'))
-            for a in player_links:
-                href = a['href']
-                full_url = "https://dbv.turnier.de/sport/" + href if not href.startswith('http') else href
-                entries.append({"url": full_url, "status": status, "group": group_id})
-            group_id += 1
+        for table in tables:
+            for row in table.find_all('tr'):
+                cells = row.find_all('td')
+                if len(cells) < 2: continue
+                status = cells[0].get_text(strip=True)
+                if not status or "Spieler" in status: continue
+                
+                player_links = cells[1].find_all('a', href=re.compile(r'player\.aspx'))
+                if not player_links: continue
+                
+                for a in player_links:
+                    href = a['href']
+                    full_url = "https://dbv.turnier.de/sport/" + href if not href.startswith('http') else href
+                    entries.append({"url": full_url, "status": status, "group": group_id})
+                group_id += 1
         
         # Save to Cache
         if db:

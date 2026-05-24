@@ -28,46 +28,47 @@ def get_tournament_player_links(url):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Find the main player table
-        table = soup.find('table', class_='ruler')
-        if not table:
-            print("  Could not find player table (class='ruler').")
+        # Find all player tables
+        tables = soup.find_all('table', class_='ruler')
+        if not tables:
+            print("  Could not find any player table (class='ruler').")
             return []
             
         entries = []
         group_id = 1
         
-        for row in table.find_all('tr'):
-            cells = row.find_all('td')
-            if len(cells) < 2:
-                continue
+        for table in tables:
+            for row in table.find_all('tr'):
+                cells = row.find_all('td')
+                if len(cells) < 2:
+                    continue
+                    
+                # Status is in the first cell
+                status = cells[0].get_text(strip=True)
+                if not status or "Spieler" in status: # Skip headers
+                    continue
                 
-            # Status is in the first cell
-            status = cells[0].get_text(strip=True)
-            if not status or "Spieler" in status: # Skip headers
-                continue
-            
-            # Players are in the second cell
-            player_links = cells[1].find_all('a', href=re.compile(r'player\.aspx'))
-            if not player_links:
-                continue
+                # Players are in the second cell
+                player_links = cells[1].find_all('a', href=re.compile(r'player\.aspx'))
+                if not player_links:
+                    continue
+                    
+                for a in player_links:
+                    href = a['href']
+                    if href.startswith('/'):
+                        full_url = "https://dbv.turnier.de" + href
+                    elif href.startswith('http'):
+                        full_url = href
+                    else:
+                        full_url = "https://dbv.turnier.de/sport/" + href
+                    
+                    entries.append({
+                        "url": full_url,
+                        "status": status,
+                        "group": group_id
+                    })
                 
-            for a in player_links:
-                href = a['href']
-                if href.startswith('/'):
-                    full_url = "https://dbv.turnier.de" + href
-                elif href.startswith('http'):
-                    full_url = href
-                else:
-                    full_url = "https://dbv.turnier.de/sport/" + href
-                
-                entries.append({
-                    "url": full_url,
-                    "status": status,
-                    "group": group_id
-                })
-            
-            group_id += 1
+                group_id += 1
         
         print(f"Found {len(entries)} player entries in {group_id - 1} groups.")
         return entries

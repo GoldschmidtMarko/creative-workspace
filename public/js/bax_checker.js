@@ -15,7 +15,7 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
     connectFirestoreEmulator(db, "127.0.0.1", 8080);
 }
 
-const getBaxData = httpsCallable(functions, 'get_player_bax_data', { timeout: 120000 });
+const getBaxData = httpsCallable(functions, 'get_player_bax_data', { timeout: 540000 });
 
 // DOM Elements
 const urlInput = document.getElementById('tournament-url');
