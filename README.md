@@ -2,11 +2,14 @@
 
 A modern, AI-powered web application for creative professionals, built with Firebase and Python.
 
+**Live app:** [creative-workspace-359a0.web.app](https://creative-workspace-359a0.web.app/)
+
 ## Features
 
 - **AI-Powered Tools**: Integrated AI capabilities for creative tasks.
-- **Firebase Backend**: Secure authentication and database management.
-- **Modern UI**: Clean, responsive user interface.
+- **Firebase Backend**: Secure authentication and database management via Cloud Functions (Python) and Firestore.
+- **BAX Checker**: Scrapes tournament player data and computes BAX values, with Firestore-backed caching.
+- **Modern UI**: Clean, responsive dashboard with dedicated Analytics, Profile, and Settings views.
 
 ## Getting Started
 
@@ -14,7 +17,6 @@ A modern, AI-powered web application for creative professionals, built with Fire
 
 - [Node.js](https://nodejs.org/) (v16 or higher)
 - [Python](https://www.python.org/) (v3.12 or higher)
-- [Firebase CLI](https://firebase.google.com/docs/cli)
 
 ### Installation
 
@@ -29,28 +31,20 @@ A modern, AI-powered web application for creative professionals, built with Fire
     npm install
     ```
 
-3.  **Set up Firebase**
-    - Ensure you are logged in: `firebase login`
-    - Initialize Firebase (if not already done): `firebase init`
-    - Configure your project: `firebase use <project-id>`
+### Development & Deployment
 
-### Development
-
-Start the local development server:
+All local development and deployment tasks are run through [firebase-dev.sh](firebase-dev.sh):
 
 ```bash
-firebase emulators:start
+./firebase-dev.sh start-emulators   # Start local emulators (hosting, functions, auth, firestore)
+./firebase-dev.sh test-functions    # Test functions locally
+./firebase-dev.sh serve-hosting     # Serve hosting locally
+./firebase-dev.sh deploy-functions  # Deploy functions only
+./firebase-dev.sh deploy-hosting    # Deploy hosting only
+./firebase-dev.sh deploy-all        # Deploy everything
 ```
 
-This will start the Firebase emulators for hosting, functions, and authentication.
-
-### Deployment
-
-Deploy your application to Firebase Hosting:
-
-```bash
-firebase deploy
-```
+See the script for the required environment setup (`FIREBASE_TOKEN` and `GOOGLE_APPLICATION_CREDENTIALS`).
 
 ## Project Structure
 
