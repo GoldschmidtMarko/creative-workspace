@@ -5,6 +5,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BAX Checker | Creative Workspace</title>
+    <!-- Apply saved/preferred theme before paint to avoid a flash -->
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('creative-workspace-theme');
+                var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="/styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -13,8 +25,8 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
+            background: var(--card);
+            border-radius: var(--radius);
             overflow: hidden;
             font-size: 0.875rem;
         }
@@ -23,13 +35,13 @@
         .results-table td {
             padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border);
             white-space: nowrap;
         }
 
         .results-table th {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
+            background: var(--card-2);
+            color: var(--ink-dim);
             font-weight: 500;
             text-transform: uppercase;
             font-size: 0.75rem;
@@ -37,26 +49,25 @@
         }
 
         .results-table tr.new-group {
-            border-top: 2px solid rgba(139, 92, 246, 0.3);
+            border-top: 2px solid var(--accent);
         }
 
         .results-table tr.group-even {
-            background: rgba(255, 255, 255, 0.015);
+            background: var(--card-2);
         }
 
         .results-table tr:hover {
-            background: rgba(255, 255, 255, 0.04) !important;
+            background: var(--secondary-hover) !important;
         }
 
         .bax-val {
             font-weight: 600;
-            color: var(--primary);
+            color: var(--accent);
         }
 
         .team-sum-val {
             font-weight: 700;
-            color: #10b981;
-            /* Emerald green for totals */
+            color: var(--success);
             font-size: 0.95rem;
         }
 
@@ -64,131 +75,86 @@
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.75rem;
-            background: rgba(139, 92, 246, 0.1);
-            color: var(--primary);
+            background: color-mix(in srgb, var(--accent) 12%, transparent);
+            color: var(--accent);
             white-space: nowrap;
         }
 
+        .view-btn {
+            border: none;
+            background: transparent;
+            color: var(--ink-dim);
+            padding: 6px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
         .view-btn.active {
-            background: var(--primary) !important;
-            color: white !important;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+            background: var(--accent) !important;
+            color: var(--accent-ink) !important;
+        }
+
+        .view-switch {
+            background: var(--card-2);
+            border: 1px solid var(--border);
+            padding: 4px;
+            border-radius: var(--radius);
+            display: flex;
+            gap: 4px;
         }
 
         /* Chart Styles */
         .chart-main-card {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: var(--card);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            border: 1px solid var(--border);
         }
 
-        .chart-row {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.4rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            transition: background 0.3s ease;
+        /* Server-rendered (matplotlib) chart image */
+        .bax-chart-img {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius);
         }
 
-        .chart-row:last-child {
-            border-bottom: none;
-        }
-
-        .chart-row:hover {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .group-info {
-            width: 180px;
-            flex-shrink: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .bar-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        .bar-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .bar-label {
-            width: 60px;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .bar-track {
-            flex: 1;
-            height: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .bar-fill {
-            height: 100%;
-            border-radius: 6px;
-            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .bar-einzel {
-            background: linear-gradient(90deg, #6366f1, #8b5cf6);
-        }
-
-        .bar-doppel {
-            background: linear-gradient(90deg, #ec4899, #f43f5e);
-        }
-
-        .bar-mixed {
-            background: linear-gradient(90deg, #10b981, #34d399);
-        }
-
-        /* Button & Progress Styles */
+        /* Run button & progress */
         .run-btn-premium {
-            background: linear-gradient(135deg, var(--primary), #7c3aed);
-            color: white;
+            background: var(--accent);
+            color: var(--accent-ink);
             border: none;
             padding: 0.75rem 2rem;
-            border-radius: 8px;
+            border-radius: var(--radius);
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+            box-shadow: var(--shadow-sm);
         }
 
         .run-btn-premium:hover:not(:disabled) {
+            background: var(--accent-hover);
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-            filter: brightness(1.1);
+            box-shadow: var(--shadow-md);
         }
 
         .run-btn-premium:disabled {
-            opacity: 0.7;
+            opacity: 0.6;
             cursor: wait;
-            background: #4b5563;
+            background: var(--secondary-bg);
+            color: var(--ink-dim);
         }
 
         .progress-container {
             display: none;
             width: 100%;
             height: 6px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--secondary-bg);
             border-radius: 3px;
             overflow: hidden;
             margin: 1.5rem 0;
@@ -197,28 +163,281 @@
         .progress-bar {
             height: 100%;
             width: 0%;
-            background: linear-gradient(90deg, var(--primary), #10b981);
+            background: var(--accent);
             border-radius: 3px;
             transition: width 0.4s ease;
         }
 
         .loader-stage {
             font-size: 0.75rem;
-            color: var(--text-muted);
+            color: var(--ink-dim);
             margin-top: 0.5rem;
             font-family: monospace;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .loader-stage {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            font-family: monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        /* Foldable input card: slim header with always-visible tabs */
+        .input-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
         }
+
+        .fold-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.9rem;
+            height: 1.9rem;
+            flex-shrink: 0;
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: var(--ink-dim);
+            transition: background-color 0.15s ease;
+        }
+        .fold-btn:hover { background: var(--card-2); }
+
+        .fold-header__chevron {
+            width: 1.05rem;
+            height: 1.05rem;
+            transition: transform 0.2s ease;
+        }
+
+        .fold-body {
+            margin-top: 1.1rem;
+        }
+
+        .input-card.collapsed .fold-body {
+            display: none;
+        }
+
+        .input-card.collapsed .fold-header__chevron {
+            transform: rotate(180deg);
+        }
+
+        /* Mode tabs (Paste URL | Browse) */
+        .mode-tabs {
+            display: inline-flex;
+            gap: 3px;
+            padding: 3px;
+            background: var(--card-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+        }
+
+        .mode-tab {
+            border: none;
+            background: transparent;
+            color: var(--ink-dim);
+            padding: 0.35rem 0.9rem;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.82rem;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .mode-tab.active {
+            background: var(--accent);
+            color: var(--accent-ink);
+        }
+
+        /* Browse filters */
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            align-items: end;
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .reg-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--ink-dim);
+            font-size: 0.9rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        /* Tournament result cards */
+        .tournament-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .tournament-card {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            text-align: left;
+            padding: 1rem;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .tournament-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .tournament-card__logo {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            object-fit: cover;
+            flex-shrink: 0;
+            background: var(--card-2);
+        }
+
+        .tournament-card__body {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .tournament-card__name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--ink);
+            margin-bottom: 0.25rem;
+            line-height: 1.25;
+        }
+
+        .tournament-card__meta {
+            font-size: 0.8rem;
+            color: var(--ink-dim);
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .tournament-card__tags {
+            margin-top: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .mini-tag {
+            font-size: 0.68rem;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--card-2);
+            border: 1px solid var(--border);
+            color: var(--ink-dim);
+        }
+
+        .mini-tag--open {
+            background: color-mix(in srgb, var(--success) 14%, transparent);
+            border-color: transparent;
+            color: var(--success);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--scrim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            z-index: 60;
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 520px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+        }
+
+        .modal__header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal__title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--ink);
+            line-height: 1.3;
+        }
+
+        .modal__subtitle {
+            font-size: 0.8rem;
+            color: var(--ink-dim);
+            margin-top: 0.2rem;
+        }
+
+        .discipline-list {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .discipline-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--card-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            color: var(--ink);
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: left;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .discipline-item:hover {
+            border-color: var(--accent);
+            background: var(--card);
+        }
+
+        .discipline-item svg {
+            width: 1rem;
+            height: 1rem;
+            color: var(--ink-faint);
+            flex-shrink: 0;
+        }
+
+        .browse-status {
+            color: var(--ink-dim);
+            font-size: 0.9rem;
+            padding: 1.5rem 0;
+            text-align: center;
+        }
+
         /* Mobile Adjustments */
         @media (max-width: 768px) {
             .container {
@@ -268,8 +487,8 @@
             }
 
             .results-table tr {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: var(--card);
+                border: 1px solid var(--border);
                 border-radius: 12px;
                 margin-bottom: 1.5rem;
                 padding: 0.5rem;
@@ -278,11 +497,11 @@
             }
 
             .results-table tr.new-group {
-                border-top: 2px solid var(--primary);
+                border-top: 2px solid var(--accent);
             }
 
             .results-table td {
-                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+                border-bottom: 1px solid var(--border);
                 padding: 0.8rem 0.5rem !important;
                 display: flex;
                 justify-content: space-between;
@@ -298,7 +517,7 @@
             .results-table td::before {
                 content: attr(data-label);
                 font-weight: 600;
-                color: var(--text-muted);
+                color: var(--ink-dim);
                 text-transform: uppercase;
                 font-size: 0.65rem;
                 letter-spacing: 0.05em;
@@ -307,14 +526,14 @@
             }
 
             .results-table td[data-label="Player"] {
-                background: rgba(139, 92, 246, 0.1);
+                background: var(--accent);
                 margin: -0.5rem -0.5rem 0.5rem -0.5rem;
                 padding: 1rem 1rem !important;
                 display: block;
                 text-align: center;
                 font-size: 1.1rem;
                 font-weight: 700;
-                color: white;
+                color: var(--accent-ink);
             }
 
             .results-table td[data-label="Player"]::before {
@@ -334,7 +553,7 @@
                 width: auto;
                 background: transparent;
                 font-size: 0.75rem;
-                color: var(--primary);
+                color: var(--accent);
                 font-weight: 800;
             }
 
@@ -348,26 +567,7 @@
             }
 
             .chart-main-card {
-                padding: 1rem;
-            }
-
-            .chart-row {
-                gap: 0.5rem;
-            }
-
-            .group-info {
-                width: 110px;
-                font-size: 0.7rem;
-            }
-
-            .bar-label {
-                width: 45px;
-                font-size: 0.6rem;
-            }
-
-            .bar-value {
-                font-size: 0.7rem;
-                min-width: 25px;
+                padding: 0.75rem;
             }
         }
 
@@ -375,9 +575,9 @@
             width: 100%;
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius);
+            background: var(--card);
+            border: 1px solid var(--border);
         }
 
         /* Custom Scrollbar for Table */
@@ -386,21 +586,27 @@
         }
 
         .table-responsive::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--card-2);
         }
 
         .table-responsive::-webkit-scrollbar-thumb {
-            background: rgba(139, 92, 246, 0.3);
+            background: color-mix(in srgb, var(--accent) 40%, transparent);
             border-radius: 3px;
         }
 
         .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: rgba(139, 92, 246, 0.5);
+            background: color-mix(in srgb, var(--accent) 60%, transparent);
         }
     </style>
 </head>
 
 <body>
+    <div class="topbar">
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
     <div class="container">
         <a href="/" class="back-btn">
             <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
@@ -413,16 +619,33 @@
         </header>
 
         <main>
-            <div class="card"
-                style="width: 100%; max-width: 1000px; margin: 0 auto; align-items: stretch; text-align: left; padding: 1.5rem;">
-                <div style="margin-bottom: 2.5rem;">
-                    <label
-                        style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">Tournament
+            <!-- Input card (foldable): data source selection -->
+            <div class="card input-card" id="input-card"
+                style="width: 100%; max-width: 1000px; margin: 0 auto; align-items: stretch; text-align: left; padding: 0.9rem 1.1rem;">
+
+                <!-- Slim header: tabs always visible, fold toggle on the right -->
+                <div class="input-head">
+                    <div class="mode-tabs">
+                        <button id="tab-browse" class="mode-tab active" type="button">Browse Tournaments</button>
+                        <button id="tab-url" class="mode-tab" type="button">Paste URL</button>
+                    </div>
+                    <button class="fold-btn" id="fold-toggle" type="button" aria-expanded="true"
+                        aria-controls="input-body" aria-label="Collapse inputs">
+                        <i data-lucide="chevron-up" class="fold-header__chevron"></i>
+                    </button>
+                </div>
+
+                <div id="input-body" class="fold-body">
+
+                <!-- Mode: Paste URL -->
+                <div id="mode-url" class="hidden" style="margin-bottom: 2.5rem;">
+                    <label class="field-label"
+                        style="display: block; margin-bottom: 0.5rem; color: var(--ink-dim); font-size: 0.875rem;">Tournament
                         URL (dbv.turnier.de)</label>
                     <div class="input-group" style="display: flex; gap: 1rem;">
-                        <input type="text" id="tournament-url"
+                        <input type="text" id="tournament-url" class="field"
                             placeholder="https://dbv.turnier.de/sport/event.aspx?id=..."
-                            style="flex: 1; padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; outline: none; min-width: 0;">
+                            style="flex: 1; min-width: 0;">
                         <button id="check-btn" class="run-btn-premium" style="flex-shrink: 0; justify-content: center;">
                             <i data-lucide="zap" style="width: 18px; height: 18px;"></i>
                             <span>Run Analysis</span>
@@ -430,11 +653,60 @@
                     </div>
                 </div>
 
-                <div id="loader" style="display: none; margin-top: 2rem; text-align: center;">
+                <!-- Mode: Browse tournaments -->
+                <div id="mode-browse" style="margin-bottom: 2.5rem;">
+                    <div class="filter-grid">
+                        <div>
+                            <label class="field-label">Search</label>
+                            <input type="text" id="filter-q" class="field" placeholder="Tournament name…">
+                        </div>
+                        <div>
+                            <label class="field-label">From</label>
+                            <input type="date" id="filter-start" class="field">
+                        </div>
+                        <div>
+                            <label class="field-label">To</label>
+                            <input type="date" id="filter-end" class="field">
+                        </div>
+                        <div>
+                            <label class="field-label">Postal code</label>
+                            <input type="text" id="filter-plz" class="field" placeholder="e.g. 47877" inputmode="numeric">
+                        </div>
+                        <div>
+                            <label class="field-label">Distance (km)</label>
+                            <select id="filter-distance" class="field">
+                                <option value="10">+10 km</option>
+                                <option value="25" selected>+25 km</option>
+                                <option value="50">+50 km</option>
+                                <option value="100">+100 km</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <label class="reg-toggle">
+                            <input type="checkbox" id="filter-reg-open" checked>
+                            Registration open only
+                        </label>
+                        <button id="search-btn" class="run-btn-premium" style="justify-content: center;">
+                            <i data-lucide="search" style="width: 18px; height: 18px;"></i>
+                            <span>Find Tournaments</span>
+                        </button>
+                    </div>
+                    <div id="browse-status" class="browse-status hidden"></div>
+                    <div id="tournament-list" class="tournament-grid"></div>
+                </div>
+                </div><!-- /#input-body -->
+            </div><!-- /#input-card -->
+
+            <!-- Results card (separate): analysis output -->
+            <div class="card results-card hidden" id="results-card"
+                style="width: 100%; max-width: 1000px; margin: 1.5rem auto 0; align-items: stretch; text-align: left; padding: 1.5rem;">
+
+                <div id="loader" style="display: none; text-align: center;">
                     <div class="progress-container" id="progress-container" style="display: block;">
                         <div class="progress-bar" id="progress-bar"></div>
                     </div>
-                    <div id="loader-text" style="color: white; font-weight: 500; font-size: 0.9rem;">Initializing...
+                    <div id="loader-text" style="color: var(--ink); font-weight: 500; font-size: 0.9rem;">Initializing...
                     </div>
                     <div id="loader-stage" class="loader-stage">Stage 1/4: Connecting</div>
                 </div>
@@ -444,23 +716,20 @@
                     style="display: none; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <!-- Discipline Filter -->
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <label style="color: var(--text-muted); font-size: 0.875rem;">Discipline:</label>
-                        <select id="discipline-filter"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; padding: 6px 12px; outline: none; cursor: pointer;">
-                            <option value="all" style="background: #1e1b4b;">All Disciplines</option>
-                            <option value="Einzel" style="background: #1e1b4b;">Einzel</option>
-                            <option value="Doppel" style="background: #1e1b4b;">Doppel</option>
-                            <option value="Mixed" style="background: #1e1b4b;">Mixed</option>
+                        <label style="color: var(--ink-dim); font-size: 0.875rem;">Discipline:</label>
+                        <select id="discipline-filter" class="field"
+                            style="width: auto; padding: 6px 12px; cursor: pointer;">
+                            <option value="all">All Disciplines</option>
+                            <option value="Einzel">Einzel</option>
+                            <option value="Doppel">Doppel</option>
+                            <option value="Mixed">Mixed</option>
                         </select>
                     </div>
 
                     <!-- View Toggle Switch -->
-                    <div
-                        style="background: rgba(255,255,255,0.05); padding: 4px; border-radius: 12px; display: flex; gap: 4px;">
-                        <button id="toggle-table" class="view-btn active"
-                            style="border: none; background: transparent; color: white; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.875rem;">Table</button>
-                        <button id="toggle-chart" class="view-btn"
-                            style="border: none; background: transparent; color: var(--text-muted); padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.875rem;">Chart</button>
+                    <div class="view-switch">
+                        <button id="toggle-table" class="view-btn active">Table</button>
+                        <button id="toggle-chart" class="view-btn">Chart</button>
                     </div>
                 </div>
 
@@ -477,9 +746,9 @@
                                     <th>Einzel</th>
                                     <th>Doppel</th>
                                     <th>Mixed</th>
-                                    <th style="color: #10b981;">Team Einzel</th>
-                                    <th style="color: #10b981;">Team Doppel</th>
-                                    <th style="color: #10b981;">Team Mixed</th>
+                                    <th style="color: var(--success);">Team Einzel</th>
+                                    <th style="color: var(--success);">Team Doppel</th>
+                                    <th style="color: var(--success);">Team Mixed</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -499,10 +768,36 @@
         </main>
     </div>
 
+    <!-- Discipline selection modal -->
+    <div id="discipline-modal" class="modal-overlay hidden">
+        <div class="modal panel">
+            <div class="modal__header">
+                <div>
+                    <div class="modal__title" id="modal-title">Select a discipline</div>
+                    <div class="modal__subtitle" id="modal-subtitle"></div>
+                </div>
+                <button id="modal-close" class="icon-btn" type="button" aria-label="Close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="discipline-list" id="discipline-list">
+                <div class="browse-status">Loading disciplines…</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDKs -->
     <script type="module" src="/js/bax_checker.js"></script>
     <script>
         lucide.createIcons();
+
+        // Theme toggle
+        document.getElementById('theme-toggle').addEventListener('click', function () {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('creative-workspace-theme', next); } catch (e) {}
+        });
     </script>
 </body>
 

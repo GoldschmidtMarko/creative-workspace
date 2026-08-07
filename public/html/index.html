@@ -5,11 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Creative Workspace Dashboard">
     <title>Creative Workspace | Dashboard</title>
+    <!-- Apply saved/preferred theme before paint to avoid a flash -->
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('creative-workspace-theme');
+                var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="/styles/main.css">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <div class="topbar">
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
     <div class="container">
         <header>
             <h1>Creative Workspace</h1>
@@ -54,6 +72,14 @@
     <script>
         // Initialize Lucide icons
         lucide.createIcons();
+
+        // Theme toggle
+        document.getElementById('theme-toggle').addEventListener('click', function () {
+            var current = document.documentElement.getAttribute('data-theme');
+            var next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            try { localStorage.setItem('creative-workspace-theme', next); } catch (e) {}
+        });
     </script>
 </body>
 </html>

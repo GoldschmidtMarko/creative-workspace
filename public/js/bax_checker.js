@@ -16,6 +16,9 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
 }
 
 const getBaxData = httpsCallable(functions, 'get_player_bax_data', { timeout: 540000 });
+const findTournaments = httpsCallable(functions, 'find_tournaments', { timeout: 60000 });
+const getDisciplines = httpsCallable(functions, 'get_tournament_disciplines', { timeout: 60000 });
+const renderChartFn = httpsCallable(functions, 'render_bax_chart', { timeout: 60000 });
 
 // DOM Elements
 const urlInput = document.getElementById('tournament-url');
@@ -39,6 +42,7 @@ let currentPlayers = [];
 let currentDiscipline = 'all';
 let currentView = 'table';
 let progressInterval = null;
+let currentChartTitle = '';   // set when analysis is launched (tournament · discipline)
 
 // Default URL for convenience
 urlInput.value = "https://dbv.turnier.de/sport/event.aspx?id=1EB702E0-4333-44F8-BBEB-FE5DE2E91269&event=62";
@@ -103,8 +107,18 @@ function trackProgress(jobId) {
     return unsub;
 }
 
-checkBtn.addEventListener('click', async () => {
-    const url = urlInput.value.trim();
+// Foldable input card
+const inputCard = document.getElementById('input-card');
+const foldToggle = document.getElementById('fold-toggle');
+const resultsCard = document.getElementById('results-card');
+
+function setFold(collapsed) {
+    inputCard.classList.toggle('collapsed', collapsed);
+    foldToggle.setAttribute('aria-expanded', String(!collapsed));
+}
+foldToggle.addEventListener('click', () => setFold(!inputCard.classList.contains('collapsed')));
+
+async function runAnalysis(url) {
     if (!url) {
         alert("Please enter a valid tournament URL.");
         return;
@@ -113,7 +127,11 @@ checkBtn.addEventListener('click', async () => {
     const jobId = `job_${Date.now()}`;
     const stopTracking = trackProgress(jobId);
 
-    // UI State: Loading
+    // New analysis — invalidate any cached chart from the previous run.
+    chartCache = {};
+
+    // UI State: Loading — reveal the (separate) results card
+    resultsCard.classList.remove('hidden');
     checkBtn.disabled = true;
     loader.style.display = 'block';
     resultsContainer.style.display = 'none';
@@ -130,14 +148,16 @@ checkBtn.addEventListener('click', async () => {
         stopTracking();
         progressBar.style.width = '100%';
         loaderText.innerText = "Analysis Complete!";
-        
+
         setTimeout(() => {
             currentPlayers = result.data.players;
             viewControls.style.display = 'flex';
             updateDisplay();
             loader.style.display = 'none';
+            // Collapse the input card so results take focus (still re-openable).
+            setFold(true);
         }, 500);
-        
+
     } catch (error) {
         stopTracking();
         console.error("Scraping failed:", error);
@@ -146,6 +166,11 @@ checkBtn.addEventListener('click', async () => {
     } finally {
         checkBtn.disabled = false;
     }
+}
+
+checkBtn.addEventListener('click', () => {
+    currentChartTitle = 'Team BAX by group';
+    runAnalysis(urlInput.value.trim());
 });
 
 function renderResults(players) {
@@ -208,93 +233,241 @@ function renderResults(players) {
     });
 }
 
-function renderChart(players) {
+// The chart is now rendered server-side (matplotlib) and served as a PNG.
+// We cache the last rendered image per theme so toggling views is instant,
+// and re-render when the theme changes.
+let chartCache = {};      // theme -> data URI
+let chartRenderToken = 0; // guards against out-of-order async responses
+
+function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+
+async function renderChart(players) {
     const chartBody = document.getElementById('chart-body');
-    chartBody.innerHTML = '';
-    
-    // 1. Group and Aggregate Data
-    const groupsMap = {};
-    players.forEach(p => {
-        if (!groupsMap[p.group]) {
-            groupsMap[p.group] = { 
-                id: p.group, 
-                members: [], 
-                einzel: p.Sum_Einzel, 
-                doppel: p.Sum_Doppel, 
-                mixed: p.Sum_Mixed,
-                total: p.Sum_Einzel + p.Sum_Doppel + p.Sum_Mixed
-            };
-        }
-        groupsMap[p.group].members.push({
-            name: p.full_name,
-            einzel: p.Einzel,
-            doppel: p.Doppel,
-            mixed: p.Mixed,
-            total: p.Einzel + p.Doppel + p.Mixed
-        });
-    });
-
-    let sortedGroups = Object.values(groupsMap);
-
-    // 2. Sort groups based on selected discipline (Leaderboard logic)
-    if (currentDiscipline === 'all') {
-        sortedGroups.sort((a, b) => b.total - a.total);
-    } else {
-        const key = currentDiscipline.toLowerCase();
-        sortedGroups.sort((a, b) => b[key] - a[key]);
+    if (!players || !players.length) {
+        chartBody.innerHTML = '<div class="browse-status">No data to plot.</div>';
+        return;
     }
 
-    // 3. Find global max for scaling
-    const maxVal = Math.max(...sortedGroups.flatMap(g => [g.einzel, g.doppel, g.mixed]), 100);
+    const theme = currentTheme();
+    if (chartCache[theme]) {
+        chartBody.innerHTML = `<img class="bax-chart-img" alt="Team BAX chart" src="${chartCache[theme]}">`;
+        return;
+    }
 
-    // 4. Render Rows
-    sortedGroups.forEach(g => {
-        const row = document.createElement('div');
-        row.className = 'chart-row';
-        
-        // Build names with individual BAX
-        const namesHtml = g.members.map(m => {
-            let val = 0;
-            if (currentDiscipline === 'all') val = Math.round(m.total);
-            else val = Math.round(m[currentDiscipline.toLowerCase()]);
-            return `${m.name} <span style="opacity: 0.5; font-size: 0.65rem;">(${val})</span>`;
-        }).join('<br>');
-        
-        let barsHtml = '';
-        const categories = [
-            { id: 'Einzel', val: g.einzel, class: 'bar-einzel' },
-            { id: 'Doppel', val: g.doppel, class: 'bar-doppel' },
-            { id: 'Mixed',  val: g.mixed,  class: 'bar-mixed' }
-        ];
+    const token = ++chartRenderToken;
+    chartBody.innerHTML = '<div class="browse-status"><span class="spinner"></span> Rendering chart…</div>';
+    try {
+        const res = await renderChartFn({ players, theme, title: currentChartTitle });
+        if (res.data.error) throw new Error(res.data.error);
+        chartCache[theme] = res.data.image;
+        if (token === chartRenderToken && currentView === 'chart') {
+            chartBody.innerHTML = `<img class="bax-chart-img" alt="Team BAX chart" src="${res.data.image}">`;
+        }
+    } catch (err) {
+        console.error('Chart render failed:', err);
+        chartBody.innerHTML = `<div class="browse-status">Could not render chart: ${escapeHtml(err.message)}</div>`;
+    }
+}
 
-        categories.forEach(cat => {
-            if (currentDiscipline === 'all' || currentDiscipline === cat.id) {
-                barsHtml += `
-                    <div class="bar-row">
-                        <span class="bar-label">${cat.id}</span>
-                        <div class="bar-track"><div class="bar-fill ${cat.class}" style="width: 0%" data-target="${(cat.val / maxVal) * 100}"></div></div>
-                        <span class="bar-value">${Math.round(cat.val)}</span>
-                    </div>
-                `;
-            }
-        });
+/* ---------------------------------------------------------------------------
+ * Tournament browsing: tabs, filters, results, discipline modal
+ * ------------------------------------------------------------------------- */
 
-        row.innerHTML = `
-            <div class="group-info">
-                <h4 style="margin: 0; color: white; font-size: 0.8rem; line-height: 1.1;">${namesHtml}</h4>
-                <div>
-                    <span style="font-size: 0.6rem; color: var(--text-muted); font-weight: 700;">GRP ${g.id}</span>
+// Tab switching (Paste URL | Browse)
+const tabUrl = document.getElementById('tab-url');
+const tabBrowse = document.getElementById('tab-browse');
+const modeUrl = document.getElementById('mode-url');
+const modeBrowse = document.getElementById('mode-browse');
+
+function setMode(mode) {
+    const browse = mode === 'browse';
+    tabBrowse.classList.toggle('active', browse);
+    tabUrl.classList.toggle('active', !browse);
+    modeBrowse.classList.toggle('hidden', !browse);
+    modeUrl.classList.toggle('hidden', browse);
+}
+tabUrl.addEventListener('click', () => { setMode('url'); setFold(false); });
+tabBrowse.addEventListener('click', () => { setMode('browse'); setFold(false); });
+
+// Filter inputs
+const filterQ = document.getElementById('filter-q');
+const filterStart = document.getElementById('filter-start');
+const filterEnd = document.getElementById('filter-end');
+const filterPlz = document.getElementById('filter-plz');
+const filterDistance = document.getElementById('filter-distance');
+const filterRegOpen = document.getElementById('filter-reg-open');
+const searchBtn = document.getElementById('search-btn');
+const browseStatus = document.getElementById('browse-status');
+const tournamentList = document.getElementById('tournament-list');
+
+// Default the date range to today .. +3 months.
+(function initDates() {
+    const today = new Date();
+    const later = new Date();
+    later.setMonth(later.getMonth() + 3);
+    const iso = (d) => d.toISOString().slice(0, 10);
+    filterStart.value = iso(today);
+    filterEnd.value = iso(later);
+})();
+
+function setStatus(msg) {
+    if (!msg) {
+        browseStatus.classList.add('hidden');
+        return;
+    }
+    browseStatus.textContent = msg;
+    browseStatus.classList.remove('hidden');
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
+async function searchTournaments() {
+    searchBtn.disabled = true;
+    tournamentList.innerHTML = '';
+    setStatus('Searching tournaments…');
+    try {
+        const payload = {
+            q: filterQ.value.trim(),
+            start_date: filterStart.value,
+            end_date: filterEnd.value,
+            postal_code: filterPlz.value.trim(),
+            distance: Number(filterDistance.value),
+            registration_only: filterRegOpen.checked,
+            page: 1,
+        };
+        const res = await findTournaments(payload);
+        if (res.data.error) throw new Error(res.data.error);
+        renderTournaments(res.data.tournaments || []);
+    } catch (err) {
+        console.error('Tournament search failed:', err);
+        setStatus('Search failed: ' + err.message);
+    } finally {
+        searchBtn.disabled = false;
+    }
+}
+
+function renderTournaments(tournaments) {
+    if (!tournaments.length) {
+        setStatus('No tournaments found for these filters.');
+        return;
+    }
+    setStatus(`${tournaments.length} tournament${tournaments.length === 1 ? '' : 's'} found.`);
+    tournamentList.innerHTML = '';
+
+    tournaments.forEach((t) => {
+        const card = document.createElement('div');
+        card.className = 'tournament-card';
+
+        const dateText = t.start
+            ? (t.end && t.end !== t.start
+                ? `${formatDate(t.start)} – ${formatDate(t.end)}`
+                : formatDate(t.start))
+            : (t.date_text || '');
+
+        const tags = [];
+        if (t.tag) tags.push(`<span class="mini-tag">${escapeHtml(t.tag)}</span>`);
+        if (t.registration_open) {
+            tags.push(`<span class="mini-tag mini-tag--open">Registration open${t.deadline ? ' · ' + escapeHtml(t.deadline) : ''}</span>`);
+        }
+
+        const logo = t.logo
+            ? `<img class="tournament-card__logo" src="${escapeHtml(t.logo)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">`
+            : `<div class="tournament-card__logo"></div>`;
+
+        card.innerHTML = `
+            ${logo}
+            <div class="tournament-card__body">
+                <div class="tournament-card__name">${escapeHtml(t.name)}</div>
+                <div class="tournament-card__meta">
+                    ${t.city ? `<span>📍 ${escapeHtml(t.city)}</span>` : ''}
+                    ${dateText ? `<span>📅 ${escapeHtml(dateText)}</span>` : ''}
                 </div>
+                <div class="tournament-card__tags">${tags.join('')}</div>
             </div>
-            <div class="bar-container">${barsHtml}</div>
         `;
-        chartBody.appendChild(row);
-
-        // Animate
-        requestAnimationFrame(() => {
-            row.querySelectorAll('.bar-fill').forEach(fill => {
-                fill.style.width = `${fill.getAttribute('data-target')}%`;
-            });
-        });
+        card.addEventListener('click', () => openDisciplineModal(t));
+        tournamentList.appendChild(card);
     });
 }
+
+function formatDate(iso) {
+    // iso is YYYY-MM-DD
+    const parts = iso.split('-');
+    if (parts.length !== 3) return iso;
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+searchBtn.addEventListener('click', searchTournaments);
+[filterQ, filterPlz].forEach((el) => el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchTournaments();
+}));
+
+/* --- Discipline modal --- */
+const disciplineModal = document.getElementById('discipline-modal');
+const modalTitle = document.getElementById('modal-title');
+const modalSubtitle = document.getElementById('modal-subtitle');
+const modalClose = document.getElementById('modal-close');
+const disciplineListEl = document.getElementById('discipline-list');
+
+function closeModal() {
+    disciplineModal.classList.add('hidden');
+}
+modalClose.addEventListener('click', closeModal);
+disciplineModal.addEventListener('click', (e) => {
+    if (e.target === disciplineModal) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !disciplineModal.classList.contains('hidden')) closeModal();
+});
+
+async function openDisciplineModal(tournament) {
+    modalTitle.textContent = tournament.name;
+    modalSubtitle.textContent = [tournament.city, tournament.date_text].filter(Boolean).join(' · ');
+    disciplineListEl.innerHTML = '<div class="browse-status">Loading disciplines…</div>';
+    disciplineModal.classList.remove('hidden');
+
+    try {
+        const res = await getDisciplines({ id: tournament.id });
+        if (res.data.error) throw new Error(res.data.error);
+        renderDisciplines(res.data.disciplines || [], tournament);
+    } catch (err) {
+        console.error('Failed to load disciplines:', err);
+        disciplineListEl.innerHTML = `<div class="browse-status">Could not load disciplines: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderDisciplines(disciplines, tournament) {
+    if (!disciplines.length) {
+        disciplineListEl.innerHTML = '<div class="browse-status">No disciplines published for this tournament yet.</div>';
+        return;
+    }
+    disciplineListEl.innerHTML = '';
+    disciplines.forEach((d) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'discipline-item';
+        item.innerHTML = `<span>${escapeHtml(d.name)}</span><i data-lucide="chevron-right"></i>`;
+        item.addEventListener('click', () => {
+            closeModal();
+            setMode('url');
+            currentChartTitle = `${d.name} · ${tournament.name}`;
+            urlInput.value = d.url;
+            runAnalysis(d.url);
+        });
+        disciplineListEl.appendChild(item);
+    });
+    if (window.lucide) lucide.createIcons();
+}
+
+// Re-render the server-side chart when the theme changes, so its colours match.
+new MutationObserver(() => {
+    if (currentView === 'chart' && currentPlayers.length) {
+        renderChart(currentPlayers);
+    }
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

@@ -1,0 +1,3 @@
+# Keep shell scripts LF so they run under WSL/Linux bash (avoids the
+# "$'\r': command not found" failure from Windows CRLF line endings).
+*.sh text eol=lf
