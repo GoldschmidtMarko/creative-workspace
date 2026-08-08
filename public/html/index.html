@@ -5,11 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Creative Workspace Dashboard">
     <title>Creative Workspace | Dashboard</title>
+    <!-- Apply saved/preferred theme before paint to avoid a flash -->
+    <script src="/js/util/themeInit.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <div class="topbar">
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
     <div class="container">
         <header>
             <h1>Creative Workspace</h1>
@@ -51,9 +59,6 @@
         </main>
     </div>
 
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-    </script>
+    <script src="/js/util/theme.js"></script>
 </body>
 </html>

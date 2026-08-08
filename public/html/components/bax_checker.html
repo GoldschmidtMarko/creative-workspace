@@ -5,402 +5,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BAX Checker | Creative Workspace</title>
+    <!-- Apply saved/preferred theme before paint to avoid a flash -->
+    <script src="/js/util/themeInit.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        /* Table Styles */
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
-            overflow: hidden;
-            font-size: 0.875rem;
-        }
-
-        .results-table th,
-        .results-table td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            white-space: nowrap;
-        }
-
-        .results-table th {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
-            font-weight: 500;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-        }
-
-        .results-table tr.new-group {
-            border-top: 2px solid rgba(139, 92, 246, 0.3);
-        }
-
-        .results-table tr.group-even {
-            background: rgba(255, 255, 255, 0.015);
-        }
-
-        .results-table tr:hover {
-            background: rgba(255, 255, 255, 0.04) !important;
-        }
-
-        .bax-val {
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .team-sum-val {
-            font-weight: 700;
-            color: #10b981;
-            /* Emerald green for totals */
-            font-size: 0.95rem;
-        }
-
-        .status-badge {
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            background: rgba(139, 92, 246, 0.1);
-            color: var(--primary);
-            white-space: nowrap;
-        }
-
-        .view-btn.active {
-            background: var(--primary) !important;
-            color: white !important;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-        }
-
-        /* Chart Styles */
-        .chart-main-card {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .chart-row {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.4rem 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-            transition: background 0.3s ease;
-        }
-
-        .chart-row:last-child {
-            border-bottom: none;
-        }
-
-        .chart-row:hover {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .group-info {
-            width: 180px;
-            flex-shrink: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .bar-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 0.2rem;
-        }
-
-        .bar-row {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .bar-label {
-            width: 60px;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .bar-track {
-            flex: 1;
-            height: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .bar-fill {
-            height: 100%;
-            border-radius: 6px;
-            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .bar-einzel {
-            background: linear-gradient(90deg, #6366f1, #8b5cf6);
-        }
-
-        .bar-doppel {
-            background: linear-gradient(90deg, #ec4899, #f43f5e);
-        }
-
-        .bar-mixed {
-            background: linear-gradient(90deg, #10b981, #34d399);
-        }
-
-        /* Button & Progress Styles */
-        .run-btn-premium {
-            background: linear-gradient(135deg, var(--primary), #7c3aed);
-            color: white;
-            border: none;
-            padding: 0.75rem 2rem;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
-        }
-
-        .run-btn-premium:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
-            filter: brightness(1.1);
-        }
-
-        .run-btn-premium:disabled {
-            opacity: 0.7;
-            cursor: wait;
-            background: #4b5563;
-        }
-
-        .progress-container {
-            display: none;
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 3px;
-            overflow: hidden;
-            margin: 1.5rem 0;
-        }
-
-        .progress-bar {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, var(--primary), #10b981);
-            border-radius: 3px;
-            transition: width 0.4s ease;
-        }
-
-        .loader-stage {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            font-family: monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .loader-stage {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 0.5rem;
-            font-family: monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        /* Mobile Adjustments */
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-
-            header {
-                margin-bottom: 2rem;
-            }
-
-            header h1 {
-                font-size: 2.2rem;
-            }
-
-            header p {
-                font-size: 0.9rem;
-                padding: 0 1rem;
-            }
-
-            .card {
-                padding: 1rem !important;
-                border-radius: 1rem;
-            }
-
-            .input-group {
-                flex-direction: column;
-                gap: 0.75rem !important;
-            }
-
-            .input-group input {
-                width: 100%;
-            }
-
-            #view-controls {
-                flex-direction: column;
-                align-items: stretch !important;
-                gap: 1rem;
-            }
-
-            /* Table to Card Transformation */
-            .results-table, .results-table thead, .results-table tbody, .results-table th, .results-table td, .results-table tr {
-                display: block;
-            }
-
-            .results-table thead {
-                display: none; /* Hide headers on mobile */
-            }
-
-            .results-table tr {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 12px;
-                margin-bottom: 1.5rem;
-                padding: 0.5rem;
-                position: relative;
-                overflow: hidden;
-            }
-
-            .results-table tr.new-group {
-                border-top: 2px solid var(--primary);
-            }
-
-            .results-table td {
-                border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-                padding: 0.8rem 0.5rem !important;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                text-align: right;
-                white-space: normal;
-            }
-
-            .results-table td:last-child {
-                border-bottom: none;
-            }
-
-            .results-table td::before {
-                content: attr(data-label);
-                font-weight: 600;
-                color: var(--text-muted);
-                text-transform: uppercase;
-                font-size: 0.65rem;
-                letter-spacing: 0.05em;
-                text-align: left;
-                padding-right: 1rem;
-            }
-
-            .results-table td[data-label="Player"] {
-                background: rgba(139, 92, 246, 0.1);
-                margin: -0.5rem -0.5rem 0.5rem -0.5rem;
-                padding: 1rem 1rem !important;
-                display: block;
-                text-align: center;
-                font-size: 1.1rem;
-                font-weight: 700;
-                color: white;
-            }
-
-            .results-table td[data-label="Player"]::before {
-                display: block;
-                text-align: center;
-                padding-right: 0;
-                margin-bottom: 0.25rem;
-                content: "Player Name";
-            }
-
-            .results-table td[data-label="Group"] {
-                position: absolute;
-                top: 0.75rem;
-                right: 0.75rem;
-                border: none;
-                padding: 0 !important;
-                width: auto;
-                background: transparent;
-                font-size: 0.75rem;
-                color: var(--primary);
-                font-weight: 800;
-            }
-
-            .results-table td[data-label="Group"]::before {
-                content: "GRP ";
-                padding-right: 2px;
-            }
-
-            .results-table td[data-label="ID"], .results-table td[data-label="Status"] {
-                font-size: 0.8rem;
-            }
-
-            .chart-main-card {
-                padding: 1rem;
-            }
-
-            .chart-row {
-                gap: 0.5rem;
-            }
-
-            .group-info {
-                width: 110px;
-                font-size: 0.7rem;
-            }
-
-            .bar-label {
-                width: 45px;
-                font-size: 0.6rem;
-            }
-
-            .bar-value {
-                font-size: 0.7rem;
-                min-width: 25px;
-            }
-        }
-
-        .table-responsive {
-            width: 100%;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        /* Custom Scrollbar for Table */
-        .table-responsive::-webkit-scrollbar {
-            height: 6px;
-        }
-
-        .table-responsive::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb {
-            background: rgba(139, 92, 246, 0.3);
-            border-radius: 3px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: rgba(139, 92, 246, 0.5);
-        }
-    </style>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
 </head>
 
 <body>
+    <div class="topbar">
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
     <div class="container">
         <a href="/" class="back-btn">
             <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
@@ -413,16 +31,33 @@
         </header>
 
         <main>
-            <div class="card"
-                style="width: 100%; max-width: 1000px; margin: 0 auto; align-items: stretch; text-align: left; padding: 1.5rem;">
-                <div style="margin-bottom: 2.5rem;">
-                    <label
-                        style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">Tournament
+            <!-- Input card (foldable): data source selection -->
+            <div class="card input-card" id="input-card"
+                style="width: 100%; max-width: 1000px; margin: 0 auto; align-items: stretch; text-align: left; padding: 0.9rem 1.1rem;">
+
+                <!-- Slim header: tabs always visible, fold toggle on the right -->
+                <div class="input-head">
+                    <div class="mode-tabs">
+                        <button id="tab-browse" class="mode-tab active" type="button">Browse Tournaments</button>
+                        <button id="tab-url" class="mode-tab" type="button">Paste URL</button>
+                    </div>
+                    <button class="fold-btn" id="fold-toggle" type="button" aria-expanded="true"
+                        aria-controls="input-body" aria-label="Collapse inputs">
+                        <i data-lucide="chevron-up" class="fold-header__chevron"></i>
+                    </button>
+                </div>
+
+                <div id="input-body" class="fold-body">
+
+                <!-- Mode: Paste URL -->
+                <div id="mode-url" class="hidden" style="margin-bottom: 2.5rem;">
+                    <label class="field-label"
+                        style="display: block; margin-bottom: 0.5rem; color: var(--ink-dim); font-size: 0.875rem;">Tournament
                         URL (dbv.turnier.de)</label>
                     <div class="input-group" style="display: flex; gap: 1rem;">
-                        <input type="text" id="tournament-url"
+                        <input type="text" id="tournament-url" class="field"
                             placeholder="https://dbv.turnier.de/sport/event.aspx?id=..."
-                            style="flex: 1; padding: 0.75rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; outline: none; min-width: 0;">
+                            style="flex: 1; min-width: 0;">
                         <button id="check-btn" class="run-btn-premium" style="flex-shrink: 0; justify-content: center;">
                             <i data-lucide="zap" style="width: 18px; height: 18px;"></i>
                             <span>Run Analysis</span>
@@ -430,80 +65,153 @@
                     </div>
                 </div>
 
-                <div id="loader" style="display: none; margin-top: 2rem; text-align: center;">
+                <!-- Mode: Browse tournaments -->
+                <div id="mode-browse" style="margin-bottom: 2.5rem;">
+                    <div class="filter-grid">
+                        <div>
+                            <label class="field-label">Search</label>
+                            <input type="text" id="filter-q" class="field" placeholder="Tournament name…">
+                        </div>
+                        <div>
+                            <label class="field-label">From</label>
+                            <input type="date" id="filter-start" class="field">
+                        </div>
+                        <div>
+                            <label class="field-label">To</label>
+                            <input type="date" id="filter-end" class="field">
+                        </div>
+                        <div>
+                            <label class="field-label">Postal code</label>
+                            <input type="text" id="filter-plz" class="field" placeholder="e.g. 47877" inputmode="numeric">
+                        </div>
+                        <div>
+                            <label class="field-label">Distance (km)</label>
+                            <select id="filter-distance" class="field">
+                                <option value="10">+10 km</option>
+                                <option value="25" selected>+25 km</option>
+                                <option value="50">+50 km</option>
+                                <option value="100">+100 km</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <label class="reg-toggle">
+                            <input type="checkbox" id="filter-reg-open" checked>
+                            Registration open only
+                        </label>
+                        <button id="search-btn" class="run-btn-premium" style="justify-content: center;">
+                            <i data-lucide="search" style="width: 18px; height: 18px;"></i>
+                            <span>Find Tournaments</span>
+                        </button>
+                    </div>
+                    <div id="browse-status" class="browse-status hidden"></div>
+                    <div id="tournament-list" class="tournament-grid"></div>
+                </div>
+                </div><!-- /#input-body -->
+            </div><!-- /#input-card -->
+
+            <!-- Results card (separate): analysis output -->
+            <div class="card results-card hidden" id="results-card"
+                style="width: 100%; max-width: 1000px; margin: 1.5rem auto 0; align-items: stretch; text-align: left; padding: 1.5rem;">
+
+                <!-- Persistent category selector (shown for tournaments picked via Browse) -->
+                <div id="category-bar" class="category-bar hidden">
+                    <div class="category-bar__info">
+                        <span class="category-bar__eyebrow">Tournament</span>
+                        <span class="category-bar__name" id="category-tournament"></span>
+                    </div>
+                    <div class="category-bar__select">
+                        <label for="category-select">Category</label>
+                        <select id="category-select" class="field"></select>
+                    </div>
+                </div>
+
+                <div id="loader" style="display: none; text-align: center;">
                     <div class="progress-container" id="progress-container" style="display: block;">
                         <div class="progress-bar" id="progress-bar"></div>
                     </div>
-                    <div id="loader-text" style="color: white; font-weight: 500; font-size: 0.9rem;">Initializing...
+                    <div id="loader-text" style="color: var(--ink); font-weight: 500; font-size: 0.9rem;">Initializing...
                     </div>
                     <div id="loader-stage" class="loader-stage">Stage 1/4: Connecting</div>
                 </div>
 
-                <!-- Results Controls -->
+                <!-- Results Controls: view toggle (left), discipline (right) -->
                 <div id="view-controls"
                     style="display: none; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                    <!-- Discipline Filter -->
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <label style="color: var(--text-muted); font-size: 0.875rem;">Discipline:</label>
-                        <select id="discipline-filter"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; padding: 6px 12px; outline: none; cursor: pointer;">
-                            <option value="all" style="background: #1e1b4b;">All Disciplines</option>
-                            <option value="Einzel" style="background: #1e1b4b;">Einzel</option>
-                            <option value="Doppel" style="background: #1e1b4b;">Doppel</option>
-                            <option value="Mixed" style="background: #1e1b4b;">Mixed</option>
-                        </select>
+                    <!-- View Toggle Switch -->
+                    <div class="view-switch">
+                        <button id="toggle-table" class="view-btn active">Table</button>
+                        <button id="toggle-chart" class="view-btn">Chart</button>
                     </div>
 
-                    <!-- View Toggle Switch -->
-                    <div
-                        style="background: rgba(255,255,255,0.05); padding: 4px; border-radius: 12px; display: flex; gap: 4px;">
-                        <button id="toggle-table" class="view-btn active"
-                            style="border: none; background: transparent; color: white; padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.875rem;">Table</button>
-                        <button id="toggle-chart" class="view-btn"
-                            style="border: none; background: transparent; color: var(--text-muted); padding: 6px 16px; border-radius: 8px; cursor: pointer; font-size: 0.875rem;">Chart</button>
+                    <!-- Discipline Filter -->
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <label style="color: var(--ink-dim); font-size: 0.875rem;">Discipline:</label>
+                        <select id="discipline-filter" class="field"
+                            style="width: auto; padding: 6px 12px; cursor: pointer;">
+                            <option value="all">All Disciplines</option>
+                            <option value="Einzel">Singles</option>
+                            <option value="Doppel">Doubles</option>
+                            <option value="Mixed">Mixed</option>
+                        </select>
                     </div>
                 </div>
 
-                <!-- Table View -->
+                <!-- Table View (compact team cards, multiple per row) -->
                 <div id="results-container" style="display: none;">
-                    <div class="table-responsive">
-                        <table class="results-table" id="results-table">
-                            <thead>
-                                <tr>
-                                    <th>Grp</th>
-                                    <th>Status</th>
-                                    <th>Name</th>
-                                    <th>ID</th>
-                                    <th>Einzel</th>
-                                    <th>Doppel</th>
-                                    <th>Mixed</th>
-                                    <th style="color: #10b981;">Team Einzel</th>
-                                    <th style="color: #10b981;">Team Doppel</th>
-                                    <th style="color: #10b981;">Team Mixed</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+                    <div id="results-grid" class="team-grid"></div>
                 </div>
 
                 <!-- Chart View (Unified Leaderboard) -->
                 <div id="chart-container" style="display: none;">
                     <div class="chart-main-card">
-                        <div id="chart-body" style="display: flex; flex-direction: column;">
-                            <!-- Sorted Group Rows -->
-                        </div>
+                        <div id="chart-body"></div>
                     </div>
                 </div>
             </div>
         </main>
     </div>
 
+    <!-- Discipline selection modal -->
+    <div id="discipline-modal" class="modal-overlay hidden">
+        <div class="modal panel">
+            <div class="modal__header">
+                <div>
+                    <div class="modal__title" id="modal-title">Select a discipline</div>
+                    <div class="modal__subtitle" id="modal-subtitle"></div>
+                </div>
+                <button id="modal-close" class="icon-btn" type="button" aria-label="Close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="discipline-list" id="discipline-list">
+                <div class="browse-status">Loading disciplines…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player profile popup -->
+    <div id="player-modal" class="modal-overlay hidden">
+        <div class="modal panel">
+            <div class="modal__header">
+                <div>
+                    <a class="player-modal__name" id="player-modal-name" target="_blank" rel="noopener"></a>
+                    <div class="player-modal__id" id="player-modal-id"></div>
+                </div>
+                <button id="player-modal-close" class="icon-btn" type="button" aria-label="Close">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <a id="player-modal-link" class="btn btn-secondary btn-sm player-modal__link" href="#" target="_blank" rel="noopener">
+                View DBV Profile in Tournament ↗
+            </a>
+            <div class="player-leagues" id="player-modal-body"></div>
+        </div>
+    </div>
+
     <!-- Firebase SDKs -->
     <script type="module" src="/js/bax_checker.js"></script>
-    <script>
-        lucide.createIcons();
-    </script>
+    <script src="/js/util/theme.js"></script>
 </body>
 
 </html>
