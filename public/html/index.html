@@ -6,17 +6,7 @@
     <meta name="description" content="Creative Workspace Dashboard">
     <title>Creative Workspace | Dashboard</title>
     <!-- Apply saved/preferred theme before paint to avoid a flash -->
-    <script>
-        (function () {
-            try {
-                var stored = localStorage.getItem('creative-workspace-theme');
-                var theme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-theme', theme);
-            } catch (e) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        })();
-    </script>
+    <script src="/js/util/themeInit.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -69,17 +59,6 @@
         </main>
     </div>
 
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-
-        // Theme toggle
-        document.getElementById('theme-toggle').addEventListener('click', function () {
-            var current = document.documentElement.getAttribute('data-theme');
-            var next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', next);
-            try { localStorage.setItem('creative-workspace-theme', next); } catch (e) {}
-        });
-    </script>
+    <script src="/js/util/theme.js"></script>
 </body>
 </html>

@@ -3,4 +3,3 @@ firebase-admin
 requests
 beautifulsoup4
 pandas
-matplotlib

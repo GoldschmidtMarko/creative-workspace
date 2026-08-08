@@ -9,17 +9,10 @@ import pandas as pd
 import time
 import re
 import os
-import io
-import base64
 import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-
-import matplotlib
-matplotlib.use("Agg")  # headless rendering (no display) for server-side plots
-import matplotlib.pyplot as plt
-import numpy as np
 
 # Initialize the Firebase App
 # In the emulator, this will automatically pick up emulator settings
@@ -145,7 +138,7 @@ def get_player_details(player_entry):
             if cache.exists:
                 data = cache.to_dict()
                 if datetime.now(timezone.utc) < data['expires_at']:
-                    return {**data['details'], "status": player_entry['status'], "group": player_entry['group']}
+                    return {**data['details'], "status": player_entry['status'], "group": player_entry['group'], "profile_url": player_entry['url']}
         except: pass
 
     try:
@@ -168,11 +161,17 @@ def get_player_details(player_entry):
         name_part = (name_link.get_text(strip=True) if name_link
                      else player_entry.get('name', '')).strip() or "Unknown"
 
+        # The player.aspx page links to the global /player-profile/<guid>, which
+        # is the id used by the league pages.
+        prof = re.search(r'/player-profile/([0-9a-fA-F-]{36})', response.text)
+        profile_id = prof.group(1) if prof else None
+
         details = {
             "id": player_id,
             "full_name": name_part,
             "last_name": name_part.split()[-1] if len(name_part.split()) >= 2 else name_part,
             "first_name": " ".join(name_part.split()[:-1]) if len(name_part.split()) >= 2 else "",
+            "profile_id": profile_id,
         }
         
         if db:
@@ -182,7 +181,7 @@ def get_player_details(player_entry):
                     "expires_at": datetime.now(timezone.utc) + timedelta(days=1)
                 })
             except: pass
-        return {**details, "status": player_entry['status'], "group": player_entry['group']}
+        return {**details, "status": player_entry['status'], "group": player_entry['group'], "profile_url": player_entry['url']}
     except Exception as e:
         print(f"Error fetching player: {e}")
         return None
@@ -260,8 +259,109 @@ def get_bax_values(player_info):
             except: pass
     except Exception as e:
         print(f"Error fetching BAX: {e}")
-    
+
     return {**player_info, **results}
+
+
+# --- Player league history (dbv.turnier.de /player-profile/<id>/leagues) ------
+
+# German league tiers, highest → lowest, with the abbreviation shown on the tag.
+LEAGUE_TIERS = [
+    ("Bundesliga", "BuLi", 1),
+    ("Regionalliga", "RL", 2),
+    ("Oberliga", "OL", 3),
+    ("Verbandsliga", "VL", 4),
+    ("Landesliga", "LL", 5),
+    ("Bezirksliga", "BL", 6),
+    ("Bezirksklasse", "BK", 7),
+    ("Kreisliga", "KL", 8),
+    ("Kreisklasse", "KK", 9),
+]
+
+
+def _league_tier(division):
+    d = (division or "").lower()
+    for word, abbr, rank in LEAGUE_TIERS:
+        if word.lower() in d:
+            return abbr, rank
+    return None, 99
+
+
+def _scrape_leagues(profile_id, year=None):
+    """Scrape a player's leagues for one season, grouped by league. Returns
+    (leagues, available_years). Each league carries one shared record/season
+    plus its divisions (one league can span several divisions/draws, each with
+    its own team):
+    {season, record, standing, divisions: [{abbr, division, tier, team}]}."""
+    if not profile_id:
+        return [], []
+    cache_key = f"{profile_id}_{year or 'current'}"
+    if db:
+        try:
+            cache = db.collection("player_leagues_cache").document(cache_key).get()
+            if cache.exists:
+                data = cache.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return data["leagues"], data.get("years", [])
+        except Exception:
+            pass
+
+    url = f"{BASE}/player-profile/{profile_id}/leagues" + (f"/{year}" if year else "")
+    leagues, years = [], []
+    try:
+        resp = _get(url, cookies=COOKIES)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        by_league, seen = {}, set()
+        for draw in soup.find_all("a", href=re.compile(r"/league/([0-9A-F-]+)/draw/", re.I)):
+            m = re.search(r"/league/([0-9A-F-]+)/draw/(\d+)", draw["href"], re.I)
+            if not m:
+                continue
+            lg, draw_no = m.group(1), m.group(2)
+            if (lg, draw_no) in seen:
+                continue
+            seen.add((lg, draw_no))
+            division = re.sub(r"^.*\(\d+\)\s*", "", draw.get_text(" ", strip=True)).strip()
+            abbr, tier = _league_tier(division)
+            # The team for THIS division is the team link that follows this draw.
+            team_link = draw.find_next("a", href=re.compile(rf"/league/{lg}/team/", re.I))
+            team = team_link.get_text(" ", strip=True) if team_link else None
+
+            if lg not in by_league:
+                # The record/season/standing are per-league (one aggregate), read
+                # once from the membership card that also holds "Siege…".
+                card = draw
+                for _ in range(6):
+                    card = card.parent
+                    if card is None or "Siege" in card.get_text():
+                        break
+                ct = card.get_text(" ", strip=True) if card else ""
+                rec = re.search(r"Siege-Niederlagen\s*(\d+-\d+\s*\(\d+\))", ct)
+                season = re.search(r"(\d{4}-\d{2})", ct)
+                standing = re.search(r"\bPL\s*(\d+)", ct)
+                by_league[lg] = {
+                    "season": season.group(1) if season else (str(year) if year else None),
+                    "record": rec.group(1) if rec else None,
+                    "standing": standing.group(1) if standing else None,
+                    "divisions": [],
+                }
+                leagues.append(by_league[lg])
+            by_league[lg]["divisions"].append(
+                {"abbr": abbr, "division": division, "tier": tier, "team": team})
+        years = sorted(set(re.findall(r"/leagues/(\d{4})", resp.text)), reverse=True)
+    except Exception as e:
+        print(f"Error scraping leagues: {e}")
+
+    if db:
+        try:
+            db.collection("player_leagues_cache").document(cache_key).set({
+                "leagues": leagues, "years": years,
+                "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            })
+        except Exception:
+            pass
+    return leagues, years
+
 
 @https_fn.on_call()
 def get_player_bax_data(req: https_fn.CallableRequest) -> dict:
@@ -298,7 +398,27 @@ def get_player_bax_data(req: https_fn.CallableRequest) -> dict:
             info = get_player_details(entry)
             if not info:
                 return None
-            return get_bax_values(info)
+            result = get_bax_values(info)
+            # All leagues played this season → one tag per distinct division
+            # tier, highest first.
+            try:
+                leagues_data, _ = _scrape_leagues(info.get("profile_id"))
+                divs = [(dv, lg) for lg in leagues_data for dv in lg.get("divisions", [])]
+                divs.sort(key=lambda pair: pair[0].get("tier", 99))
+                seen_abbr, tags = set(), []
+                for dv, lg in divs:
+                    ab = dv.get("abbr")
+                    if ab and ab not in seen_abbr:
+                        seen_abbr.add(ab)
+                        tags.append({
+                            "abbr": ab, "division": dv.get("division"),
+                            "team": dv.get("team"), "record": lg.get("record"),
+                        })
+                if tags:
+                    result["leagues"] = tags
+            except Exception:
+                pass
+            return result
 
         # 2. Scrape profiles + BAX concurrently. The two upstream sites are the
         #    bottleneck, so a thread pool cuts wall-clock time roughly
@@ -342,7 +462,10 @@ def get_player_bax_data(req: https_fn.CallableRequest) -> dict:
         group_sums = df.groupby('group')[["Einzel", "Doppel", "Mixed"]].sum().reset_index()
         group_sums.columns = ["group", "Sum_Einzel", "Sum_Doppel", "Sum_Mixed"]
         df = pd.merge(df, group_sums, on="group")
-        
+        # Replace pandas NaN (from players missing optional league columns) with
+        # None so the payload is valid JSON / null in the frontend.
+        df = df.astype(object).where(pd.notnull(df), None)
+
         return {
             "players": df.to_dict(orient='records'),
             "count": len(all_player_data)
@@ -576,118 +699,39 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
         return {"error": f"Internal Error: {str(e)}"}
 
 
-# --- Visualization: server-rendered team-BAX chart ---------------------------
-
-# Discipline colours (consistent across both themes).
-_CHART_COLORS = {"Einzel": "#6366f1", "Doppel": "#ec4899", "Mixed": "#10b981"}
-
-_CHART_THEMES = {
-    "dark":  {"bg": "#16161a", "text": "#fafafa", "muted": "#8a8a94", "grid": "#2a2a30"},
-    "light": {"bg": "#ffffff", "text": "#18181b", "muted": "#71717a", "grid": "#e4e4e7"},
-}
-
-
-def _aggregate_groups(players):
-    """Collapse the player list into one row per starting group, carrying the
-    team BAX sums and a compact label built from the members' names."""
-    groups = {}
-    for p in players:
-        g = p.get("group")
-        if g not in groups:
-            groups[g] = {
-                "names": [],
-                "Einzel": p.get("Sum_Einzel", 0) or 0,
-                "Doppel": p.get("Sum_Doppel", 0) or 0,
-                "Mixed": p.get("Sum_Mixed", 0) or 0,
-            }
-        name = (p.get("full_name") or "").strip()
-        if name and name not in groups[g]["names"]:
-            groups[g]["names"].append(name)
-
-    rows = []
-    for g, info in groups.items():
-        label = " / ".join(info["names"]) or f"Group {g}"
-        if len(label) > 32:
-            label = label[:30] + "…"
-        total = info["Einzel"] + info["Doppel"] + info["Mixed"]
-        rows.append({"label": label, "total": total, **{k: info[k] for k in _CHART_COLORS}})
-    rows.sort(key=lambda r: r["total"], reverse=True)
-    return rows
-
-
-def _render_chart(players, theme="dark", title=""):
-    """Render a horizontal grouped bar chart of team BAX per group and return
-    it as a base64-encoded PNG data URI."""
-    rows = _aggregate_groups(players)
-    if not rows:
-        return None
-    th = _CHART_THEMES.get(theme, _CHART_THEMES["dark"])
-
-    n = len(rows)
-    labels = [r["label"] for r in rows]
-    y = np.arange(n)
-    bar_h = 0.26
-
-    fig_h = max(2.6, 0.62 * n + 1.3)
-    fig, ax = plt.subplots(figsize=(9, fig_h), dpi=140)
-    fig.patch.set_facecolor(th["bg"])
-    ax.set_facecolor(th["bg"])
-
-    for offset, disc in ((bar_h, "Einzel"), (0.0, "Doppel"), (-bar_h, "Mixed")):
-        vals = [r[disc] for r in rows]
-        bars = ax.barh(y + offset, vals, height=bar_h, label=disc,
-                       color=_CHART_COLORS[disc], zorder=3)
-        for bar, v in zip(bars, vals):
-            if v > 0:
-                ax.text(v + max(1, 0.01 * max(r["total"] for r in rows)),
-                        bar.get_y() + bar.get_height() / 2, str(int(v)),
-                        va="center", ha="left", fontsize=7.5, color=th["muted"])
-
-    ax.set_yticks(y)
-    ax.set_yticklabels(labels, fontsize=9, color=th["text"])
-    ax.invert_yaxis()  # highest-ranked group on top
-    ax.tick_params(axis="x", colors=th["muted"], labelsize=8)
-    ax.set_xlabel("Team BAX (summed per group)", fontsize=9, color=th["muted"])
-    if title:
-        ax.set_title(title, fontsize=12, color=th["text"], fontweight="bold", loc="left", pad=12)
-
-    ax.grid(axis="x", color=th["grid"], linewidth=0.7, zorder=0)
-    for spine in ("top", "right", "left"):
-        ax.spines[spine].set_visible(False)
-    ax.spines["bottom"].set_color(th["grid"])
-    ax.margins(x=0.12)
-
-    leg = ax.legend(loc="lower right", frameon=False, fontsize=9, ncol=3)
-    for txt in leg.get_texts():
-        txt.set_color(th["text"])
-
-    fig.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", facecolor=fig.get_facecolor())
-    plt.close(fig)
-    buf.seek(0)
-    encoded = base64.b64encode(buf.read()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
-
 
 @https_fn.on_call()
-def render_bax_chart(req: https_fn.CallableRequest) -> dict:
-    """Render the team-BAX chart for a set of players. Called by the frontend
-    after an analysis, and again when the theme is toggled."""
+def get_player_leagues(req: https_fn.CallableRequest) -> dict:
+    """Return a player's league memberships across all available seasons,
+    newest first — used by the player-profile popup."""
     try:
-        d = req.data or {}
-        players = d.get("players") or []
-        if not players:
-            return {"error": "No players supplied"}
-        theme = d.get("theme") if d.get("theme") in _CHART_THEMES else "dark"
-        title = d.get("title") or ""
-        image = _render_chart(players, theme=theme, title=title)
-        if not image:
-            return {"error": "Nothing to plot"}
-        return {"image": image}
+        pid = (req.data or {}).get("profile_id", "")
+        m = re.search(r"([0-9a-fA-F-]{36})", pid or "")
+        if not m:
+            return {"error": "Missing or invalid profile id"}
+        pid = m.group(1)
+
+        current, years = _scrape_leagues(pid)
+        seasons, seen_labels = [], set()
+
+        def add(league_list):
+            if not league_list:
+                return
+            label = league_list[0].get("season") or "?"
+            if label in seen_labels:
+                return
+            seen_labels.add(label)
+            seasons.append({"season": label, "leagues": league_list})
+
+        add(current)  # base page == current season
+        for y in years:
+            lg, _ = _scrape_leagues(pid, y)
+            add(lg)
+        seasons.sort(key=lambda s: s["season"] or "", reverse=True)
+        return {"seasons": seasons}
     except Exception as e:
         import traceback
-        print(f"render_bax_chart error: {e}\n{traceback.format_exc()}")
+        print(f"get_player_leagues error: {e}\n{traceback.format_exc()}")
         return {"error": f"Internal Error: {str(e)}"}
 
 

@@ -420,6 +420,23 @@ a.card:hover .card-icon {
 }
 .back-btn:hover { color: var(--accent); }
 
+/* Mobile — shared layout (dashboard + tool pages) ----------------------- */
+@media (max-width: 768px) {
+  .container { padding: 1.25rem 1rem; }
+  header { margin-bottom: 2.5rem; padding-top: 0.25rem; }
+  header h1 { font-size: 2rem; }
+  header p { font-size: 1rem; }
+  .grid { grid-template-columns: 1fr; gap: 1.25rem; }
+  .card { padding: 1.5rem; }
+  .card-icon { width: 56px; height: 56px; margin-bottom: 1.25rem; }
+  .topbar { top: 0.6rem; right: 0.6rem; }
+}
+
+@media (max-width: 420px) {
+  header h1 { font-size: 1.7rem; }
+  header p { font-size: 0.95rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn, .icon-btn, .field, .card, .card-icon,
   .theme-toggle .icon-sun, .theme-toggle .icon-moon {
