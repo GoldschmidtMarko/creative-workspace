@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Privacy policy for BAX Checker — how your data is handled in this badminton tournament analysis tool.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Privacy Policy | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .legal { max-width: 720px; margin: 0 auto; }
+        .legal section { margin-bottom: 2.25rem; }
+        .legal h2 { font-size: 1.05rem; color: var(--ink); margin: 0 0 0.6rem; }
+        .legal h3 { font-size: 0.9rem; color: var(--ink); margin: 1rem 0 0.4rem; }
+        .legal p, .legal li { color: var(--ink-dim); font-size: 0.9rem; line-height: 1.6; }
+        .legal p { margin: 0 0 0.6rem; }
+        .legal ul { margin: 0 0 0.6rem 1.1rem; }
+        .legal li { margin-bottom: 0.35rem; }
+        .legal a { color: var(--accent); }
+        .legal strong { color: var(--ink); }
+        .legal .note {
+            background: var(--card-2); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 0.7rem 0.9rem;
+            font-size: 0.85rem; margin-top: 0.6rem;
+        }
+        .legal .updated {
+            margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+            color: var(--ink-faint); font-size: 0.78rem; text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="topbar">
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <a href="/" class="back-btn">
+            <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            Back to BAX Checker
+        </a>
+
+        <header>
+            <h1>Privacy Policy</h1>
+            <p>Your data protection &amp; privacy rights</p>
+        </header>
+
+        <main class="legal">
+            <section>
+                <h2>Contact information</h2>
+                <p><strong>Data controller:</strong> Marko</p>
+                <p><strong>Email:</strong> <a href="mailto:baxcheck@gmail.com">baxcheck@gmail.com</a></p>
+            </section>
+
+            <section>
+                <h2>Using the tool without signing in</h2>
+                <p>You can use BAX Checker without an account. In that case we do not collect any personal
+                    account data. We keep anonymous, aggregate usage counts (for example, how often a tournament,
+                    discipline or player page is analysed) that are not linked to your identity, and your IP
+                    address may be processed transiently to prevent abuse and enforce rate limits — it is not
+                    stored against a profile.</p>
+            </section>
+
+            <section>
+                <h2>What data we collect when you sign in</h2>
+                <p>Signing in is only needed for optional account features. When you sign in with Google, we
+                    store:</p>
+                <ul>
+                    <li><strong>Google account info</strong> &mdash; your name, email address and Google user ID</li>
+                    <li><strong>Account activity</strong> &mdash; login count and last-login / registration timestamps</li>
+                </ul>
+                <p>This is stored in our database (Google Firestore) under your user ID.</p>
+            </section>
+
+            <section>
+                <h2>How we use your data</h2>
+                <ul>
+                    <li>To authenticate you and keep you signed in</li>
+                    <li>To provide optional account features (e.g. saved tournaments / watchlist)</li>
+                    <li>To understand which features are used, in aggregate, so we can improve the tool</li>
+                    <li>To prevent abuse and enforce fair-use rate limits</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2>Badminton data shown by the tool</h2>
+                <p>BAX Checker retrieves publicly accessible tournament and player information from
+                    dbv.turnier.de and badminton-bax.de to produce its analysis. This data concerns third
+                    parties and is provided by those sources; we cache it briefly to reduce load and it remains
+                    the property of the respective operators.</p>
+            </section>
+
+            <section>
+                <h2>Third-party services</h2>
+                <h3>Google Firebase</h3>
+                <p>We use Google Firebase for authentication, database storage (Firestore) and website hosting.</p>
+                <div class="note">
+                    Firebase processes data according to Google's privacy policy:
+                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.
+                </div>
+                <p>We do not use advertising, third-party tracking, or analytics cookies. The only cookies/local
+                    storage used are those required to keep you signed in and to remember your theme preference.</p>
+            </section>
+
+            <section>
+                <h2>Your rights (GDPR)</h2>
+                <ul>
+                    <li><strong>Access:</strong> request a copy of your personal data</li>
+                    <li><strong>Correction:</strong> update or correct your information</li>
+                    <li><strong>Deletion:</strong> request removal of your data</li>
+                    <li><strong>Objection / withdraw consent:</strong> stop using the account features at any time</li>
+                    <li><strong>Complaint:</strong> lodge a complaint with a data protection supervisory authority</li>
+                </ul>
+                <div class="note">
+                    Contact <a href="mailto:baxcheck@gmail.com">baxcheck@gmail.com</a> to exercise your rights.
+                </div>
+            </section>
+
+            <section>
+                <h2>Data retention</h2>
+                <ul>
+                    <li><strong>Account data:</strong> stored until you request deletion</li>
+                    <li><strong>Cached badminton data:</strong> expires automatically (tournament searches within
+                        minutes, player profiles within a day, ratings and league history within weeks)</li>
+                    <li><strong>Usage counters:</strong> kept as aggregate totals, not tied to individuals</li>
+                </ul>
+            </section>
+
+            <div class="updated">Last updated: August 2026</div>
+        </main>
+    </div>
+
+    <script src="/js/util/theme.js"></script>
+</body>
+
+</html>

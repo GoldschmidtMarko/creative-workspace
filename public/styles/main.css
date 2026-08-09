@@ -446,3 +446,22 @@ a.card:hover .card-icon {
     transition: none;
   }
 }
+
+/* Site footer: Impressum / Privacy links + copyright. */
+.site-footer {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.site-footer__links {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.8rem;
+}
+.site-footer__links a { color: var(--ink-dim); text-decoration: none; }
+.site-footer__links a:hover { color: var(--ink); text-decoration: underline; }
+.site-footer__links span { color: var(--ink-faint); }
+.site-footer__copy { margin-top: 0.45rem; font-size: 0.78rem; color: var(--ink-faint); }
