@@ -49,6 +49,27 @@
         .stat__value { color: var(--ink); font-size: 1.9rem; font-weight: 700; line-height: 1.2; margin-top: 0.15rem; }
         .stat__split { display: flex; gap: 0.9rem; color: var(--ink-faint); font-size: 0.8rem; margin-top: 0.2rem; }
 
+        /* Usage timeline (SVG bar chart) */
+        .timeline-wrap { position: relative; }
+        #usage-timeline svg { width: 100%; height: auto; display: block; }
+        .tl-bar-anon { fill: var(--border-strong); }
+        .tl-bar-authed { fill: var(--accent); }
+        .tl-grid { stroke: var(--border); stroke-width: 1; }
+        .tl-axis { fill: var(--ink-faint); font-size: 11px; }
+        .tl-hit { fill: transparent; cursor: default; }
+        .tl-hit:hover ~ .tl-bar { opacity: 0.85; }
+        .tl-legend { display: flex; gap: 1rem; justify-content: flex-end; margin: 0 0.25rem 0.25rem; font-size: 0.75rem; color: var(--ink-dim); }
+        .tl-legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+        .tl-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+        .tl-tooltip {
+            position: absolute; pointer-events: none; z-index: 5;
+            background: var(--ink); color: var(--bg); padding: 0.35rem 0.55rem;
+            border-radius: var(--radius-sm); font-size: 0.75rem; white-space: nowrap;
+            transform: translate(-50%, -115%); box-shadow: var(--shadow-md);
+        }
+        .tl-tooltip.hidden { display: none; }
+        .tl-empty { padding: 1.5rem; text-align: center; color: var(--ink-faint); font-size: 0.85rem; }
+
         /* Ranked tables */
         .usage-card {
             background: var(--card);
@@ -140,6 +161,13 @@
                     </button>
                 </div>
                 <div id="summary-cards" class="stat-grid"></div>
+
+                <div class="section-head">
+                    <h2>Usage over time</h2><span class="hint">actions per day (last 30 days)</span>
+                </div>
+                <div class="usage-card" style="padding: 0.85rem 0.75rem 0.6rem;">
+                    <div class="timeline-wrap"><div id="usage-timeline"></div></div>
+                </div>
 
                 <div class="section-head">
                     <h2>Top tournaments</h2><span class="hint">by times opened</span>

@@ -13,6 +13,7 @@ Firestore layout:
 """
 
 import re
+from datetime import datetime, timezone
 
 from firebase_admin import firestore
 
@@ -23,8 +24,25 @@ def _suffix(authed):
     return "authed" if authed else "anon"
 
 
+def _bump_daily(authed):
+    """One usage action -> one increment on usage_daily/{YYYY-MM-DD} (UTC), so
+    the admin dashboard can plot activity over time."""
+    if db is None:
+        return
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        db.collection("usage_daily").document(day).set({
+            "date": day,
+            "count": firestore.Increment(1),
+            f"count_{_suffix(authed)}": firestore.Increment(1),
+        }, merge=True)
+    except Exception as e:
+        print(f"analytics daily error: {e}")
+
+
 def bump_summary(fields, authed):
-    """Increment named counters on usage/summary — each as *_authed/_anon/_total."""
+    """Increment named counters on usage/summary — each as *_authed/_anon/_total —
+    and the per-day usage bucket. Called once per user action."""
     if db is None:
         return
     payload = {}
@@ -35,6 +53,7 @@ def bump_summary(fields, authed):
         db.collection("usage").document("summary").set(payload, merge=True)
     except Exception as e:
         print(f"analytics summary error: {e}")
+    _bump_daily(authed)
 
 
 def bump_entity(collection, doc_id, authed, name=None):
