@@ -1,19 +1,6 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
-import { getFirestore, onSnapshot, doc, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { firebaseConfig } from "./util/firebaseConfig.js";
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const functions = getFunctions(app);
-const db = getFirestore(app);
-
-// Use Emulator if running locally to avoid CORS issues
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-    console.log("Connecting to local Emulators...");
-    connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-    connectFirestoreEmulator(db, "127.0.0.1", 8080);
-}
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { functions, db } from "./util/firebase.js";
 
 const getBaxData = httpsCallable(functions, 'get_player_bax_data', { timeout: 540000 });
 const findTournaments = httpsCallable(functions, 'find_tournaments', { timeout: 60000 });
@@ -154,9 +141,37 @@ function setFold(collapsed) {
 }
 foldToggle.addEventListener('click', () => setFold(!inputCard.classList.contains('collapsed')));
 
-async function runAnalysis(url) {
+// Client-side result cache: an already-analyzed discipline URL renders straight
+// from memory — no backend call, no cost, no rate-limit hit. Cleared on reload.
+const analysisCache = new Map();
+
+function showResults(players) {
+    resultsCard.classList.remove('hidden');
+    setFold(true);
+    currentPlayers = players;
+    viewControls.style.display = 'flex';
+    loader.style.display = 'none';
+    updateDisplay();
+}
+
+// The analysis currently on screen, so the "Update Live" button can re-run it
+// with force (bypassing every cache).
+let currentAnalysis = null;
+
+async function runAnalysis(url, meta = {}) {
     if (!url) {
         alert("Please enter a valid tournament URL.");
+        return;
+    }
+    currentAnalysis = { url, meta };
+    const force = !!meta.force;
+
+    // Reuse a previously-computed result for this exact discipline URL — unless
+    // the user asked for a live update, which drops the cached copy.
+    if (force) {
+        analysisCache.delete(url);
+    } else if (analysisCache.has(url)) {
+        showResults(analysisCache.get(url));
         return;
     }
 
@@ -176,7 +191,13 @@ async function runAnalysis(url) {
     chartBody.innerHTML = '';
 
     try {
-        const result = await getBaxData({ url, job_id: jobId });
+        const result = await getBaxData({
+            url, job_id: jobId,
+            source: meta.source || 'url',
+            tournament_name: meta.tournamentName || '',
+            discipline_name: meta.disciplineName || '',
+            force,
+        });
         if (result.data.error) throw new Error(result.data.error);
 
         // Finish progress
@@ -185,10 +206,8 @@ async function runAnalysis(url) {
         loaderText.innerText = "Analysis Complete!";
 
         setTimeout(() => {
-            currentPlayers = result.data.players;
-            viewControls.style.display = 'flex';
-            updateDisplay();
-            loader.style.display = 'none';
+            analysisCache.set(url, result.data.players);
+            showResults(result.data.players);
         }, 500);
 
     } catch (error) {
@@ -205,8 +224,18 @@ checkBtn.addEventListener('click', () => {
     currentChartTitle = 'Team BAX by group';
     setDisciplineFilter('all');   // pasted URL — discipline unknown
     categoryBar.classList.add('hidden');   // no tournament category context
-    runAnalysis(urlInput.value.trim());
+    runAnalysis(urlInput.value.trim(), { source: 'url' });
 });
+
+// "Update Live" (analysis view) — re-run the current analysis, bypassing every
+// cache. Backend rate-limits the force path, so misuse just returns a message.
+const updateLiveBtn = document.getElementById('update-live-btn');
+if (updateLiveBtn) {
+    updateLiveBtn.addEventListener('click', () => {
+        if (!currentAnalysis) return;
+        runAnalysis(currentAnalysis.url, { ...currentAnalysis.meta, force: true });
+    });
+}
 
 // A player is "waiting" (not in the active participating set) when their entry
 // status is anything other than the Starterliste — e.g. Warteliste or
@@ -528,10 +557,10 @@ function escapeHtml(s) {
     ));
 }
 
-async function searchTournaments() {
+async function searchTournaments(force = false) {
     searchBtn.disabled = true;
     tournamentList.innerHTML = '';
-    setStatus('Searching tournaments…');
+    setStatus(force ? 'Fetching live tournament listings…' : 'Searching tournaments…');
     try {
         const payload = {
             q: filterQ.value.trim(),
@@ -541,6 +570,7 @@ async function searchTournaments() {
             distance: Number(filterDistance.value),
             registration_only: filterRegOpen.checked,
             page: 1,
+            force,
         };
         const res = await findTournaments(payload);
         if (res.data.error) throw new Error(res.data.error);
@@ -604,10 +634,16 @@ function formatDate(iso) {
     return `${parts[2]}.${parts[1]}.${parts[0]}`;
 }
 
-searchBtn.addEventListener('click', searchTournaments);
+searchBtn.addEventListener('click', () => searchTournaments(false));
 [filterQ, filterPlz].forEach((el) => el.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') searchTournaments();
+    if (e.key === 'Enter') searchTournaments(false);
 }));
+
+// "Update Live" (browse) — re-run the search bypassing the listings cache.
+const browseUpdateLiveBtn = document.getElementById('browse-update-live-btn');
+if (browseUpdateLiveBtn) {
+    browseUpdateLiveBtn.addEventListener('click', () => searchTournaments(true));
+}
 
 /* --- Discipline modal --- */
 const disciplineModal = document.getElementById('discipline-modal');
@@ -635,8 +671,15 @@ const playerModalBody = document.getElementById('player-modal-body');
 const playerModalLink = document.getElementById('player-modal-link');
 const playerModalClose = document.getElementById('player-modal-close');
 
+const playerModalUpdateLive = document.getElementById('player-update-live-btn');
+
 function closePlayerModal() { playerModal.classList.add('hidden'); }
 playerModalClose.addEventListener('click', closePlayerModal);
+if (playerModalUpdateLive) {
+    playerModalUpdateLive.addEventListener('click', () => {
+        if (currentPlayerModal) openPlayerModal(currentPlayerModal, true);
+    });
+}
 playerModal.addEventListener('click', (e) => { if (e.target === playerModal) closePlayerModal(); });
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !playerModal.classList.contains('hidden')) closePlayerModal();
@@ -686,8 +729,12 @@ function formatRecordHtml(record) {
             </div>`;
 }
 
-async function openPlayerModal(p) {
+// The player whose popup is open, so its "Update Live" button can refetch.
+let currentPlayerModal = null;
+
+async function openPlayerModal(p, force = false) {
     currentLeagueProfileId = p.profile_id || null;
+    currentPlayerModal = p;
 
     // Name → the player's global DBV profile.
     playerModalName.textContent = p.full_name || 'Player';
@@ -716,7 +763,7 @@ async function openPlayerModal(p) {
     }
     playerModalBody.innerHTML = '<div class="browse-status"><span class="spinner"></span> Loading league history…</div>';
     try {
-        const res = await getPlayerLeagues({ profile_id: p.profile_id });
+        const res = await getPlayerLeagues({ profile_id: p.profile_id, name: p.full_name || '', force });
         if (res.data.error) throw new Error(res.data.error);
         renderPlayerLeagues(res.data.seasons || []);
     } catch (err) {
@@ -757,7 +804,7 @@ async function openDisciplineModal(tournament) {
     disciplineModal.classList.remove('hidden');
 
     try {
-        const res = await getDisciplines({ id: tournament.id });
+        const res = await getDisciplines({ id: tournament.id, name: tournament.name || '' });
         if (res.data.error) throw new Error(res.data.error);
         renderDisciplines(res.data.disciplines || [], tournament);
     } catch (err) {
@@ -800,7 +847,7 @@ function runCategory(d) {
     currentChartTitle = `${d.name} · ${activeTournamentName}`;
     setDisciplineFilter(disciplineToFilter(d.name));   // default the BAX filter
     urlInput.value = d.url;
-    runAnalysis(d.url);
+    runAnalysis(d.url, { source: 'browse', tournamentName: activeTournamentName, disciplineName: d.name });
 }
 
 function selectCategory(tournament, disciplines, d) {

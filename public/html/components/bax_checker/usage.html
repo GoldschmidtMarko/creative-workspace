@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usage Dashboard | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .usage-main { width: 100%; max-width: 1100px; margin: 0 auto; }
+
+        .hidden { display: none !important; }
+
+        .gate {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--ink-dim);
+        }
+        .gate h2 { color: var(--ink); margin-bottom: 0.5rem; }
+        .gate .gate-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+        .section-head {
+            display: flex; align-items: baseline; justify-content: space-between;
+            gap: 1rem; margin: 2rem 0 0.75rem;
+        }
+        .section-head h2 {
+            font-size: 1.05rem; color: var(--ink); margin: 0;
+        }
+        .section-head .hint { color: var(--ink-faint); font-size: 0.8rem; }
+
+        /* Summary stat cards */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.85rem;
+        }
+        .stat {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 0.9rem 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .stat__label { color: var(--ink-dim); font-size: 0.78rem; font-weight: 600; }
+        .stat__value { color: var(--ink); font-size: 1.9rem; font-weight: 700; line-height: 1.2; margin-top: 0.15rem; }
+        .stat__split { display: flex; gap: 0.9rem; color: var(--ink-faint); font-size: 0.8rem; margin-top: 0.2rem; }
+
+        /* Ranked tables */
+        .usage-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+        .table-scroll { overflow-x: auto; }
+        .usage-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .usage-table th, .usage-table td {
+            padding: 0.55rem 0.8rem; text-align: left; white-space: nowrap;
+        }
+        .usage-table thead th {
+            color: var(--ink-dim); font-weight: 600; font-size: 0.72rem;
+            text-transform: uppercase; letter-spacing: 0.03em;
+            border-bottom: 1px solid var(--border);
+        }
+        .usage-table tbody tr { border-bottom: 1px solid var(--border); }
+        .usage-table tbody tr:last-child { border-bottom: none; }
+        .usage-table td.rank { color: var(--ink-faint); width: 2rem; }
+        .usage-table td.name { color: var(--ink); font-weight: 500; white-space: normal; }
+        .usage-table td.name .sub {
+            display: block; color: var(--ink-faint); font-size: 0.72rem;
+            font-family: monospace; font-weight: 400;
+        }
+        .usage-table th.n, .usage-table td.n { text-align: right; }
+        .usage-table td.n { color: var(--ink); font-variant-numeric: tabular-nums; }
+        .usage-table td.n.dim { color: var(--ink-dim); }
+        .usage-table td.when { color: var(--ink-dim); font-size: 0.8rem; }
+        .usage-empty { padding: 1.25rem; color: var(--ink-faint); text-align: center; font-size: 0.85rem; }
+
+        .users-total { color: var(--ink-dim); font-size: 0.85rem; }
+        .users-total b { color: var(--ink); font-size: 1.05rem; }
+    </style>
+</head>
+
+<body>
+    <div class="topbar">
+        <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+            <i data-lucide="sun" class="icon-sun"></i>
+            <i data-lucide="moon" class="icon-moon"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <a href="/html/index.html" class="back-btn">
+            <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
+            Back to Dashboard
+        </a>
+
+        <header>
+            <h1>Usage Dashboard</h1>
+            <p>Analytics overview for the BAX Checker — admin only</p>
+        </header>
+
+        <main class="usage-main">
+            <!-- Gates -->
+            <div id="gate-signin" class="gate">
+                <div class="gate-icon">🔒</div>
+                <h2>Sign in required</h2>
+                <p>Sign in with Google (top right) to view the usage dashboard.</p>
+            </div>
+
+            <div id="gate-denied" class="gate hidden">
+                <div class="gate-icon">⛔</div>
+                <h2>Access denied</h2>
+                <p>Your account is not authorized to view this dashboard.</p>
+            </div>
+
+            <div id="gate-loading" class="gate hidden">
+                <div class="gate-icon">⏳</div>
+                <p>Loading usage data…</p>
+            </div>
+
+            <div id="gate-error" class="gate hidden">
+                <div class="gate-icon">⚠️</div>
+                <h2>Could not load</h2>
+                <p id="gate-error-msg"></p>
+            </div>
+
+            <!-- Dashboard -->
+            <div id="dashboard" class="hidden">
+                <div class="section-head">
+                    <h2>Overview</h2>
+                    <button id="refresh-btn" class="btn btn-secondary btn-sm" type="button">
+                        <i data-lucide="refresh-cw" style="width: 15px; height: 15px;"></i> Refresh
+                    </button>
+                </div>
+                <div id="summary-cards" class="stat-grid"></div>
+
+                <div class="section-head">
+                    <h2>Top tournaments</h2><span class="hint">by times opened</span>
+                </div>
+                <div class="usage-card"><div class="table-scroll" id="table-tournaments"></div></div>
+
+                <div class="section-head">
+                    <h2>Top disciplines</h2><span class="hint">analyses per discipline</span>
+                </div>
+                <div class="usage-card"><div class="table-scroll" id="table-disciplines"></div></div>
+
+                <div class="section-head">
+                    <h2>Top players</h2><span class="hint">profile lookups</span>
+                </div>
+                <div class="usage-card"><div class="table-scroll" id="table-players"></div></div>
+
+                <div class="section-head">
+                    <h2>Users</h2><span class="users-total">Total registered: <b id="users-total">0</b></span>
+                </div>
+                <div class="usage-card"><div class="table-scroll" id="users-table"></div></div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/usage.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+
+</html>
