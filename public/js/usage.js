@@ -118,8 +118,81 @@ function renderUsers(users) {
         </table>`;
 }
 
+// --- Usage-over-time bar chart (SVG) ---------------------------------------
+const TL_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function tlFmt(key) { const p = key.split("-"); return TL_MON[(+p[1]) - 1] + " " + (+p[2]); }
+function tlNiceCeil(v) {
+    if (v <= 5) return 5;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / p, step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+    return step * p;
+}
+
+function renderTimeline(daily) {
+    const el = document.getElementById("usage-timeline");
+    const DAYS = 30;
+    const byDate = new Map((daily || []).map(d => [d.date, d]));
+    // Continuous window ending today; UTC keys to match the backend buckets.
+    const now = new Date();
+    const days = [];
+    for (let i = DAYS - 1; i >= 0; i--) {
+        const dt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+        const key = dt.toISOString().slice(0, 10);
+        const r = byDate.get(key);
+        days.push({ key, count: r ? (r.count || 0) : 0, authed: r ? (r.count_authed || 0) : 0, anon: r ? (r.count_anon || 0) : 0 });
+    }
+    if (days.reduce((s, d) => s + d.count, 0) === 0) {
+        el.innerHTML = '<div class="tl-empty">No usage recorded yet — the timeline fills as the site is used.</div>';
+        return;
+    }
+    const maxV = tlNiceCeil(Math.max(1, ...days.map(d => d.count)));
+
+    const W = 900, H = 210, padL = 30, padR = 10, padT = 10, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const slot = plotW / DAYS, barW = Math.max(3, slot * 0.68);
+    const x0 = i => padL + i * slot + (slot - barW) / 2;
+    const y = v => padT + plotH - (v / maxV) * plotH;
+    const baseline = padT + plotH;
+
+    let grid = "", ticks = "";
+    [0, 0.5, 1].forEach(f => {
+        const gy = baseline - f * plotH;
+        grid += `<line class="tl-grid" x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}"/>`;
+        ticks += `<text class="tl-axis" x="${padL - 6}" y="${gy + 3}" text-anchor="end">${Math.round(maxV * f)}</text>`;
+    });
+
+    let bars = "", xlabels = "", hits = "";
+    days.forEach((d, i) => {
+        const bx = x0(i), yAnon = y(d.anon), yTop = y(d.count);
+        if (d.anon > 0) bars += `<rect class="tl-bar tl-bar-anon" x="${bx}" y="${yAnon}" width="${barW}" height="${baseline - yAnon}" rx="1.5"/>`;
+        if (d.authed > 0) bars += `<rect class="tl-bar tl-bar-authed" x="${bx}" y="${yTop}" width="${barW}" height="${yAnon - yTop}" rx="1.5"/>`;
+        if (i % 6 === 0 || i === DAYS - 1) xlabels += `<text class="tl-axis" x="${bx + barW / 2}" y="${H - 8}" text-anchor="middle">${tlFmt(d.key)}</text>`;
+        const tip = `${tlFmt(d.key)}: ${d.count} action${d.count === 1 ? "" : "s"} (signed-in ${d.authed} · anon ${d.anon})`;
+        hits += `<rect class="tl-hit" x="${padL + i * slot}" y="${padT}" width="${slot}" height="${plotH}" data-tip="${tip.replace(/"/g, "&quot;")}"/>`;
+    });
+
+    const legend = '<div class="tl-legend"><span><i style="background:var(--accent)"></i>Signed-in</span><span><i style="background:var(--border-strong)"></i>Anonymous</span></div>';
+    el.innerHTML = legend +
+        `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Usage over time">` +
+        grid + bars + ticks + xlabels + hits + "</svg>" +
+        '<div class="tl-tooltip hidden"></div>';
+
+    const svg = el.querySelector("svg"), tip = el.querySelector(".tl-tooltip"), wrap = el.parentElement;
+    svg.addEventListener("mousemove", e => {
+        const h = e.target.closest("[data-tip]");
+        if (!h) { tip.classList.add("hidden"); return; }
+        tip.textContent = h.getAttribute("data-tip");
+        tip.classList.remove("hidden");
+        const r = wrap.getBoundingClientRect();
+        tip.style.left = (e.clientX - r.left) + "px";
+        tip.style.top = (e.clientY - r.top) + "px";
+    });
+    svg.addEventListener("mouseleave", () => tip.classList.add("hidden"));
+}
+
 function render(data) {
     renderSummary(data.summary || {});
+    renderTimeline(data.daily || []);
     renderEntityTable("table-tournaments", data.tournaments, "Tournament", true);
     renderEntityTable("table-disciplines", data.disciplines, "Discipline", true);
     renderEntityTable("table-players", data.players, "Player", true);

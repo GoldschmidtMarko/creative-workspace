@@ -68,6 +68,29 @@ def _top_entities(collection, limit=50):
     return out
 
 
+def _daily_series(limit=120):
+    """Per-day usage counts (from usage_daily), oldest first, for the timeline."""
+    out = []
+    if db is None:
+        return out
+    try:
+        q = (db.collection("usage_daily")
+               .order_by("date", direction=firestore.Query.DESCENDING)
+               .limit(limit))
+        for doc in q.stream():
+            d = doc.to_dict() or {}
+            out.append({
+                "date": d.get("date") or doc.id,
+                "count": d.get("count", 0),
+                "count_authed": d.get("count_authed", 0),
+                "count_anon": d.get("count_anon", 0),
+            })
+        out.reverse()  # oldest -> newest for plotting
+    except Exception as e:
+        print(f"usage _daily_series error: {e}")
+    return out
+
+
 def _users_overview(limit=15):
     """Total registered users + the most active by login count."""
     result = {"total": 0, "top": []}
@@ -110,6 +133,7 @@ def get_usage_stats(req: https_fn.CallableRequest) -> dict:
 
     return {
         "summary": summary,
+        "daily": _daily_series(),
         "tournaments": _top_entities("usage_tournaments"),
         "disciplines": _top_entities("usage_disciplines"),
         "players": _top_entities("usage_players"),
