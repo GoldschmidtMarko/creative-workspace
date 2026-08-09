@@ -2,6 +2,10 @@
 // Loaded at the end of <body>, after Lucide and the page markup.
 if (window.lucide) lucide.createIcons();
 
+// Footer copyright year, where a page has the placeholder.
+var yearEl = document.getElementById('copyright-year');
+if (yearEl) yearEl.textContent = new Date().getFullYear();
+
 var themeToggle = document.getElementById('theme-toggle');
 if (themeToggle) {
     themeToggle.addEventListener('click', function () {
