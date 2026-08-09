@@ -210,6 +210,9 @@ header p {
   top: clamp(0.75rem, 2vw, 1.5rem);
   right: clamp(0.75rem, 2vw, 1.5rem);
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Buttons --------------------------------------------------------------- */

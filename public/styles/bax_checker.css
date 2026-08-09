@@ -152,7 +152,27 @@ a.player-modal__name:hover { text-decoration: underline; }
 }
 .player-modal__link {
     align-self: flex-start;
+}
+.player-modal__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
     margin-bottom: 1rem;
+}
+/* "Update Live" — icon + label aligned; the refresh icon spins while the
+   button is disabled (i.e. a live refetch is in flight). */
+.update-live-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+}
+.update-live-btn[disabled] i {
+    animation: update-live-spin 0.8s linear infinite;
+}
+@keyframes update-live-spin {
+    to { transform: rotate(360deg); }
 }
 .player-leagues {
     overflow-y: auto;
