@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="BAX Checker — shuttlecock">
+  <rect width="64" height="64" rx="14" fill="#0f766e"/>
+  <!-- feather skirt: wide at the top, narrowing down to the cork -->
+  <path d="M18 18 L46 18 L37 43 L27 43 Z" fill="#ffffff"/>
+  <!-- feather ribs -->
+  <g stroke="#0f766e" stroke-width="2.4" stroke-linecap="round">
+    <line x1="32" y1="43" x2="32" y2="18"/>
+    <line x1="30.5" y1="43" x2="22" y2="18.5"/>
+    <line x1="33.5" y1="43" x2="42" y2="18.5"/>
+  </g>
+  <!-- cork -->
+  <circle cx="32" cy="47" r="8" fill="#ffffff"/>
+</svg>
