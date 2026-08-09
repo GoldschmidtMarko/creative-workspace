@@ -31,6 +31,21 @@ let currentView = 'table';
 let progressInterval = null;
 let currentChartTitle = '';   // set when analysis is launched (tournament · discipline)
 
+// Admin-only shortcut to the usage dashboard. This visibility check is a
+// client-side convenience only — the dashboard is enforced server-side by the
+// get_usage_stats admin allow-list — so it just shows/hides the link.
+// On localhost (the emulator) any signed-in account may see it, mirroring the
+// backend's emulator bypass; in production only the admin email does.
+const ADMIN_EMAIL = 'mgoldschmidt01@gmail.com';
+const IS_DEV_HOST = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const usageLink = document.getElementById('usage-link');
+function updateUsageLink(user) {
+    const allowed = !!user && (IS_DEV_HOST || user.email === ADMIN_EMAIL);
+    if (usageLink) usageLink.classList.toggle('hidden', !allowed);
+}
+document.addEventListener('authchange', (e) => updateUsageLink(e.detail && e.detail.user));
+updateUsageLink(window.currentUser);   // handle the case where auth already resolved
+
 // Default URL for convenience
 urlInput.value = "https://dbv.turnier.de/sport/event.aspx?id=1EB702E0-4333-44F8-BBEB-FE5DE2E91269&event=62";
 
