@@ -50,14 +50,7 @@
                     <div class="pcard__head"><h2>Find a player</h2></div>
                     <form id="search-form">
                         <div class="search-row">
-                            <div>
-                                <label class="field-label" for="search-last">Last name</label>
-                                <input type="text" id="search-last" class="field" placeholder="Surname" autocomplete="off">
-                            </div>
-                            <div>
-                                <label class="field-label" for="search-first">First name (optional)</label>
-                                <input type="text" id="search-first" class="field" placeholder="First name" autocomplete="off">
-                            </div>
+                            <input type="text" id="search-q" class="field" placeholder="Search by name…" autocomplete="off">
                             <button type="submit" class="run-btn-premium" style="justify-content:center;">
                                 <i data-lucide="search" style="width:18px;height:18px;"></i>
                                 <span>Search</span>
@@ -65,11 +58,8 @@
                         </div>
                     </form>
                     <div id="search-status" class="pl-empty hidden"></div>
-                    <p class="hint" style="margin-top:0.75rem; color: var(--ink-faint); font-size:0.8rem;">
-                        Tip: open a player from any tournament analysis to unlock their full profile
-                        (leagues, tournaments, titles, win/loss).
-                    </p>
                 </div>
+                <div id="search-results" class="search-results"></div>
             </section>
 
             <!-- Profile view -->
