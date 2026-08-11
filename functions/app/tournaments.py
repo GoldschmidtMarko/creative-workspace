@@ -200,7 +200,9 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
                 if cache.exists:
                     data = cache.to_dict()
                     if datetime.now(timezone.utc) < data["expires_at"]:
-                        return {"disciplines": data["disciplines"], "count": len(data["disciplines"])}
+                        return {"disciplines": data["disciplines"], "count": len(data["disciplines"]),
+                                "name": data.get("name", ""), "start": data.get("start", ""),
+                                "end": data.get("end", ""), "city": data.get("city", "")}
             except Exception:
                 pass
 
@@ -209,6 +211,19 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
         resp = session.get(f"{BASE}/sport/events.aspx?id={gid}", headers=HEADERS, timeout=20)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
+
+        # Tournament identity (so a bare shared link — id only — still renders a
+        # proper header). Name is in the .media__title; fall back to the <title>
+        # "… - <name> - Konkurrenzen". Dates are the first two dd.mm.yyyy on page.
+        tname_el = soup.find(class_="media__title")
+        tname = tname_el.get_text(" ", strip=True) if tname_el else ""
+        if not tname:
+            tt = soup.find("title")
+            m = re.search(r"-\s*(.+?)\s*-\s*Konkurrenzen", tt.get_text()) if tt else None
+            tname = m.group(1).strip() if m else ""
+        dates = re.findall(r"\d{2}\.\d{2}\.\d{4}", soup.get_text(" ", strip=True))
+        tstart = dates[0] if dates else ""
+        tend = dates[1] if len(dates) > 1 else tstart
 
         disciplines = []
         seen = set()
@@ -233,12 +248,14 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
             try:
                 db.collection("tournament_disciplines_cache").document(gid).set({
                     "disciplines": disciplines,
+                    "name": tname, "start": tstart, "end": tend,
                     "expires_at": datetime.now(timezone.utc) + timedelta(hours=6),
                 })
             except Exception:
                 pass
 
-        return {"disciplines": disciplines, "count": len(disciplines)}
+        return {"disciplines": disciplines, "count": len(disciplines),
+                "name": tname, "start": tstart, "end": tend}
     except Exception as e:
         import traceback
         print(f"get_tournament_disciplines error: {e}\n{traceback.format_exc()}")

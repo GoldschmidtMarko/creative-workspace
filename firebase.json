@@ -24,7 +24,7 @@
     "rewrites": [
       {
         "source": "/",
-        "destination": "/html/components/bax_checker/bax_checker.html"
+        "destination": "/html/index.html"
       },
       {
         "source": "**",

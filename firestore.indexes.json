@@ -1,4 +1,13 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "player_registrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "profile_id", "order": "ASCENDING" },
+        { "fieldPath": "start_date", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

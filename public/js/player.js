@@ -1,0 +1,637 @@
+// Player Insights page. Loads a single player's data from three callables
+// (get_player_bax = badminton-bax.de history + distribution; get_player_dbv_stats
+// = win/loss + titles + tournaments; get_player_leagues = league history, reused
+// from the tournament tool) and get_player_upcoming (implicit registrations).
+// Sections render progressively, each with its own skeleton.
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+import { functions } from "./util/firebase.js";
+
+const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
+const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
+const getPlayerLeagues = httpsCallable(functions, "get_player_leagues", { timeout: 60000 });
+const getPlayerUpcoming = httpsCallable(functions, "get_player_upcoming", { timeout: 60000 });
+
+const CATS = ["Einzel", "Doppel", "Mixed"];
+const DISC_LABEL = { Einzel: "Singles", Doppel: "Doubles", Mixed: "Mixed" };
+
+const $ = (id) => document.getElementById(id);
+function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
+function num(n) { return (n == null ? 0 : n).toLocaleString(); }
+
+// Page state kept for re-renders (legend toggles, view/scope/category switches).
+const state = {
+    history: null, distribution: null,
+    histView: "chart", histHidden: new Set(),
+    distScope: "lv", distCat: "Einzel",
+    profileId: null,
+};
+
+/* ------------------------------------------------------------------ */
+/* Bootstrap                                                          */
+/* ------------------------------------------------------------------ */
+const params = new URLSearchParams(location.search);
+const initial = {
+    sp: (params.get("sp") || "").trim(),
+    pid: (params.get("pid") || "").trim(),
+    name: (params.get("name") || "").trim(),
+};
+// Tournament context, present when the user arrived by clicking a player inside
+// a tournament analysis — powers the "back to tournament" button.
+const from = {
+    t: (params.get("from_t") || "").trim(),
+    e: (params.get("from_e") || "").trim(),
+    tn: (params.get("from_tn") || "").trim(),
+    pi: (params.get("from_pi") || "").trim(),
+};
+const yearEl = $("copyright-year");
+if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+if (initial.sp || initial.pid) {
+    showProfileView();
+    loadPlayer({ sp: initial.sp, pid: initial.pid, name: initial.name });
+} else {
+    $("search-view").classList.remove("hidden");
+}
+
+$("search-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const last = $("search-last").value.trim();
+    const first = $("search-first").value.trim();
+    if (!last) return;
+    const st = $("search-status");
+    st.textContent = "Searching…";
+    st.classList.remove("hidden");
+    showProfileView();
+    loadPlayer({ name: last, vorname: first });
+});
+
+function showProfileView() {
+    $("search-view").classList.add("hidden");
+    $("error-view").classList.add("hidden");
+    $("profile-view").classList.remove("hidden");
+    const ph = $("page-header"); if (ph) ph.classList.add("hidden");   // identity card is the header now
+    setupTournamentReturn();
+}
+
+// Reveal the "back to tournament" button (and the dbv tournament-player link)
+// when we arrived from a tournament.
+function setupTournamentReturn() {
+    if (!from.t) return;
+    const rb = $("tournament-return");
+    if (rb) {
+        const q = new URLSearchParams({ id: from.t });
+        if (from.e) q.set("event", from.e);
+        if (from.tn) q.set("name", from.tn);
+        rb.href = `/html/tournament.html?${q.toString()}`;
+        $("tournament-return-name").textContent = from.tn || "Tournament";
+        rb.classList.remove("hidden");
+    }
+    // Direct link to this player's page within the tournament on dbv.turnier.de.
+    if (from.pi) {
+        const tl = $("p-dbv-tournament");
+        if (tl) {
+            tl.href = `https://dbv.turnier.de/tournament/${from.t}/player/${from.pi}`;
+            tl.classList.remove("hidden");
+        }
+    }
+}
+
+function showError(msg) {
+    $("profile-view").classList.add("hidden");
+    $("search-view").classList.remove("hidden");
+    const ph = $("page-header"); if (ph) ph.classList.remove("hidden");
+    document.title = "Player Insights | BAX Checker";
+    const st = $("search-status");
+    st.textContent = msg;
+    st.classList.remove("hidden");
+}
+
+/* Sub-navigation: switch which section panel is visible (no scrolling). */
+const _tabs = document.querySelectorAll(".subnav__tab");
+const _panels = document.querySelectorAll(".tab-panel");
+function activateTab(name) {
+    if (!Array.from(_tabs).some((t) => t.getAttribute("data-tab") === name)) return;
+    _tabs.forEach((t) => t.classList.toggle("is-active", t.getAttribute("data-tab") === name));
+    _panels.forEach((p) => p.classList.toggle("is-active", p.getAttribute("data-panel") === name));
+}
+_tabs.forEach((t) => t.addEventListener("click", () => {
+    const name = t.getAttribute("data-tab");
+    activateTab(name);
+    history.replaceState(null, "", location.pathname + location.search + "#" + name);
+}));
+if (location.hash) activateTab(location.hash.slice(1));
+
+function updateUrl(sp, pid, name) {
+    const q = new URLSearchParams();
+    if (sp) q.set("sp", sp);
+    if (pid) q.set("pid", pid);
+    if (name) q.set("name", name);
+    history.replaceState(null, "", location.pathname + "?" + q.toString());
+}
+
+/* ------------------------------------------------------------------ */
+/* Load pipeline                                                      */
+/* ------------------------------------------------------------------ */
+async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
+    try {
+        const res = await getPlayerBax({ sp_code: sp, profile_id: pid, name, vorname });
+        if (res.data.error) { showError(res.data.error); return; }
+        const { identity, history, distribution } = res.data;
+        state.history = history;
+        state.distribution = distribution;
+
+        renderIdentity(identity);
+        renderBaxTiles(history);
+        renderHistory();
+        renderDistribution();
+
+        const rpid = (identity && identity.profile_id) || pid || "";
+        const rsp = (identity && identity.sp_code) || sp || "";
+        state.profileId = rpid;
+        updateUrl(rsp, rpid, identity && identity.name);
+        if (window.lucide) lucide.createIcons();
+
+        if (rpid) {
+            loadDbvStats(rpid, identity && identity.name);
+            loadLeagues(rpid, identity && identity.name);
+            loadUpcoming(rpid);
+        } else {
+            markDbvUnavailable();
+        }
+    } catch (err) {
+        console.error("loadPlayer failed:", err);
+        showError(err.message || String(err));
+    }
+}
+
+function markDbvUnavailable() {
+    const msg = '<div class="pl-unavailable">Open this player from a tournament analysis once to link their ' +
+        'DBV profile — then leagues, tournaments, titles, win/loss and upcoming tournaments appear here.</div>';
+    ["winloss-body", "upcoming-body", "titles-body", "leagues-body", "tournaments-body"].forEach((id) => {
+        $(id).innerHTML = msg;
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Identity + current BAX tiles                                       */
+/* ------------------------------------------------------------------ */
+function renderIdentity(id) {
+    id = id || {};
+    $("p-name").textContent = id.name || "Player";
+    if (id.name) document.title = `${id.name} | BAX Checker`;
+    const meta = [];
+    if (id.club) meta.push(`<span>${escapeHtml(id.club)}</span>`);
+    if (id.birth_year) meta.push(`<span>Jg ${id.birth_year}</span>`);
+    if (id.sp_code) meta.push(`<code>${escapeHtml(id.sp_code)}</code>`);
+    $("p-meta").innerHTML = meta.join("");
+    const dbv = $("p-dbv");
+    if (id.profile_id) {
+        dbv.href = `https://dbv.turnier.de/player-profile/${id.profile_id}`;
+        dbv.classList.remove("hidden");
+    } else {
+        dbv.classList.add("hidden");
+    }
+}
+
+function renderBaxTiles(history) {
+    const cls = { Einzel: "stat--einzel", Doppel: "stat--doppel", Mixed: "stat--mixed" };
+    $("p-bax-tiles").innerHTML = CATS.map((c) => {
+        const cur = (history[c] || [])[0];
+        const val = cur && cur.bax != null ? cur.bax : "–";
+        const sub = cur ? `${escapeHtml(cur.season)}${cur.erfolg ? " · " + escapeHtml(cur.erfolg) : ""}` : "no data";
+        return `<div class="stat ${cls[c]}">
+            <div class="stat__label">${DISC_LABEL[c]} BAX</div>
+            <div class="stat__value">${val}</div>
+            <div class="stat__sub">${sub}</div>
+        </div>`;
+    }).join("");
+}
+
+/* ------------------------------------------------------------------ */
+/* BAX history — multi-line SVG chart + table                         */
+/* ------------------------------------------------------------------ */
+const seasonStart = (s) => parseInt((s || "").slice(0, 4), 10) || 0;
+
+document.querySelectorAll("[data-hview]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        state.histView = btn.getAttribute("data-hview");
+        document.querySelectorAll("[data-hview]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderHistory();
+    });
+});
+
+function renderHistory() {
+    const legend = $("hist-legend");
+    legend.innerHTML = CATS.map((c) => {
+        const off = state.histHidden.has(c) ? " off" : "";
+        return `<span class="lg${off}" data-series="${c}"><span class="lg-sw" style="background:var(--disc-${c.toLowerCase()})"></span>${DISC_LABEL[c]}</span>`;
+    }).join("");
+    legend.querySelectorAll("[data-series]").forEach((el) => {
+        el.addEventListener("click", () => {
+            const c = el.getAttribute("data-series");
+            if (state.histHidden.has(c)) state.histHidden.delete(c); else state.histHidden.add(c);
+            renderHistory();
+        });
+    });
+    if (state.histView === "table") renderHistoryTable();
+    else renderHistoryChart();
+}
+
+function renderHistoryChart() {
+    const body = $("hist-body");
+    const h = state.history || {};
+    const seasons = Array.from(new Set(CATS.flatMap((c) => (h[c] || []).map((r) => r.season))))
+        .sort((a, b) => seasonStart(a) - seasonStart(b));
+    const visible = CATS.filter((c) => !state.histHidden.has(c) && (h[c] || []).length);
+    const points = visible.flatMap((c) => (h[c] || []).map((r) => r.bax).filter((v) => v != null));
+    if (!seasons.length || !points.length) {
+        body.innerHTML = '<div class="pl-empty">No BAX history to plot.</div>';
+        return;
+    }
+
+    const W = 900, padL = 44, padR = 16, padT = 12, padB = 30;
+    const plotW = W - padL - padR;
+    const H = 320, plotH = H - padT - padB;
+    const xs = seasons.length > 1 ? (i) => padL + (i / (seasons.length - 1)) * plotW : () => padL + plotW / 2;
+
+    let lo = Math.min(...points), hi = Math.max(...points);
+    const pad = Math.max(10, Math.round((hi - lo) * 0.15));
+    lo = Math.floor((lo - pad) / 10) * 10; hi = Math.ceil((hi + pad) / 10) * 10;
+    if (hi === lo) hi = lo + 10;
+    const ys = (v) => padT + plotH - ((v - lo) / (hi - lo)) * plotH;
+
+    // Y gridlines + ticks.
+    let grid = "";
+    const ticks = 4;
+    for (let i = 0; i <= ticks; i++) {
+        const v = lo + ((hi - lo) * i) / ticks;
+        const y = ys(v);
+        grid += `<line class="pl-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
+        grid += `<text class="pl-axis" x="${padL - 8}" y="${y + 3}" text-anchor="end">${Math.round(v)}</text>`;
+    }
+    // X labels.
+    let xlabels = "";
+    seasons.forEach((s, i) => {
+        if (seasons.length > 8 && i % 2 === 1 && i !== seasons.length - 1) return;
+        xlabels += `<text class="pl-axis" x="${xs(i)}" y="${H - 10}" text-anchor="middle">${escapeHtml(s)}</text>`;
+    });
+
+    let lines = "", dots = "";
+    visible.forEach((c) => {
+        const byS = new Map((h[c] || []).map((r) => [r.season, r]));
+        const pts = seasons.map((s, i) => ({ s, i, r: byS.get(s) })).filter((p) => p.r && p.r.bax != null);
+        if (pts.length > 1) {
+            const d = pts.map((p) => `${xs(p.i)},${ys(p.r.bax)}`).join(" ");
+            lines += `<polyline class="pl-line pl-line--${c.toLowerCase()}" points="${d}"/>`;
+        }
+        pts.forEach((p) => {
+            const tip = `${DISC_LABEL[c]} · ${p.s}: BAX ${p.r.bax}${p.r.erfolg ? " · " + p.r.erfolg : ""}`;
+            dots += `<circle class="pl-dot--${c.toLowerCase()}" cx="${xs(p.i)}" cy="${ys(p.r.bax)}" r="4" data-tip="${escapeHtml(tip)}"/>`;
+        });
+    });
+
+    body.innerHTML = `
+        <div class="chart-svg-wrap">
+            <svg class="pl-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="BAX history">
+                ${grid}${lines}${dots}${xlabels}
+            </svg>
+            <div class="chart-tooltip hidden"></div>
+        </div>`;
+    wireTooltip(body);
+}
+
+function renderHistoryTable() {
+    const h = state.history || {};
+    const seasons = Array.from(new Set(CATS.flatMap((c) => (h[c] || []).map((r) => r.season))))
+        .sort((a, b) => seasonStart(b) - seasonStart(a)); // newest first
+    if (!seasons.length) { $("hist-body").innerHTML = '<div class="pl-empty">No BAX history.</div>'; return; }
+    const byCS = {};
+    CATS.forEach((c) => { byCS[c] = new Map((h[c] || []).map((r) => [r.season, r])); });
+    const rows = seasons.map((s) => {
+        const cells = CATS.map((c) => {
+            const r = byCS[c].get(s);
+            if (!r) return `<td>–</td>`;
+            return `<td><b>${r.bax != null ? r.bax : "–"}</b>${r.erfolg ? ` <span class="when">${escapeHtml(r.erfolg)}</span>` : ""}</td>`;
+        }).join("");
+        return `<tr><td class="name">${escapeHtml(s)}</td>${cells}</tr>`;
+    }).join("");
+    $("hist-body").innerHTML = `
+        <div class="table-scroll"><table class="pl-table">
+            <thead><tr><th>Season</th><th>Singles</th><th>Doubles</th><th>Mixed</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Relative standing — distribution histogram                         */
+/* ------------------------------------------------------------------ */
+document.querySelectorAll("#dist-scope [data-scope]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        state.distScope = btn.getAttribute("data-scope");
+        document.querySelectorAll("#dist-scope [data-scope]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderDistribution();
+    });
+});
+document.querySelectorAll("#dist-cat [data-cat]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+        state.distCat = btn.getAttribute("data-cat");
+        document.querySelectorAll("#dist-cat [data-cat]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderDistribution();
+    });
+});
+
+function renderDistribution() {
+    const body = $("dist-body");
+    const dist = state.distribution || {};
+    const d = ((dist[state.distScope] || {})[state.distCat]) || null;
+    if (!d || !d.buckets || !d.buckets.length) {
+        body.innerHTML = '<div class="pl-empty">No distribution data for this selection.</div>';
+        return;
+    }
+    const { buckets, freqs, player, total, scope, season } = d;
+    const n = Math.min(buckets.length, freqs.length);
+    const step = buckets.length > 1 ? (buckets[1] - buckets[0]) : 20;
+
+    const W = 900, padL = 40, padR = 12, padT = 12, padB = 28;
+    const plotW = W - padL - padR, H = 300, plotH = H - padT - padB;
+    const maxF = Math.max(1, ...freqs.slice(0, n));
+    const slot = plotW / n, barW = Math.max(2, slot * 0.82);
+    const x0 = (i) => padL + i * slot + (slot - barW) / 2;
+    const y = (v) => padT + plotH - (v / maxF) * plotH;
+    const baseline = padT + plotH;
+
+    let grid = "";
+    [0, 0.5, 1].forEach((f) => {
+        const gy = baseline - f * plotH;
+        grid += `<line class="pl-grid" x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}"/>`;
+        grid += `<text class="pl-axis" x="${padL - 6}" y="${gy + 3}" text-anchor="end">${Math.round(maxF * f)}</text>`;
+    });
+
+    let bars = "", xlabels = "";
+    for (let i = 0; i < n; i++) {
+        const b = buckets[i], f = freqs[i];
+        const mine = player >= b && player < b + step;
+        const yy = y(f);
+        const tip = `BAX ${b}–${b + step - 1}: ${num(f)} player${f === 1 ? "" : "s"}`;
+        bars += `<rect class="pl-bar${mine ? " pl-bar--me" : ""}" x="${x0(i)}" y="${yy}" width="${barW}" height="${baseline - yy}" rx="1.5" data-tip="${escapeHtml(tip)}"/>`;
+        if (i % 3 === 0 || i === n - 1) xlabels += `<text class="pl-axis" x="${x0(i) + barW / 2}" y="${H - 10}" text-anchor="middle">${b}</text>`;
+    }
+    // Player marker line.
+    let marker = "";
+    if (player != null && buckets.length) {
+        const idx = Math.max(0, Math.min(n - 1, Math.round((player - buckets[0]) / step)));
+        const mx = x0(idx) + barW / 2;
+        marker = `<line class="pl-marker" x1="${mx}" y1="${padT}" x2="${mx}" y2="${baseline}"/>` +
+            `<text class="pl-marker-label" x="${mx}" y="${padT + 10}" text-anchor="middle">You · ${player}</text>`;
+    }
+
+    body.innerHTML = `
+        <div class="chart-svg-wrap">
+            <svg class="pl-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="BAX distribution">
+                ${grid}${bars}${marker}${xlabels}
+            </svg>
+            <div class="chart-tooltip hidden"></div>
+        </div>
+        <div class="dist-caption">
+            Stronger than <b>${d.stronger_than_pct != null ? d.stronger_than_pct : "–"}%</b>
+            of ${escapeHtml(scope || (state.distScope === "lv" ? "LV" : "DBV"))}
+            ${DISC_LABEL[state.distCat]} players (${num(total)} total${season ? ", " + escapeHtml(season) : ""})
+        </div>`;
+    wireTooltip(body);
+}
+
+/* ------------------------------------------------------------------ */
+/* dbv stats: win/loss + titles + tournaments                         */
+/* ------------------------------------------------------------------ */
+async function loadDbvStats(pid, name) {
+    try {
+        const res = await getPlayerDbvStats({ profile_id: pid, name: name || "" });
+        if (res.data.error) throw new Error(res.data.error);
+        renderWinLoss(res.data.win_loss || {});
+        renderTitles(res.data.titles || []);
+        renderTournaments(res.data.tournaments || []);
+    } catch (err) {
+        console.error("dbv stats failed:", err);
+        const msg = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+        $("winloss-body").innerHTML = msg;
+        $("titles-body").innerHTML = msg;
+        $("tournaments-body").innerHTML = msg;
+    }
+}
+
+function wlCell(rec) {
+    if (!rec) return "–";
+    return `<span class="w">${rec.won}</span><span class="sep">–</span><span class="l">${rec.lost}</span>`;
+}
+
+function pct(rec) { return rec.pct != null ? rec.pct : (rec.total ? Math.round((rec.won / rec.total) * 100) : 0); }
+
+function renderWinLoss(wl) {
+    const t = wl.total || {};
+
+    // Compact glance tiles in the right-aligned win/loss group of the header.
+    const stats = $("p-wl-tiles");
+    if (stats && (t.career || t.year)) {
+        const statTile = (label, rec) => rec ? `<div class="stat stat--wl">
+            <div class="stat__label">${label}</div>
+            <div class="stat__value"><span class="w">${rec.won}</span><span class="sep">–</span><span class="l">${rec.lost}</span></div>
+            <div class="stat__sub">${pct(rec)}% won · ${num(rec.total)} matches</div>
+        </div>` : "";
+        stats.innerHTML = statTile("Career W–L", t.career) + statTile("Season W–L", t.year);
+    }
+
+    // Full breakdown in the Win / Loss tab.
+    const el = $("winloss-body");
+    if (!t.career && !t.year) { el.innerHTML = '<div class="pl-empty">No win/loss data.</div>'; return; }
+    const bigTile = (label, rec) => rec ? `<div class="wl">
+            <div class="wl__label">${label}</div>
+            <div class="wl__value"><span class="w">${rec.won}</span><span class="sep">–</span><span class="l">${rec.lost}</span></div>
+            <div class="wl__bar"><span style="width:${pct(rec)}%"></span></div>
+            <div class="wl__pct">${pct(rec)}% won · ${num(rec.total)} matches</div>
+        </div>` : "";
+    const rows = CATS.map((c) => {
+        const r = wl[c] || {};
+        return `<tr><td>${DISC_LABEL[c]}</td><td>${wlCell(r.career)}</td><td>${wlCell(r.year)}</td></tr>`;
+    }).join("");
+    el.innerHTML = `
+        <div class="wl-grid">${bigTile("Career", t.career)}${bigTile("This year", t.year)}</div>
+        <table class="wl-table">
+            <thead><tr><th>Discipline</th><th>Career W–L</th><th>This year W–L</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+}
+
+function renderTitles(titles) {
+    const el = $("titles-body");
+    if (!titles.length) { el.innerHTML = '<div class="pl-empty">No titles or finals recorded.</div>'; return; }
+    const byYear = new Map();
+    titles.forEach((t) => {
+        const y = t.year || "—";
+        if (!byYear.has(y)) byYear.set(y, []);
+        byYear.get(y).push(t.text);
+    });
+    el.innerHTML = Array.from(byYear.entries()).map(([year, items]) => `
+        <div class="titles-year">
+            <div class="titles-year__label">${escapeHtml(year)}</div>
+            ${items.map((txt) => `<div class="title-item">
+                <i data-lucide="trophy" class="title-item__icon" style="width:16px;height:16px;"></i>
+                <span class="title-item__text" style="flex:1;">${escapeHtml(txt)}</span>
+            </div>`).join("")}
+        </div>`).join("");
+    if (window.lucide) lucide.createIcons();
+}
+
+function renderTournaments(tours) {
+    const el = $("tournaments-body");
+    if (!tours.length) { el.innerHTML = '<div class="pl-empty">No tournaments listed.</div>'; return; }
+    const rows = tours.map((t) => {
+        const url = `https://dbv.turnier.de/sport/tournament?id=${t.id}`;
+        const date = t.start ? (t.end && t.end !== t.start ? `${t.start} – ${t.end}` : t.start) : "";
+        return `<tr>
+            <td class="name"><a href="${url}" target="_blank" rel="noopener">${escapeHtml(t.name || "Tournament")}</a>
+                ${t.location ? `<div class="when">${escapeHtml(t.location)}</div>` : ""}</td>
+            <td class="when">${escapeHtml(date)}</td>
+        </tr>`;
+    }).join("");
+    el.innerHTML = `<div class="table-scroll"><table class="pl-table">
+        <thead><tr><th>Tournament</th><th>Date</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Upcoming registrations                                             */
+/* ------------------------------------------------------------------ */
+async function loadUpcoming(pid) {
+    try {
+        const res = await getPlayerUpcoming({ profile_id: pid });
+        if (res.data.error) throw new Error(res.data.error);
+        renderUpcoming(res.data.upcoming || []);
+    } catch (err) {
+        console.error("upcoming failed:", err);
+        $("upcoming-body").innerHTML = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function fmtISO(iso) {
+    if (!iso) return "";
+    const p = iso.split("-");
+    return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
+}
+
+function renderUpcoming(list) {
+    const el = $("upcoming-body");
+    if (!list.length) {
+        el.innerHTML = '<div class="pl-empty">No upcoming tournament registrations captured yet. ' +
+            'These appear as players are analysed in the BAX Checker.</div>';
+        return;
+    }
+    // Group by tournament so multiple disciplines collapse into one entry.
+    const byT = new Map();
+    list.forEach((r) => {
+        const key = r.tournament_id || r.tournament_name;
+        if (!byT.has(key)) byT.set(key, { ...r, disciplines: [] });
+        if (r.discipline_name) byT.get(key).disciplines.push(r.discipline_name);
+    });
+    el.innerHTML = `<div class="upcoming-list">` + Array.from(byT.values()).map((r) => {
+        const discs = r.disciplines.length ? r.disciplines.map(escapeHtml).join(", ") : "";
+        const main = `<div class="upcoming-item__main">
+                <div class="upcoming-item__name">${escapeHtml(r.tournament_name || "Tournament")}</div>
+                ${discs ? `<div class="upcoming-item__sub">${discs}</div>` : ""}
+            </div>
+            <div class="upcoming-item__date">${escapeHtml(fmtISO(r.start_date))}</div>`;
+        // Primary: our own tournament page (deep-link the discipline only when unique).
+        let ourHref = null;
+        if (r.tournament_id) {
+            const q = new URLSearchParams({ id: r.tournament_id });
+            if (r.tournament_name) q.set("name", r.tournament_name);
+            if (r.disciplines.length === 1 && r.discipline_event) q.set("event", r.discipline_event);
+            ourHref = `/html/tournament.html?${q.toString()}`;
+        }
+        const linkPart = ourHref
+            ? `<a class="upcoming-item__link" href="${escapeHtml(ourHref)}">${main}</a>`
+            : `<div class="upcoming-item__link">${main}</div>`;
+        // Secondary: a small link out to the entry on dbv.turnier.de.
+        const dbvPart = r.tournament_url
+            ? `<a class="upcoming-item__dbv" href="${escapeHtml(r.tournament_url)}" target="_blank" rel="noopener" title="Open on dbv.turnier.de"><i data-lucide="external-link"></i></a>`
+            : "";
+        return `<div class="upcoming-item">${linkPart}${dbvPart}</div>`;
+    }).join("") + `</div>`;
+    if (window.lucide) lucide.createIcons();
+}
+
+/* ------------------------------------------------------------------ */
+/* Leagues (reused render, ported from the tournament tool)           */
+/* ------------------------------------------------------------------ */
+async function loadLeagues(pid, name) {
+    try {
+        const res = await getPlayerLeagues({ profile_id: pid, name: name || "" });
+        if (res.data.error) throw new Error(res.data.error);
+        renderPlayerLeagues(res.data.seasons || [], pid);
+    } catch (err) {
+        console.error("leagues failed:", err);
+        $("leagues-body").innerHTML = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function seasonLeagueUrl(profileId, season) {
+    if (!profileId) return null;
+    const y = /(\d{4})/.exec(season || "");
+    const year = y ? parseInt(y[1], 10) + 1 : null;
+    return `https://dbv.turnier.de/player-profile/${profileId}/leagues${year ? "/" + year : ""}`;
+}
+
+function formatRecordHtml(record) {
+    if (!record) return "";
+    const m = /(\d+)\s*-\s*(\d+)\s*\((\d+)\)/.exec(record);
+    if (!m) return `<div class="league-record"><span class="league-record__wl">${escapeHtml(record)}</span></div>`;
+    const [, w, l, t] = m;
+    return `<div class="league-record">
+                <span class="league-record__label">Win–Loss</span>
+                <span class="league-record__wl">${w}<span class="wl-sep">–</span>${l}</span>
+                <span class="league-record__total">${t} games</span>
+            </div>`;
+}
+
+function renderPlayerLeagues(seasons, profileId) {
+    const el = $("leagues-body");
+    if (!seasons.length) { el.innerHTML = '<div class="pl-empty">No league history found.</div>'; return; }
+    el.innerHTML = seasons.map((s) => {
+        const rows = (s.leagues || []).map((lg) => {
+            const divs = (lg.divisions || []).map((d) => {
+                const tag = d.abbr ? `<span class="league-tag">${escapeHtml(d.abbr)}</span>` : "";
+                const team = d.team ? `<span class="league-team">${escapeHtml(d.team)}</span>` : "";
+                return `<div class="league-div-line">${tag}<span class="league-div">${escapeHtml(d.division || "League")}</span>${team}</div>`;
+            }).join("");
+            return `<div class="league-row"><div class="league-row__divisions">${divs}</div>${formatRecordHtml(lg.record)}</div>`;
+        }).join("");
+        const inner = `<div class="league-season__year">${escapeHtml(s.season || "")}</div>${rows}`;
+        const url = seasonLeagueUrl(profileId, s.season);
+        return url
+            ? `<a class="league-season league-season--link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${inner}</a>`
+            : `<div class="league-season">${inner}</div>`;
+    }).join("");
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared SVG hover tooltip                                           */
+/* ------------------------------------------------------------------ */
+function wireTooltip(container) {
+    const wrap = container.querySelector(".chart-svg-wrap");
+    if (!wrap) return;
+    const svg = wrap.querySelector("svg");
+    const tip = wrap.querySelector(".chart-tooltip");
+    svg.addEventListener("mousemove", (e) => {
+        const el = e.target.closest("[data-tip]");
+        if (!el) { tip.classList.add("hidden"); return; }
+        tip.textContent = el.getAttribute("data-tip");
+        tip.classList.remove("hidden");
+        const box = wrap.getBoundingClientRect();
+        tip.style.left = (e.clientX - box.left + 12) + "px";
+        tip.style.top = (e.clientY - box.top + 12) + "px";
+    });
+    svg.addEventListener("mouseleave", () => tip.classList.add("hidden"));
+}

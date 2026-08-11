@@ -8,6 +8,7 @@ Cloud Function names come from each callable's __name__, and the frontend
 from app.bax import get_player_bax_data
 from app.tournaments import find_tournaments, get_tournament_disciplines
 from app.leagues import get_player_leagues
+from app.player import get_player_bax, get_player_dbv_stats, get_player_upcoming
 from app.accounts import save_user_activity
 from app.admin import get_usage_stats
 from app.health import ping
@@ -17,6 +18,9 @@ __all__ = [
     "find_tournaments",
     "get_tournament_disciplines",
     "get_player_leagues",
+    "get_player_bax",
+    "get_player_dbv_stats",
+    "get_player_upcoming",
     "save_user_activity",
     "get_usage_stats",
     "ping",

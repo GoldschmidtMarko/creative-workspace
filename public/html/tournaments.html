@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Browse and search badminton tournaments on dbv.turnier.de, then rank every team by BAX for any discipline.">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Tournaments | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
+</head>
+<body>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Players</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <header>
+            <h1>Tournaments</h1>
+            <p>Find a tournament, then rank every team by BAX for any discipline</p>
+        </header>
+
+        <main style="max-width: 1000px; margin: 0 auto;">
+            <div class="card input-card" id="filter-card" style="align-items: stretch; text-align: left; padding: 0.85rem 1.1rem;">
+                <div class="input-head" id="filter-head" role="button" tabindex="0" aria-expanded="true" aria-controls="filter-body">
+                    <span class="input-head__title"><i data-lucide="sliders-horizontal"></i> Search &amp; filters</span>
+                    <span class="fold-btn" aria-hidden="true"><i data-lucide="chevron-up" class="fold-header__chevron"></i></span>
+                </div>
+                <div id="filter-body" class="fold-body">
+                <div class="filter-grid">
+                    <div>
+                        <label class="field-label" for="filter-q">Search</label>
+                        <input type="text" id="filter-q" class="field" placeholder="Tournament name…">
+                    </div>
+                    <div>
+                        <label class="field-label" for="filter-start">From</label>
+                        <input type="date" id="filter-start" class="field">
+                    </div>
+                    <div>
+                        <label class="field-label" for="filter-end">To</label>
+                        <input type="date" id="filter-end" class="field">
+                    </div>
+                    <div>
+                        <label class="field-label" for="filter-plz">Postal code</label>
+                        <input type="text" id="filter-plz" class="field" placeholder="e.g. 47877" inputmode="numeric">
+                    </div>
+                    <div>
+                        <label class="field-label" for="filter-distance">Distance (km)</label>
+                        <select id="filter-distance" class="field">
+                            <option value="10">+10 km</option>
+                            <option value="25" selected>+25 km</option>
+                            <option value="50">+50 km</option>
+                            <option value="100">+100 km</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <label class="reg-toggle">
+                        <input type="checkbox" id="filter-reg-open" checked>
+                        Registration open only
+                    </label>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <button id="browse-update-live-btn" class="btn btn-secondary btn-sm update-live-btn" type="button"
+                            title="Fetch fresh listings, bypassing the cache (rate-limited)">
+                            <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i>
+                            <span>Update Live</span>
+                        </button>
+                        <button id="search-btn" class="run-btn-premium" style="justify-content:center;">
+                            <i data-lucide="search" style="width:18px;height:18px;"></i>
+                            <span>Find Tournaments</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="paste-row">
+                    <i data-lucide="link" style="width:15px;height:15px;color:var(--ink-faint);"></i>
+                    <input type="text" id="paste-url" class="field" placeholder="…or paste a dbv.turnier.de tournament / event link">
+                    <button id="paste-go" class="btn btn-secondary btn-sm" type="button">Open</button>
+                </div>
+                </div><!-- /#filter-body -->
+            </div>
+
+            <div id="browse-status" class="browse-status hidden"></div>
+            <div id="tournament-list" class="tournament-grid" style="margin-top:1.25rem;"></div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="site-footer__links">
+                <a href="/impressum.html">Impressum</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="/privacy.html">Privacy Policy</a>
+            </div>
+            <div class="site-footer__copy">&copy; <span id="copyright-year"></span> BAX Checker</div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/tournaments.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+</html>

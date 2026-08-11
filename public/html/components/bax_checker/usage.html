@@ -108,20 +108,28 @@
 </head>
 
 <body>
-    <div class="topbar">
-        <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
-        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
-            <i data-lucide="sun" class="icon-sun"></i>
-            <i data-lucide="moon" class="icon-moon"></i>
-        </button>
-    </div>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Players</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
 
     <div class="container">
-        <a href="/html/index.html" class="back-btn">
-            <i data-lucide="arrow-left" style="width: 20px; height: 20px;"></i>
-            Back to Dashboard
-        </a>
-
         <header>
             <h1>Usage Dashboard</h1>
             <p>Analytics overview for the BAX Checker — admin only</p>

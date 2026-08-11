@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Player insights for badminton players — BAX history over the years, relative standing in your Landesverband and the DBV, leagues, tournaments, titles, win/loss and upcoming tournaments.">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Player Insights | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
+    <link rel="stylesheet" href="/styles/player.css">
+</head>
+
+<body>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/player.html">Players</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <header id="page-header">
+            <h1>Player Insights</h1>
+            <p>BAX history, relative standing, leagues, tournaments &amp; more for a single player</p>
+        </header>
+
+        <main class="player-main">
+            <!-- Search view (shown when no player is specified) -->
+            <section id="search-view">
+                <div class="pcard search-card">
+                    <div class="pcard__head"><h2>Find a player</h2></div>
+                    <form id="search-form">
+                        <div class="search-row">
+                            <div>
+                                <label class="field-label" for="search-last">Last name</label>
+                                <input type="text" id="search-last" class="field" placeholder="Surname" autocomplete="off">
+                            </div>
+                            <div>
+                                <label class="field-label" for="search-first">First name (optional)</label>
+                                <input type="text" id="search-first" class="field" placeholder="First name" autocomplete="off">
+                            </div>
+                            <button type="submit" class="run-btn-premium" style="justify-content:center;">
+                                <i data-lucide="search" style="width:18px;height:18px;"></i>
+                                <span>Search</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="search-status" class="pl-empty hidden"></div>
+                    <p class="hint" style="margin-top:0.75rem; color: var(--ink-faint); font-size:0.8rem;">
+                        Tip: open a player from any tournament analysis to unlock their full profile
+                        (leagues, tournaments, titles, win/loss).
+                    </p>
+                </div>
+            </section>
+
+            <!-- Profile view -->
+            <section id="profile-view" class="hidden">
+                <!-- Contextual "back to tournament" (only when arriving from one) -->
+                <a id="tournament-return" class="tournament-return hidden" href="#">
+                    <span class="tournament-return__arrow"><i data-lucide="arrow-left"></i></span>
+                    <span class="tournament-return__body">
+                        <span class="tournament-return__eyebrow">Back to tournament</span>
+                        <span class="tournament-return__name" id="tournament-return-name">Tournament</span>
+                    </span>
+                    <span class="tournament-return__badge"><i data-lucide="trophy"></i></span>
+                </a>
+
+                <!-- Identity header (always visible) -->
+                <div class="pcard" id="identity-card">
+                    <div class="identity">
+                        <div>
+                            <div class="identity__name" id="p-name">—</div>
+                            <div class="identity__meta" id="p-meta"></div>
+                        </div>
+                        <div class="identity__links">
+                            <a class="identity__dbv hidden" id="p-dbv" target="_blank" rel="noopener">
+                                <i data-lucide="external-link" style="width:15px;height:15px;"></i> DBV profile
+                            </a>
+                            <a class="identity__dbv hidden" id="p-dbv-tournament" target="_blank" rel="noopener">
+                                <i data-lucide="external-link" style="width:15px;height:15px;"></i> In this tournament
+                            </a>
+                        </div>
+                    </div>
+                    <div class="identity-stats">
+                        <div class="stat-grid" id="p-bax-tiles"></div>
+                        <div class="stat-grid" id="p-wl-tiles"></div>
+                    </div>
+                </div>
+
+                <!-- Section sub-navigation (sticky) -->
+                <nav class="subnav" id="subnav" aria-label="Player sections">
+                    <button class="subnav__tab subnav__tab--upcoming is-active" type="button" data-tab="upcoming"><i data-lucide="sparkles"></i>Upcoming</button>
+                    <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
+                    <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
+                    <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
+                    <button class="subnav__tab" type="button" data-tab="tournaments">Tournaments</button>
+                    <button class="subnav__tab" type="button" data-tab="titles">Titles</button>
+                    <button class="subnav__tab" type="button" data-tab="standing">Standing</button>
+                </nav>
+
+                <!-- Panels -->
+                <div class="tab-panel is-active" data-panel="upcoming">
+                    <div class="pcard pcard--upcoming">
+                        <div class="pcard__head">
+                            <h2><i data-lucide="sparkles" class="pcard__spark"></i> Upcoming tournaments</h2>
+                            <span class="hint">who's registered where — captured live as players are analysed</span>
+                        </div>
+                        <div id="upcoming-body"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="history">
+                    <div class="pcard">
+                        <div class="pcard__head">
+                            <h2>BAX history</h2>
+                            <div class="pl-toggles">
+                                <div class="chart-legend" id="hist-legend"></div>
+                                <div class="view-switch">
+                                    <button class="view-btn active" data-hview="chart" type="button">Chart</button>
+                                    <button class="view-btn" data-hview="table" type="button">Table</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="hist-body"><div class="skeleton"><span class="spinner"></span> Loading…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="leagues">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Leagues</h2><span class="hint">team season records</span></div>
+                        <div id="leagues-body" class="player-leagues"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="winloss">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Win / Loss</h2><span class="hint">career &amp; this season</span></div>
+                        <div id="winloss-body"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="tournaments">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Tournaments played</h2><span class="hint">recent entries</span></div>
+                        <div id="tournaments-body"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="titles">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Titles &amp; finals</h2><span class="hint">podium finishes</span></div>
+                        <div id="titles-body"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="standing">
+                    <div class="pcard">
+                        <div class="pcard__head">
+                            <h2>Relative standing</h2>
+                            <div class="pl-toggles">
+                                <div class="mode-tabs" id="dist-scope">
+                                    <button class="mode-tab active" data-scope="lv" type="button">Landesverband</button>
+                                    <button class="mode-tab" data-scope="dbv" type="button">DBV</button>
+                                </div>
+                                <div class="mode-tabs" id="dist-cat">
+                                    <button class="mode-tab active" data-cat="Einzel" type="button">Singles</button>
+                                    <button class="mode-tab" data-cat="Doppel" type="button">Doubles</button>
+                                    <button class="mode-tab" data-cat="Mixed" type="button">Mixed</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="dist-body"><div class="skeleton"><span class="spinner"></span> Loading…</div></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Error view -->
+            <div id="error-view" class="pcard hidden" style="text-align:center;">
+                <div style="font-size:2rem;">😕</div>
+                <h2 style="color:var(--ink); margin:0.5rem 0;">Could not load player</h2>
+                <p id="error-msg" style="color:var(--ink-dim);"></p>
+            </div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="site-footer__links">
+                <a href="/impressum.html">Impressum</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="/privacy.html">Privacy Policy</a>
+            </div>
+            <div class="site-footer__copy">&copy; <span id="copyright-year"></span> BAX Checker</div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/player.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+
+</html>

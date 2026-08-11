@@ -78,3 +78,84 @@ def parse_event_url(url):
     tid = re.search(r"[?&]id=([0-9A-Fa-f-]{36})", url or "")
     ev = re.search(r"[?&]event=(\d+)", url or "")
     return (tid.group(1).upper() if tid else None, ev.group(1) if ev else None)
+
+
+def name_key(*parts):
+    """A collision-tolerant, order-independent search key for a player name.
+    'Marko Goldschmidt' and last='Goldschmidt' first='Marko' both map to the
+    same key, so the badminton-bax.de (last, first) form and the dbv 'First Last'
+    form resolve to one another."""
+    toks = []
+    for p in parts:
+        toks += re.findall(r"\w+", (p or "").lower())
+    return " ".join(sorted(toks))
+
+
+def upsert_player_index(profile_id, sp_code=None, name=None):
+    """Best-effort: remember a player's id mapping (dbv GUID <-> badminton-bax.de
+    sp_code <-> name), so a name search can light up the dbv-only sections and
+    reuse the BAX cache. Written whenever both ids are seen together (every
+    tournament analysis) or a profile is opened."""
+    if db is None or not profile_id:
+        return
+    payload = {"profile_id": profile_id, "updated_at": firestore.SERVER_TIMESTAMP}
+    if sp_code and sp_code != "N/A":
+        payload["sp_code"] = sp_code
+    if name:
+        payload["name"] = name
+        payload["name_key"] = name_key(name)
+    try:
+        db.collection("player_index").document(profile_id).set(payload, merge=True)
+    except Exception as e:
+        print(f"player_index upsert error: {e}")
+
+
+def record_registrations(players, tid, event, tournament_name=None,
+                         tournament_url=None, discipline_name=None, start_date=None):
+    """Best-effort: persist that each listed player is currently registered for
+    this tournament+discipline (with a link), powering the per-player 'upcoming
+    tournaments' section. Keyed by profile_id+tournament+event so re-analyses
+    just refresh last_seen. Guests without a dbv profile id are skipped. Batched
+    into one commit to keep the write cheap for big entry lists."""
+    if db is None or not tid:
+        return
+    try:
+        batch = db.batch()
+        n = 0
+        for p in players:
+            pid = p.get("profile_id")
+            if not pid:
+                continue
+            reg = db.collection("player_registrations").document(f"{pid}__{tid}__{event or '0'}")
+            batch.set(reg, {
+                "profile_id": pid,
+                "sp_code": p.get("id"),
+                "name": p.get("full_name"),
+                "tournament_id": tid,
+                "tournament_name": tournament_name,
+                "tournament_url": tournament_url,
+                "discipline_event": event,
+                "discipline_name": discipline_name,
+                "start_date": start_date,
+                "status": p.get("status"),
+                "last_seen": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+            # Also remember the id mapping so a later name search resolves the dbv
+            # profile — analyses are where both ids are known together.
+            idx = db.collection("player_index").document(pid)
+            idx_payload = {"profile_id": pid, "updated_at": firestore.SERVER_TIMESTAMP}
+            if p.get("id") and p.get("id") != "N/A":
+                idx_payload["sp_code"] = p["id"]
+            if p.get("full_name"):
+                idx_payload["name"] = p["full_name"]
+                idx_payload["name_key"] = name_key(p["full_name"])
+            batch.set(idx, idx_payload, merge=True)
+            n += 2
+            # Firestore batches cap at 500 writes; flush well under that.
+            if n % 400 == 0:
+                batch.commit()
+                batch = db.batch()
+        if n % 400:
+            batch.commit()
+    except Exception as e:
+        print(f"registration write error: {e}")

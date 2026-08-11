@@ -1,6 +1,8 @@
 """Player league history — dbv.turnier.de /player-profile/<id>/leagues."""
 
 import re
+import time
+import threading
 from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
@@ -34,6 +36,39 @@ def _league_tier(division):
     return None, 99
 
 
+# League standings only change when badminton-bax.de recomputes them, reported on
+# the index page as "Stand der Aktualisierung … (Ligen)". We tag each cached entry
+# with that date so it stays valid until the site actually updates — mirroring the
+# "(Turniere)" mechanism used for BAX values (see bax._bax_update_date).
+_LIGEN_DATE = {"date": None, "at": 0.0}
+_LIGEN_DATE_TTL = 600          # re-check the index page at most every 10 minutes
+_LIGEN_DATE_LOCK = threading.Lock()
+
+
+def _leagues_update_date():
+    """The badminton-bax.de leagues 'last updated' date (e.g. '15.05.2026'), or
+    None if it can't be read. Memoized in-process."""
+    now = time.time()
+    if _LIGEN_DATE["date"] and now - _LIGEN_DATE["at"] < _LIGEN_DATE_TTL:
+        return _LIGEN_DATE["date"]
+    with _LIGEN_DATE_LOCK:
+        now = time.time()
+        if _LIGEN_DATE["date"] and now - _LIGEN_DATE["at"] < _LIGEN_DATE_TTL:
+            return _LIGEN_DATE["date"]
+        try:
+            resp = _get("https://www.badminton-bax.de/index.php")
+            resp.raise_for_status()
+            txt = BeautifulSoup(resp.text, "html.parser").get_text(" ", strip=True)
+            m = re.search(r"(\d{2}\s*\.\s*\d{2}\s*\.\s*\d{4})\s*\(Ligen\)", txt)
+            date = re.sub(r"\s+", "", m.group(1)) if m else None
+            if date:
+                _LIGEN_DATE.update(date=date, at=now)
+            return date
+        except Exception as e:
+            print(f"Could not read Ligen update date: {e}")
+            return _LIGEN_DATE["date"]
+
+
 def _scrape_leagues(profile_id, year=None, force=False):
     """Scrape a player's leagues for one season, grouped by league. Returns
     (leagues, available_years). Each league carries one shared record/season
@@ -43,12 +78,20 @@ def _scrape_leagues(profile_id, year=None, force=False):
     if not profile_id:
         return [], []
     cache_key = f"{profile_id}_{year or 'current'}"
+    site_date = _leagues_update_date()
     if db and not force:
         try:
             cache = db.collection("player_leagues_cache").document(cache_key).get()
             if cache.exists:
                 data = cache.to_dict()
-                if datetime.now(timezone.utc) < data["expires_at"]:
+                # Valid until the site's "(Ligen)" date changes; if that date
+                # can't be read, fall back to the stored TTL.
+                if site_date:
+                    fresh = data.get("ligen_date") == site_date
+                else:
+                    exp = data.get("expires_at")
+                    fresh = exp is not None and datetime.now(timezone.utc) < exp
+                if fresh:
                     return data["leagues"], data.get("years", [])
         except Exception:
             pass
@@ -103,8 +146,9 @@ def _scrape_leagues(profile_id, year=None, force=False):
         try:
             db.collection("player_leagues_cache").document(cache_key).set({
                 "leagues": leagues, "years": years,
-                # League/Liga history changes at most once per season, so cache
-                # it for a long time.
+                "ligen_date": site_date,
+                # The ligen_date is the real validity signal; this only bounds
+                # staleness for the fallback case where the date is unreadable.
                 "expires_at": datetime.now(timezone.utc) + timedelta(days=60),
             })
         except Exception:

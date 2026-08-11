@@ -1,0 +1,353 @@
+/* Player Insights page — reuses the shared tokens/components in main.css and
+   bax_checker.css (league cards, chart tokens, .stat tiles). Only the
+   player-specific layout lives here. */
+
+.player-main { width: 100%; max-width: 1000px; margin: 0 auto; }
+
+/* Section card wrapper */
+.pcard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.pcard__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+}
+.pcard__head h2 { font-size: 1.05rem; color: var(--ink); margin: 0; }
+.pcard__head .hint { color: var(--ink-faint); font-size: 0.8rem; }
+
+/* --- Search view --- */
+.search-card { max-width: 560px; margin: 0 auto; }
+.search-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.75rem;
+    align-items: end;
+}
+.search-row .field-label {
+    display: block; margin-bottom: 0.35rem;
+    color: var(--ink-dim); font-size: 0.8rem; font-weight: 600;
+}
+@media (max-width: 560px) {
+    .search-row { grid-template-columns: 1fr; }
+}
+
+/* --- Identity header --- */
+.identity {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.identity__name { font-size: clamp(1.3rem, 5vw, 1.6rem); font-weight: 800; color: var(--ink); line-height: 1.15; letter-spacing: -0.02em; }
+.identity__meta { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; color: var(--ink-dim); font-size: 0.9rem; }
+.identity__meta code { font-family: monospace; color: var(--ink-dim); }
+.identity__links { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-end; flex-shrink: 0; }
+.identity__dbv { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+.identity__dbv:hover { text-decoration: underline; }
+@media (max-width: 560px) { .identity__links { align-items: flex-start; } }
+
+/* Header stats: BAX values on the left, the win/loss record pushed to the right
+   so the two groups read as distinct. */
+.identity-stats { display: flex; flex-wrap: wrap; gap: 0.55rem 1rem; margin-top: 0.8rem; align-items: stretch; }
+.identity-stats .stat-grid { display: flex; flex-wrap: wrap; gap: 0.55rem; margin: 0; }
+.identity-stats .stat { min-width: 102px; }
+.identity-stats #p-wl-tiles { margin-left: auto; }
+@media (max-width: 560px) {
+    #identity-card { padding: 0.85rem 0.95rem; }
+    .identity-stats { gap: 0.45rem; margin-top: 0.7rem; }
+    .identity-stats .stat-grid { flex: 1 1 100%; gap: 0.45rem; }
+    .identity-stats #p-wl-tiles { margin-left: 0; }
+    .identity-stats .stat { flex: 1; min-width: 0; }   /* 3 BAX across, then 2 W-L across */
+}
+
+/* Stat tiles (shared look with the usage dashboard) */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.7rem;
+    margin-top: 1rem;
+}
+.stat {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.7rem;
+}
+.stat__label { color: var(--ink-dim); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.stat__value { color: var(--ink); font-size: 1.35rem; font-weight: 800; line-height: 1.15; margin-top: 0.1rem; font-variant-numeric: tabular-nums; }
+.stat__value .w { color: var(--success); }
+.stat__value .l { color: var(--danger); }
+.stat__value .sep { color: var(--ink-faint); margin: 0 0.15rem; font-weight: 600; }
+.stat__sub { color: var(--ink-faint); font-size: 0.72rem; margin-top: 0.1rem; }
+.stat--einzel { border-left: 3px solid var(--disc-einzel); }
+.stat--doppel { border-left: 3px solid var(--disc-doppel); }
+.stat--mixed  { border-left: 3px solid var(--disc-mixed); }
+.stat--wl { border-left: 3px solid var(--accent); }
+
+/* Fancy "back to tournament" button (only when arriving from a tournament) */
+.tournament-return {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.7rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--ink);
+    background: linear-gradient(120deg,
+        color-mix(in srgb, var(--accent) 16%, transparent),
+        color-mix(in srgb, var(--accent) 5%, transparent));
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.tournament-return::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 32%,
+        color-mix(in srgb, var(--accent) 22%, transparent) 50%, transparent 68%);
+    transform: translateX(-120%);
+    transition: transform 0.65s ease;
+    pointer-events: none;
+}
+.tournament-return:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--accent);
+}
+.tournament-return:hover::before { transform: translateX(120%); }
+.tournament-return__arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.18s ease;
+}
+.tournament-return:hover .tournament-return__arrow { transform: translateX(-3px); }
+.tournament-return__arrow i { width: 18px; height: 18px; }
+.tournament-return__body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tournament-return__eyebrow {
+    font-size: 0.68rem; font-weight: 800; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--accent);
+}
+.tournament-return__name {
+    font-size: 0.98rem; font-weight: 700; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tournament-return__badge { flex-shrink: 0; color: var(--accent); opacity: 0.6; display: inline-flex; }
+.tournament-return__badge i { width: 22px; height: 22px; }
+@media (prefers-reduced-motion: reduce) {
+    .tournament-return, .tournament-return::before, .tournament-return__arrow { transition: none; }
+}
+
+/* Sticky section sub-navigation (tabs) */
+.subnav {
+    position: sticky;
+    top: 56px;                 /* sits directly under the main nav */
+    z-index: 30;
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 0.55rem 0;
+    margin: 0.25rem 0 1.1rem;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: saturate(160%) blur(8px);
+    -webkit-backdrop-filter: saturate(160%) blur(8px);
+    border-bottom: 1px solid var(--border);
+}
+.subnav::-webkit-scrollbar { display: none; }
+.subnav__tab {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: none;
+    background: transparent;
+    color: var(--ink-dim);
+    font-weight: 600;
+    font-size: 0.875rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.subnav__tab svg { width: 15px; height: 15px; }
+.subnav__tab:hover { color: var(--ink); background: var(--card-2); }
+.subnav__tab.is-active {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* The Upcoming tab is the novel feature — give it its own accent (amber),
+   distinct from the teal used by every other active tab. (Rules after
+   .is-active so they win the equal-specificity tie.) */
+.subnav__tab--upcoming { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 13%, transparent); }
+.subnav__tab--upcoming svg { color: var(--disc-waiting); }
+.subnav__tab--upcoming:hover { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 20%, transparent); }
+.subnav__tab--upcoming.is-active {
+    color: var(--disc-waiting);
+    background: color-mix(in srgb, var(--disc-waiting) 24%, transparent);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--disc-waiting) 45%, transparent);
+}
+
+/* Highlighted Upcoming panel card */
+.pcard--upcoming {
+    border-color: color-mix(in srgb, var(--disc-waiting) 40%, var(--border));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--disc-waiting) 7%, var(--card)), var(--card) 55%);
+}
+.pcard__spark { width: 18px; height: 18px; color: var(--disc-waiting); vertical-align: -3px; margin-right: 0.15rem; }
+
+.tab-panel { display: none; }
+.tab-panel.is-active { display: block; animation: tabfade 0.18s ease; }
+@keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tab-panel.is-active { animation: none; } }
+
+/* Win / loss */
+.wl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.7rem; }
+.wl {
+    background: var(--card-2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 0.8rem 0.9rem;
+}
+.wl__label { color: var(--ink-dim); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+.wl__value { font-size: 1.5rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 0.15rem; }
+.wl__value .w { color: var(--success); }
+.wl__value .sep { color: var(--ink-faint); margin: 0 0.25rem; }
+.wl__value .l { color: var(--danger); }
+.wl__bar { margin-top: 0.5rem; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--danger) 30%, transparent); overflow: hidden; }
+.wl__bar span { display: block; height: 100%; background: var(--success); border-radius: 3px; }
+.wl__pct { color: var(--ink-faint); font-size: 0.75rem; margin-top: 0.25rem; }
+
+/* Small per-discipline win/loss table */
+.wl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.9rem; }
+.wl-table th, .wl-table td { padding: 0.45rem 0.6rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wl-table th:first-child, .wl-table td:first-child { text-align: left; }
+.wl-table thead th { color: var(--ink-dim); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+.wl-table tbody tr { border-bottom: 1px solid var(--border); }
+.wl-table tbody tr:last-child { border-bottom: none; }
+.wl-table td .w { color: var(--success); font-weight: 700; }
+.wl-table td .l { color: var(--danger); font-weight: 700; }
+
+/* --- Charts (line history + distribution histogram) reuse chart tokens --- */
+.chart-svg-wrap { position: relative; }
+.pl-svg { display: block; width: 100%; height: auto; }
+.pl-grid { stroke: var(--border); stroke-width: 1; }
+.pl-axis { fill: var(--ink-faint); font-size: 11px; }
+.pl-line { fill: none; stroke-width: 2.5; }
+.pl-line--einzel { stroke: var(--disc-einzel); }
+.pl-line--doppel { stroke: var(--disc-doppel); }
+.pl-line--mixed  { stroke: var(--disc-mixed); }
+.pl-dot--einzel { fill: var(--disc-einzel); }
+.pl-dot--doppel { fill: var(--disc-doppel); }
+.pl-dot--mixed  { fill: var(--disc-mixed); }
+
+/* Distribution bars */
+.pl-bar { fill: var(--border-strong); transition: opacity 0.12s ease; }
+.pl-bar--me { fill: var(--accent); }
+.pl-svg:hover .pl-bar:not(:hover) { opacity: 0.7; }
+.pl-marker { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.pl-marker-label { fill: var(--accent); font-size: 11px; font-weight: 800; }
+
+.dist-caption { margin-top: 0.5rem; color: var(--ink-dim); font-size: 0.9rem; text-align: center; }
+.dist-caption b { color: var(--ink); }
+
+/* Tabs / segmented toggles reuse .mode-tabs / .mode-tab from bax_checker.css */
+.pl-toggles { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+
+/* Chart legend (reuses .lg/.lg-sw) */
+.chart-legend { display: flex; gap: 0.85rem; flex-wrap: wrap; }
+.lg { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--ink-dim); cursor: pointer; }
+.lg.off { opacity: 0.4; }
+.lg-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+.chart-tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--card); border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.78rem;
+    color: var(--ink); box-shadow: var(--shadow-md); white-space: nowrap; z-index: 5;
+}
+
+/* --- Upcoming / titles / tournaments lists --- */
+.upcoming-list, .titles-year { display: flex; flex-direction: column; gap: 0.5rem; }
+.title-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.6rem 0.8rem; background: var(--card-2);
+    border: 1px solid var(--border); border-radius: var(--radius); text-decoration: none; color: inherit;
+}
+a.title-item:hover { border-color: var(--accent); }
+
+/* Upcoming item: a big primary link to OUR tournament page + a small dbv link */
+.upcoming-item {
+    display: flex; align-items: stretch;
+    background: var(--card-2); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    transition: border-color 0.15s ease;
+}
+.upcoming-item:hover { border-color: var(--accent); }
+.upcoming-item__link {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    flex: 1; min-width: 0; padding: 0.6rem 0.8rem;
+    text-decoration: none; color: inherit;
+}
+.upcoming-item__dbv {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; width: 2.5rem;
+    color: var(--ink-faint); border-left: 1px solid var(--border);
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.upcoming-item__dbv:hover { background: var(--card); color: var(--accent); }
+.upcoming-item__dbv svg { width: 16px; height: 16px; }
+.upcoming-item__main { min-width: 0; }
+.upcoming-item__name { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upcoming-item__sub { font-size: 0.8rem; color: var(--ink-dim); margin-top: 0.1rem; }
+.upcoming-item__date { flex-shrink: 0; font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 0.85rem; text-align: right; }
+
+.titles-year { margin-bottom: 0.9rem; }
+.titles-year__label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; color: var(--ink-faint); margin-bottom: 0.35rem; }
+.title-item__text { color: var(--ink); font-size: 0.9rem; }
+.title-item__icon { color: var(--accent); flex-shrink: 0; }
+
+/* Tournaments played table reuses .usage-table look */
+.table-scroll { overflow-x: auto; }
+.pl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.pl-table th, .pl-table td { padding: 0.5rem 0.7rem; text-align: left; white-space: nowrap; }
+.pl-table thead th { color: var(--ink-dim); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border); }
+.pl-table tbody tr { border-bottom: 1px solid var(--border); }
+.pl-table tbody tr:last-child { border-bottom: none; }
+.pl-table td.name { white-space: normal; color: var(--ink); font-weight: 500; }
+.pl-table a { color: var(--accent); text-decoration: none; }
+.pl-table a:hover { text-decoration: underline; }
+.pl-table .when { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+/* Skeleton / empty / status */
+.skeleton { color: var(--ink-faint); font-size: 0.9rem; padding: 1.25rem 0; text-align: center; }
+.pl-empty { color: var(--ink-faint); font-size: 0.88rem; padding: 1rem 0; text-align: center; }
+.pl-unavailable { color: var(--ink-dim); font-size: 0.88rem; padding: 0.5rem 0; }
+
+/* Leagues reuse .player-leagues/.league-* from bax_checker.css */
+.player-leagues { display: flex; flex-direction: column; gap: 0.85rem; }
+
+@media (max-width: 768px) {
+    .identity__name { font-size: 1.5rem; }
+    .pl-svg { min-width: 520px; }
+    .chart-svg-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
