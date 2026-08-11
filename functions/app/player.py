@@ -18,6 +18,7 @@ the BAX cache.
 """
 
 import re
+import hashlib
 from datetime import datetime, date, timedelta, timezone
 
 import requests
@@ -308,6 +309,41 @@ def _fetch_dbv_stats(profile_id):
 
 
 # --------------------------------------------------------------------------- #
+# dbv.turnier.de player search (find/player) — a name-substring lookup that
+# returns candidates with BOTH ids (profile GUID + sp_code), name and club.
+# --------------------------------------------------------------------------- #
+
+def _search_players(q, limit=60):
+    s = requests.Session()
+    s.headers.update(HEADERS)
+    s.cookies.update(COOKIES)
+    resp = s.get(f"{BASE}/find/player", params={"q": q}, timeout=25)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    out, seen = [], set()
+    for card in soup.select(".media__wrapper"):
+        link = card.find("a", href=re.compile(r"/player-profile/([0-9a-fA-F-]{36})", re.I))
+        if not link:
+            continue
+        gid = re.search(r"/player-profile/([0-9a-fA-F-]{36})", link["href"], re.I).group(1)
+        if gid in seen:
+            continue
+        seen.add(gid)
+        name_el = card.find(class_="media__link") or card.find(class_="media__title")
+        name = name_el.get_text(" ", strip=True) if name_el else ""
+        aside = card.find(class_="media__title-aside")
+        m = re.search(r"(\d+-\d+)", aside.get_text()) if aside else None
+        sub = card.find(class_="media__subheading")
+        club = sub.get_text(" ", strip=True) if sub else None
+        if name:
+            out.append({"profile_id": gid, "sp_code": (m.group(1) if m else None),
+                        "name": name, "club": club})
+        if len(out) >= limit:
+            break
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # player_index lookups (name/sp_code -> ids)
 # --------------------------------------------------------------------------- #
 
@@ -526,4 +562,43 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
     except Exception as e:
         import traceback
         print(f"get_player_upcoming error: {e}\n{traceback.format_exc()}")
+        return {"error": f"Internal Error: {str(e)}"}
+
+
+@https_fn.on_call()
+def search_players(req: https_fn.CallableRequest) -> dict:
+    """Search dbv.turnier.de for players by name (substring match), returning
+    candidates with both ids so the profile loads robustly."""
+    try:
+        q = ((req.data or {}).get("q") or "").strip()
+        if len(q) < 2:
+            return {"players": [], "count": 0}
+        if not check_rate_limit(rate_key(req), "search_players", 60, 3600000):
+            return {"error": "You're searching too quickly. Please wait a bit."}
+
+        key = hashlib.md5(q.lower().encode()).hexdigest()
+        if db:
+            try:
+                snap = db.collection("player_search_cache").document(key).get()
+                if snap.exists:
+                    data = snap.to_dict()
+                    if datetime.now(timezone.utc) < data["expires_at"]:
+                        return {"players": data["players"], "count": len(data["players"])}
+            except Exception:
+                pass
+
+        players = _search_players(q)
+        if db:
+            try:
+                db.collection("player_search_cache").document(key).set({
+                    "players": players,
+                    "expires_at": datetime.now(timezone.utc) + timedelta(hours=12),
+                })
+            except Exception:
+                pass
+        bump_summary(["playerSearches"], req.auth is not None)
+        return {"players": players, "count": len(players)}
+    except Exception as e:
+        import traceback
+        print(f"search_players error: {e}\n{traceback.format_exc()}")
         return {"error": f"Internal Error: {str(e)}"}

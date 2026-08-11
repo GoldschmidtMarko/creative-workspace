@@ -10,6 +10,7 @@ const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 12000
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
 const getPlayerLeagues = httpsCallable(functions, "get_player_leagues", { timeout: 60000 });
 const getPlayerUpcoming = httpsCallable(functions, "get_player_upcoming", { timeout: 60000 });
+const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
 
 const CATS = ["Einzel", "Doppel", "Mixed"];
 const DISC_LABEL = { Einzel: "Singles", Doppel: "Doubles", Mixed: "Mixed" };
@@ -38,6 +39,7 @@ const initial = {
     sp: (params.get("sp") || "").trim(),
     pid: (params.get("pid") || "").trim(),
     name: (params.get("name") || "").trim(),
+    q: (params.get("q") || "").trim(),
 };
 // Tournament context, present when the user arrived by clicking a player inside
 // a tournament analysis — powers the "back to tournament" button.
@@ -54,20 +56,74 @@ if (initial.sp || initial.pid) {
     showProfileView();
     loadPlayer({ sp: initial.sp, pid: initial.pid, name: initial.name });
 } else {
-    $("search-view").classList.remove("hidden");
+    showSearchView();
+    if (initial.q) { $("search-q").value = initial.q; runSearch(initial.q); }
 }
 
 $("search-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const last = $("search-last").value.trim();
-    const first = $("search-first").value.trim();
-    if (!last) return;
+    const q = $("search-q").value.trim();
+    if (q.length < 2) return;
+    history.replaceState(null, "", location.pathname + "?q=" + encodeURIComponent(q));
+    runSearch(q);
+});
+
+function showSearchView() {
+    $("profile-view").classList.add("hidden");
+    $("error-view").classList.add("hidden");
+    $("search-view").classList.remove("hidden");
+    const ph = $("page-header"); if (ph) ph.classList.remove("hidden");
+}
+
+// dbv.turnier.de player search → a clickable list of candidates. Each result
+// carries both ids, so opening one loads a full, robust profile.
+async function runSearch(q) {
     const st = $("search-status");
+    const box = $("search-results");
     st.textContent = "Searching…";
     st.classList.remove("hidden");
-    showProfileView();
-    loadPlayer({ name: last, vorname: first });
-});
+    box.innerHTML = "";
+    try {
+        const res = await searchPlayers({ q });
+        if (res.data.error) throw new Error(res.data.error);
+        renderSearchResults(res.data.players || [], q);
+    } catch (err) {
+        console.error("player search failed:", err);
+        st.textContent = "Search failed: " + err.message;
+    }
+}
+
+function initials(name) {
+    const p = (name || "").trim().split(/\s+/);
+    return ((p[0] || "")[0] || "") + (p.length > 1 ? (p[p.length - 1][0] || "") : "");
+}
+
+function renderSearchResults(list, q) {
+    const st = $("search-status");
+    const box = $("search-results");
+    if (!list.length) {
+        st.textContent = `No players found for “${q}”.`;
+        st.classList.remove("hidden");
+        return;
+    }
+    st.classList.add("hidden");
+    box.innerHTML = list.map((r) => {
+        const qp = new URLSearchParams();
+        if (r.sp_code) qp.set("sp", r.sp_code);
+        if (r.profile_id) qp.set("pid", r.profile_id);
+        if (r.name) qp.set("name", r.name);
+        const sub = [r.club, r.sp_code].filter(Boolean).map(escapeHtml).join(" · ");
+        return `<a class="search-result" href="/html/player.html?${qp.toString()}">
+            <span class="search-result__avatar">${escapeHtml(initials(r.name).toUpperCase())}</span>
+            <span class="search-result__body">
+                <span class="search-result__name">${escapeHtml(r.name)}</span>
+                ${sub ? `<span class="search-result__sub">${sub}</span>` : ""}
+            </span>
+            <i data-lucide="chevron-right" class="search-result__chev"></i>
+        </a>`;
+    }).join("");
+    if (window.lucide) lucide.createIcons();
+}
 
 function showProfileView() {
     $("search-view").classList.add("hidden");
@@ -525,8 +581,8 @@ function fmtISO(iso) {
 function renderUpcoming(list) {
     const el = $("upcoming-body");
     if (!list.length) {
-        el.innerHTML = '<div class="pl-empty">No upcoming tournament registrations captured yet. ' +
-            'These appear as players are analysed in the BAX Checker.</div>';
+        el.innerHTML = '<div class="pl-empty">No tournaments yet discovered. This list fills in ' +
+            'automatically as tournaments the player has entered are analysed on the site.</div>';
         return;
     }
     // Group by tournament so multiple disciplines collapse into one entry.
