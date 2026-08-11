@@ -3,62 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="Creative Workspace Dashboard">
+    <meta name="description" content="BAX Checker — scout any badminton tournament on dbv.turnier.de and explore any player's BAX rating, history, leagues and win/loss.">
     <meta name="theme-color" content="#0f766e">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Creative Workspace | Dashboard</title>
-    <!-- Apply saved/preferred theme before paint to avoid a flash -->
+    <title>BAX Checker — badminton tournament &amp; player analysis</title>
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://baxcheck.de/">
+    <meta property="og:title" content="BAX Checker — badminton tournament & player analysis">
+    <meta property="og:description" content="Scout any tournament's field by BAX rating, and explore any player's history, relative standing, leagues, titles and win/loss.">
     <script src="/js/util/themeInit.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div class="topbar">
-        <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
-        <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
-            <i data-lucide="sun" class="icon-sun"></i>
-            <i data-lucide="moon" class="icon-moon"></i>
-        </button>
-    </div>
-    <div class="container">
-        <header>
-            <h1>Creative Workspace</h1>
-            <p>Select a tool to get started with your project</p>
-        </header>
-
-        <main class="grid">
-            <a href="/html/components/bax_checker/bax_checker.html" class="card">
-                <div class="card-icon">
-                    <i data-lucide="shield-check"></i>
-                </div>
-                <h2>BAX Checker</h2>
-                <p>Analyze and verify BAX profiles with advanced heuristics and real-time data.</p>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Players</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
             </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
 
-            <div class="card disabled">
-                <div class="card-icon">
-                    <i data-lucide="help-circle"></i>
-                </div>
-                <h2>Placeholder</h2>
-                <p>This component is currently under development.</p>
-            </div>
+    <div class="container">
+        <section class="hero">
+            <h1 class="hero__title">Scout any match.<br>Know every <span class="accent">player</span>.</h1>
+            <p class="hero__sub">BAX ratings, history and standings for German badminton.</p>
+        </section>
 
-            <div class="card disabled">
-                <div class="card-icon">
-                    <i data-lucide="help-circle"></i>
-                </div>
-                <h2>Placeholder</h2>
-                <p>This component is currently under development.</p>
-            </div>
-
-            <div class="card disabled">
-                <div class="card-icon">
-                    <i data-lucide="help-circle"></i>
-                </div>
-                <h2>Placeholder</h2>
-                <p>This component is currently under development.</p>
-            </div>
+        <main class="entry-grid">
+            <a href="/html/tournaments.html" class="entry-card">
+                <div class="entry-card__icon"><i data-lucide="trophy"></i></div>
+                <h2>Tournaments</h2>
+                <p>Rank any tournament's field by BAX.</p>
+            </a>
+            <a href="/html/player.html" class="entry-card">
+                <div class="entry-card__icon"><i data-lucide="user-round"></i></div>
+                <h2>Players</h2>
+                <p>Every player's rating, history &amp; standing.</p>
+            </a>
         </main>
 
         <footer class="site-footer">

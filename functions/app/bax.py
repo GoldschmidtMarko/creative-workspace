@@ -11,7 +11,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.analytics import bump_entity, bump_summary, parse_event_url
+from app.analytics import bump_entity, bump_summary, parse_event_url, record_registrations
 from app.auth import rate_key
 from app.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
 from app.firebase_app import db
@@ -388,6 +388,17 @@ def get_player_bax_data(req: https_fn.CallableRequest) -> dict:
 
         if not all_player_data:
             return {"error": "Failed to collect any player data"}
+
+        # Implicit capture: record that each listed player is currently registered
+        # for this tournament+discipline (with a link), powering the per-player
+        # "upcoming tournaments" section. Best-effort, one batched commit.
+        record_registrations(
+            all_player_data, tid, event,
+            tournament_name=req.data.get("tournament_name"),
+            tournament_url=tournament_url,
+            discipline_name=req.data.get("discipline_name"),
+            start_date=(req.data.get("tournament_start") or None),
+        )
 
         # Finalize Job Status
         if db and job_id:

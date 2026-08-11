@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Rank a badminton tournament's field by BAX for any discipline — a shareable link for the whole tournament.">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Tournament | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
+</head>
+<body>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Players</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <a href="/html/tournaments.html" class="back-btn">
+            <i data-lucide="arrow-left" style="width:20px;height:20px;"></i>
+            All tournaments
+        </a>
+
+        <div class="t-header">
+            <div style="min-width:0;">
+                <h1 id="t-name" style="margin:0; font-size:clamp(1.5rem,4vw,2.2rem);">Tournament</h1>
+                <div id="t-meta" class="t-meta"></div>
+            </div>
+            <div class="t-header__actions">
+                <button id="share-btn" class="btn btn-secondary btn-sm" type="button" title="Copy shareable link">
+                    <i data-lucide="share-2" style="width:15px;height:15px;"></i><span id="share-label">Share</span>
+                </button>
+            </div>
+        </div>
+
+        <main style="max-width:1000px; margin:0 auto;">
+            <div id="discipline-bar" class="discipline-bar">
+                <div class="browse-status" style="padding:0.5rem 0;">Loading disciplines…</div>
+            </div>
+
+            <div class="card results-card" id="results-card"
+                style="align-items:stretch; text-align:left; padding:1.5rem; margin-top:1.25rem;">
+
+                <div id="empty-state" class="browse-status" style="padding:2.5rem 1rem;">
+                    Pick a discipline above to rank its teams by BAX.
+                </div>
+
+                <div id="loader" style="display:none; text-align:center;">
+                    <div class="progress-container" id="progress-container" style="display:block;">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <div id="loader-text" style="color:var(--ink); font-weight:500; font-size:0.9rem;">Initializing…</div>
+                    <div id="loader-stage" class="loader-stage">Stage 1/4: Connecting</div>
+                </div>
+
+                <div id="view-controls" style="display:none; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                    <div class="view-switch">
+                        <button id="toggle-table" class="view-btn active">Table</button>
+                        <button id="toggle-chart" class="view-btn">Chart</button>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <button id="update-live-btn" class="btn btn-secondary btn-sm update-live-btn" type="button"
+                            title="Re-run this analysis with fresh data, bypassing the cache (rate-limited)">
+                            <i data-lucide="refresh-cw" style="width:15px;height:15px;"></i>
+                            <span>Update Live</span>
+                        </button>
+                        <label style="color:var(--ink-dim); font-size:0.875rem;">Discipline:</label>
+                        <select id="discipline-filter" class="field" style="width:auto; padding:6px 12px; cursor:pointer;">
+                            <option value="all">All Disciplines</option>
+                            <option value="Einzel">Singles</option>
+                            <option value="Doppel">Doubles</option>
+                            <option value="Mixed">Mixed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="results-container" style="display:none;">
+                    <div id="results-grid" class="team-grid"></div>
+                </div>
+                <div id="chart-container" style="display:none;">
+                    <div class="chart-main-card"><div id="chart-body"></div></div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="site-footer__links">
+                <a href="/impressum.html">Impressum</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="/privacy.html">Privacy Policy</a>
+            </div>
+            <div class="site-footer__copy">&copy; <span id="copyright-year"></span> BAX Checker</div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/tournament.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+</html>

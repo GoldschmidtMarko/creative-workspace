@@ -5,7 +5,6 @@ import { functions, db } from "./util/firebase.js";
 const getBaxData = httpsCallable(functions, 'get_player_bax_data', { timeout: 540000 });
 const findTournaments = httpsCallable(functions, 'find_tournaments', { timeout: 60000 });
 const getDisciplines = httpsCallable(functions, 'get_tournament_disciplines', { timeout: 60000 });
-const getPlayerLeagues = httpsCallable(functions, 'get_player_leagues', { timeout: 60000 });
 
 // DOM Elements
 const urlInput = document.getElementById('tournament-url');
@@ -211,6 +210,7 @@ async function runAnalysis(url, meta = {}) {
             source: meta.source || 'url',
             tournament_name: meta.tournamentName || '',
             discipline_name: meta.disciplineName || '',
+            tournament_start: meta.tournamentStart || '',
             force,
         });
         if (result.data.error) throw new Error(result.data.error);
@@ -259,12 +259,20 @@ function isWaitlisted(status) {
     return !!status && !/starter/i.test(String(status));
 }
 
-// A player name that opens the in-app profile popup on click, while still
-// carrying the DBV href (so ctrl / middle-click opens the real profile).
+// A player name links straight to the unified Player Insights page — a plain
+// href, so a left-click navigates there in the same tab and a ctrl/cmd/middle
+// click opens it in a new tab, no JS needed. Guests/foreign players with no id
+// fall back to their DBV entry link (there is no player page for them).
 function playerLinkAttrs(m) {
-    return `href="${escapeHtml(m.profile_url || '#')}" target="_blank" rel="noopener"` +
-        ` data-name="${escapeHtml(m.full_name || '')}" data-pid="${escapeHtml(m.id || '')}"` +
-        ` data-profile="${escapeHtml(m.profile_id || '')}" data-purl="${escapeHtml(m.profile_url || '')}"`;
+    const hasSp = m.id && m.id !== 'N/A';
+    if (hasSp || m.profile_id) {
+        const q = new URLSearchParams();
+        if (m.profile_id) q.set('pid', m.profile_id);
+        if (hasSp) q.set('sp', m.id);
+        if (m.full_name) q.set('name', m.full_name);
+        return `href="${escapeHtml('/html/player.html?' + q.toString())}"`;
+    }
+    return `href="${escapeHtml(m.profile_url || '#')}" target="_blank" rel="noopener"`;
 }
 
 // A chip per league the player played this season (e.g. "VL" "BL").
@@ -678,140 +686,6 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !disciplineModal.classList.contains('hidden')) closeModal();
 });
 
-/* --- Player profile popup (name, id, league history) --- */
-const playerModal = document.getElementById('player-modal');
-const playerModalName = document.getElementById('player-modal-name');
-const playerModalId = document.getElementById('player-modal-id');
-const playerModalBody = document.getElementById('player-modal-body');
-const playerModalLink = document.getElementById('player-modal-link');
-const playerModalClose = document.getElementById('player-modal-close');
-
-const playerModalUpdateLive = document.getElementById('player-update-live-btn');
-
-function closePlayerModal() { playerModal.classList.add('hidden'); }
-playerModalClose.addEventListener('click', closePlayerModal);
-if (playerModalUpdateLive) {
-    playerModalUpdateLive.addEventListener('click', () => {
-        if (currentPlayerModal) openPlayerModal(currentPlayerModal, true);
-    });
-}
-playerModal.addEventListener('click', (e) => { if (e.target === playerModal) closePlayerModal(); });
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !playerModal.classList.contains('hidden')) closePlayerModal();
-});
-
-// Any player name (table or chart) opens the popup instead of navigating.
-document.addEventListener('click', (e) => {
-    const el = e.target.closest('.player-link');
-    if (!el) return;
-    e.preventDefault();
-    openPlayerModal({
-        full_name: el.getAttribute('data-name'),
-        id: el.getAttribute('data-pid'),
-        profile_id: el.getAttribute('data-profile'),
-        profile_url: el.getAttribute('data-purl'),
-    });
-});
-
-// The tournament-specific player page in the modern URL form
-// (/tournament/<GUID>/player/<index>), derived from the scraped player.aspx url.
-function tournamentPlayerUrl(profileUrl) {
-    const id = /[?&]id=([0-9A-Fa-f-]{36})/i.exec(profileUrl || '');
-    const pl = /[?&]player=(\d+)/i.exec(profileUrl || '');
-    return (id && pl) ? `https://dbv.turnier.de/tournament/${id[1]}/player/${pl[1]}` : null;
-}
-
-// The leagues page for a given season ("2025-26" → .../leagues/2026).
-function seasonLeagueUrl(profileId, season) {
-    if (!profileId) return null;
-    const y = /(\d{4})/.exec(season || '');
-    const year = y ? parseInt(y[1], 10) + 1 : null;
-    return `https://dbv.turnier.de/player-profile/${profileId}/leagues${year ? '/' + year : ''}`;
-}
-
-let currentLeagueProfileId = null;
-
-// Turn a raw record like "8-9 (17)" into a labelled Win–Loss cell.
-function formatRecordHtml(record) {
-    if (!record) return '';
-    const m = /(\d+)\s*-\s*(\d+)\s*\((\d+)\)/.exec(record);
-    if (!m) return `<div class="league-record"><span class="league-record__wl">${escapeHtml(record)}</span></div>`;
-    const [, w, l, t] = m;
-    return `<div class="league-record">
-                <span class="league-record__label">Win–Loss</span>
-                <span class="league-record__wl">${w}<span class="wl-sep">–</span>${l}</span>
-                <span class="league-record__total">${t} games</span>
-            </div>`;
-}
-
-// The player whose popup is open, so its "Update Live" button can refetch.
-let currentPlayerModal = null;
-
-async function openPlayerModal(p, force = false) {
-    currentLeagueProfileId = p.profile_id || null;
-    currentPlayerModal = p;
-
-    // Name → the player's global DBV profile.
-    playerModalName.textContent = p.full_name || 'Player';
-    if (p.profile_id) {
-        playerModalName.href = `https://dbv.turnier.de/player-profile/${p.profile_id}`;
-        playerModalName.classList.remove('is-plain');
-    } else {
-        playerModalName.removeAttribute('href');
-        playerModalName.classList.add('is-plain');
-    }
-    playerModalId.textContent = (p.id && p.id !== 'N/A') ? p.id : 'No DBV ID';
-
-    // Button → the tournament-specific player page.
-    const tUrl = tournamentPlayerUrl(p.profile_url);
-    if (tUrl) {
-        playerModalLink.href = tUrl;
-        playerModalLink.classList.remove('hidden');
-    } else {
-        playerModalLink.classList.add('hidden');
-    }
-    playerModal.classList.remove('hidden');
-
-    if (!p.profile_id) {
-        playerModalBody.innerHTML = '<div class="browse-status">No league history available for this player.</div>';
-        return;
-    }
-    playerModalBody.innerHTML = '<div class="browse-status"><span class="spinner"></span> Loading league history…</div>';
-    try {
-        const res = await getPlayerLeagues({ profile_id: p.profile_id, name: p.full_name || '', force });
-        if (res.data.error) throw new Error(res.data.error);
-        renderPlayerLeagues(res.data.seasons || []);
-    } catch (err) {
-        console.error('Failed to load leagues:', err);
-        playerModalBody.innerHTML = `<div class="browse-status">Could not load league history: ${escapeHtml(err.message)}</div>`;
-    }
-}
-
-function renderPlayerLeagues(seasons) {
-    if (!seasons.length) {
-        playerModalBody.innerHTML = '<div class="browse-status">No league history found.</div>';
-        return;
-    }
-    playerModalBody.innerHTML = seasons.map(s => {
-        // One card per league; its divisions (each with its own team) on the
-        // left, the shared record once on the right.
-        const rows = (s.leagues || []).map(lg => {
-            const divs = (lg.divisions || []).map(d => {
-                const tag = d.abbr ? `<span class="league-tag">${escapeHtml(d.abbr)}</span>` : '';
-                const team = d.team ? `<span class="league-team">${escapeHtml(d.team)}</span>` : '';
-                return `<div class="league-div-line">${tag}<span class="league-div">${escapeHtml(d.division || 'League')}</span>${team}</div>`;
-            }).join('');
-            const rec = formatRecordHtml(lg.record);
-            return `<div class="league-row"><div class="league-row__divisions">${divs}</div>${rec}</div>`;
-        }).join('');
-        const inner = `<div class="league-season__year">${escapeHtml(s.season || '')}</div>${rows}`;
-        const url = seasonLeagueUrl(currentLeagueProfileId, s.season);
-        return url
-            ? `<a class="league-season league-season--link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${inner}</a>`
-            : `<div class="league-season">${inner}</div>`;
-    }).join('');
-}
-
 async function openDisciplineModal(tournament) {
     modalTitle.textContent = tournament.name;
     modalSubtitle.textContent = [tournament.city, tournament.date_text].filter(Boolean).join(' · ');
@@ -857,16 +731,21 @@ const categoryTournament = document.getElementById('category-tournament');
 const categorySelect = document.getElementById('category-select');
 let activeDisciplines = [];
 let activeTournamentName = '';
+let activeTournamentStart = '';
 
 function runCategory(d) {
     currentChartTitle = `${d.name} · ${activeTournamentName}`;
     setDisciplineFilter(disciplineToFilter(d.name));   // default the BAX filter
     urlInput.value = d.url;
-    runAnalysis(d.url, { source: 'browse', tournamentName: activeTournamentName, disciplineName: d.name });
+    runAnalysis(d.url, {
+        source: 'browse', tournamentName: activeTournamentName,
+        disciplineName: d.name, tournamentStart: activeTournamentStart,
+    });
 }
 
 function selectCategory(tournament, disciplines, d) {
     activeTournamentName = tournament.name;
+    activeTournamentStart = tournament.start || '';
     activeDisciplines = disciplines;
     categoryTournament.textContent = tournament.name;
     categorySelect.innerHTML = disciplines

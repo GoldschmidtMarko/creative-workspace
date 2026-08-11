@@ -15,6 +15,17 @@ const authBtn = document.getElementById("auth-btn");
 // Expose the current user for other modules that gate on auth.
 window.currentUser = null;
 
+// Admin-only "Usage" link in the persistent nav. This is UX-only convenience —
+// the dashboard is enforced server-side by the get_usage_stats allow-list — so
+// it just shows/hides the link. On localhost (emulator) any signed-in account
+// may see it, mirroring the backend's emulator bypass.
+const ADMIN_EMAIL = "mgoldschmidt01@gmail.com";
+const IS_DEV_HOST = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+function updateUsageLink(user) {
+    const el = document.getElementById("usage-link");
+    if (el) el.classList.toggle("hidden", !(user && (IS_DEV_HOST || user.email === ADMIN_EMAIL)));
+}
+
 function render(user) {
     if (!authBtn) return;
     if (user) {
@@ -32,6 +43,7 @@ function render(user) {
 onAuthStateChanged(auth, (user) => {
     window.currentUser = user || null;
     render(user);
+    updateUsageLink(user);
     // Toggle a root class so auth-gated UI can show/hide via CSS.
     document.documentElement.classList.toggle("is-authed", !!user);
     // Let page code react to auth changes.
