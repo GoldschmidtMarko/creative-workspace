@@ -189,10 +189,23 @@ async function runAnalysis(disc, force = false) {
     const stop = trackProgress(jobId);
     emptyState.style.display = "none";
     loader.style.display = "block";
-    resultsContainer.style.display = "none";
+    // Skeleton team cards fill in beneath the progress bar so it reads as content
+    // loading rather than a blank wait.
+    resultsContainer.style.display = "block";
+    resultsGrid.innerHTML = Array.from({ length: 6 }, () => `
+        <div class="team-card is-skel" aria-hidden="true">
+            <div class="team-card__head">
+                <span class="skel skel-circle" style="width:1.6rem;height:1.6rem"></span>
+                <span class="skel skel-line" style="width:46px;height:1.2rem"></span>
+            </div>
+            <div class="team-card__members">
+                <span class="skel skel-line" style="width:82%"></span>
+                <span class="skel skel-line" style="width:64%;margin-top:0.4rem"></span>
+            </div>
+            <div class="team-card__stats"><span class="skel skel-line" style="width:100%"></span></div>
+        </div>`).join("");
     chartContainer.style.display = "none";
     viewControls.style.display = "none";
-    resultsGrid.innerHTML = "";
     chartBody.innerHTML = "";
 
     try {
@@ -210,6 +223,8 @@ async function runAnalysis(disc, force = false) {
         stop();
         console.error("Scraping failed:", err);
         loader.style.display = "none";
+        resultsContainer.style.display = "none";
+        resultsGrid.innerHTML = "";
         emptyState.style.display = "block";
         emptyState.textContent = "Scraping failed: " + err.message;
     }
@@ -413,6 +428,8 @@ async function boot() {
         emptyState.innerHTML = 'Open a tournament from <a href="/html/tournaments.html">Tournaments</a>.';
         return;
     }
+    disciplineBar.innerHTML = Array.from({ length: 7 }, (_, i) =>
+        `<span class="skel" style="display:inline-block;width:${72 + (i % 3) * 26}px;height:34px;border-radius:999px"></span>`).join("");
     renderHeader(tournamentName, qStart, qEnd, qCity);
     try {
         const res = await getDisciplines({ id: tournamentId, name: qName });

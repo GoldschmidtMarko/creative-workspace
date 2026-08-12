@@ -674,3 +674,29 @@ a.card:hover .card-icon {
 @media (prefers-reduced-motion: reduce) {
   .entry-card, .entry-card::after, .entry-card__icon, .nav-pill__link { transition: none; }
 }
+
+/* ======================================================================
+   Skeleton loading (shimmer placeholders) — shared across all pages
+   ====================================================================== */
+@keyframes skel-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skel {
+  display: block;
+  background-color: var(--card-2);
+  background-image: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--ink) 8%, transparent) 45%,
+    color-mix(in srgb, var(--ink) 8%, transparent) 55%,
+    transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: skel-shimmer 1.3s linear infinite;
+  border-radius: var(--radius-sm);
+}
+.skel-line { height: 0.72rem; border-radius: 5px; }
+.skel-line + .skel-line { margin-top: 0.5rem; }
+.skel-block { border-radius: var(--radius); }
+.skel-circle { border-radius: 50%; }
+/* Skeleton stand-ins reuse component classes; neutralise their interactivity */
+.is-skel { pointer-events: none; cursor: default; }
+.is-skel:hover { transform: none !important; box-shadow: var(--shadow-sm) !important; border-color: var(--border) !important; }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }

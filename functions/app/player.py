@@ -130,9 +130,13 @@ def _parse_distribution(html):
         if labels:
             buckets = [int(re.sub(r"\D", "", c.get_text()) or 0) for c in labels]
             continue
+        # Player-marker row = the player's value + their name. The value/name cell
+        # ORDER flips depending on where the value falls in the histogram (e.g.
+        # ['Fabio Voit','586'] vs ['524','Fabio Voit']), so pick the numeric cell
+        # out rather than assuming it is first — otherwise a category is dropped.
         nz = [c.get_text(" ", strip=True) for c in row.find_all("td") if c.get_text(strip=True)]
-        if header and freqs and buckets and nz and nz[0].isdigit():
-            player_val = int(nz[0])
+        player_val = next((int(x) for x in nz if x.isdigit()), None) if (header and freqs and buckets) else None
+        if player_val is not None and any(not x.isdigit() for x in nz):
             n = min(len(buckets), len(freqs))
             b, f = buckets[:n], freqs[:n]
             total = header["total"] or sum(f)

@@ -42,11 +42,18 @@
 
         <main style="max-width: 1000px; margin: 0 auto;">
             <div class="card input-card" id="filter-card" style="align-items: stretch; text-align: left; padding: 0.85rem 1.1rem;">
-                <div class="input-head" id="filter-head" role="button" tabindex="0" aria-expanded="true" aria-controls="filter-body">
-                    <span class="input-head__title"><i data-lucide="sliders-horizontal"></i> Search &amp; filters</span>
-                    <span class="fold-btn" aria-hidden="true"><i data-lucide="chevron-up" class="fold-header__chevron"></i></span>
+                <div class="input-head">
+                    <div class="mode-tabs">
+                        <button id="tab-filters" class="mode-tab active" type="button">Search filters</button>
+                        <button id="tab-url" class="mode-tab" type="button">Direct link</button>
+                    </div>
+                    <button class="fold-btn" id="filter-toggle" type="button" aria-expanded="true"
+                        aria-controls="filter-body" aria-label="Collapse">
+                        <i data-lucide="chevron-up" class="fold-header__chevron"></i>
+                    </button>
                 </div>
                 <div id="filter-body" class="fold-body">
+                <div id="mode-filters">
                 <div class="filter-grid">
                     <div>
                         <label class="field-label" for="filter-q">Search</label>
@@ -91,10 +98,25 @@
                         </button>
                     </div>
                 </div>
-                <div class="paste-row">
-                    <i data-lucide="link" style="width:15px;height:15px;color:var(--ink-faint);"></i>
-                    <input type="text" id="paste-url" class="field" placeholder="…or paste a dbv.turnier.de tournament / event link">
-                    <button id="paste-go" class="btn btn-secondary btn-sm" type="button">Open</button>
+                </div><!-- /#mode-filters -->
+
+                <div id="mode-url" class="hidden">
+                    <div class="paste-panel">
+                        <div class="paste-panel__label">
+                            <i data-lucide="link-2"></i>
+                            <span>Paste a dbv.turnier.de link to jump straight to that tournament.</span>
+                        </div>
+                        <div class="paste-panel__row">
+                            <div class="paste-input">
+                                <i data-lucide="link" class="paste-input__icon"></i>
+                                <input type="text" id="paste-url" class="field" placeholder="https://dbv.turnier.de/sport/event.aspx?id=…">
+                            </div>
+                            <button id="paste-go" class="btn btn-primary btn-sm paste-go" type="button">
+                                <span>Open</span><i data-lucide="arrow-right"></i>
+                            </button>
+                        </div>
+                        <p class="paste-hint">Works with a tournament page or a specific discipline (event) link.</p>
+                    </div>
                 </div>
                 </div><!-- /#filter-body -->
             </div>
