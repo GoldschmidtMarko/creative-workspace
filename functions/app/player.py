@@ -19,17 +19,19 @@ the BAX cache.
 
 import re
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, date, timedelta, timezone
 
 import requests
 from bs4 import BeautifulSoup
+from firebase_admin import firestore
 from firebase_functions import https_fn
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.auth import rate_key
-from app.bax import _bax_update_date
-from app.common import BASE, COOKIES, HEADERS
+from app.bax import _bax_update_date, get_tournament_player_links
+from app.common import BASE, COOKIES, HEADERS, MAX_WORKERS
 from app.firebase_app import db
 from app.rate_limiting import check_rate_limit
 
@@ -325,7 +327,7 @@ def _search_players(q, limit=60):
         link = card.find("a", href=re.compile(r"/player-profile/([0-9a-fA-F-]{36})", re.I))
         if not link:
             continue
-        gid = re.search(r"/player-profile/([0-9a-fA-F-]{36})", link["href"], re.I).group(1)
+        gid = re.search(r"/player-profile/([0-9a-fA-F-]{36})", link["href"], re.I).group(1).upper()
         if gid in seen:
             continue
         seen.add(gid)
@@ -386,7 +388,7 @@ def get_player_bax(req: https_fn.CallableRequest) -> dict:
         first_name = (d.get("vorname") or d.get("first_name") or "").strip()
         profile_id = (d.get("profile_id") or "").strip()
         pm = re.search(r"([0-9a-fA-F-]{36})", profile_id)
-        profile_id = pm.group(1) if pm else ""
+        profile_id = pm.group(1).upper() if pm else ""
 
         if not sp_code and not last_name:
             return {"error": "Provide a player code or a name."}
@@ -470,7 +472,7 @@ def get_player_dbv_stats(req: https_fn.CallableRequest) -> dict:
         m = re.search(r"([0-9a-fA-F-]{36})", d.get("profile_id") or "")
         if not m:
             return {"error": "Missing or invalid profile id"}
-        profile_id = m.group(1)
+        profile_id = m.group(1).upper()
 
         force = bool(d.get("force"))
         if force and not check_rate_limit(rate_key(req), "force_player", 20, 3600000):
@@ -516,47 +518,147 @@ def _parse_ddmmyyyy(s):
     return None
 
 
+def _norm_name(s):
+    return re.sub(r"\s+", " ", (s or "").strip()).lower()
+
+
+def _entry_list_members(url):
+    """Current entry-list members of a tournament discipline, as
+    [{name, status, url}]. Cached ~30 min so re-checking a player's Upcoming list
+    stays cheap and doesn't hammer dbv. Returns None if the scrape fails (so the
+    caller keeps the stored state instead of wrongly marking a player as left)."""
+    if not url:
+        return None
+    key = hashlib.md5(url.encode()).hexdigest()
+    if db:
+        try:
+            snap = db.collection("entrylist_cache").document(key).get()
+            if snap.exists:
+                data = snap.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return data["entries"]
+        except Exception:
+            pass
+    try:
+        entries = get_tournament_player_links(url)
+    except Exception as e:
+        print(f"entry-list re-check error: {e}")
+        return None
+    members = [{"name": e.get("name"), "status": e.get("status"), "url": e.get("url")}
+               for e in (entries or [])]
+    if db:
+        try:
+            db.collection("entrylist_cache").document(key).set({
+                "entries": members,
+                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=30),
+            })
+        except Exception:
+            pass
+    return members
+
+
+def _find_member(members, reg):
+    """Locate this player in an entry list — by their exact entry link first,
+    then by normalised name. Returns the entry dict or None (= no longer in it)."""
+    purl = reg.get("profile_url")
+    if purl:
+        for e in members:
+            if e.get("url") == purl:
+                return e
+    nm = _norm_name(reg.get("name"))
+    if nm:
+        for e in members:
+            if _norm_name(e.get("name")) == nm:
+                return e
+    return None
+
+
 @https_fn.on_call()
 def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
-    """Tournaments this player is currently registered for, collected implicitly
-    from every tournament analysis (see analytics.record_registrations).
+    """Tournaments a player is currently registered for.
 
-    A registration is 'upcoming' when its tournament start date is today or later;
-    entries whose date is unknown but were seen recently are kept (entry lists are
-    published for future tournaments), and clearly past ones are dropped."""
+    Captured implicitly from every tournament analysis, then RE-VALIDATED on read:
+    each stored (non-past) registration's live entry list is re-scraped (cached
+    ~30 min) to confirm the player is still entered. Players who have withdrawn are
+    flagged and dropped; waiting-list/reserve entries are kept with their status.
+    Clearly-past tournaments are hidden as a guard."""
     try:
         m = re.search(r"([0-9a-fA-F-]{36})", (req.data or {}).get("profile_id") or "")
         if not m:
             return {"error": "Missing or invalid profile id"}
-        profile_id = m.group(1)
+        profile_id = m.group(1).upper()
         if db is None:
             return {"upcoming": [], "count": 0}
+        if not check_rate_limit(rate_key(req), "get_player_upcoming", 60, 3600000):
+            return {"error": "Please wait a moment before refreshing."}
 
         today = datetime.now(timezone.utc).date()
-        recent_cutoff = datetime.now(timezone.utc) - timedelta(days=45)
-        rows = []
-        # Equality-only query (automatic single-field index); sorted in Python so
-        # no composite index is required to read.
-        for doc in db.collection("player_registrations").where(filter=FieldFilter("profile_id", "==", profile_id)).stream():
+
+        # 1. Candidate registrations (skip clearly-past tournaments).
+        candidates = []
+        for doc in db.collection("player_registrations").where(
+                filter=FieldFilter("profile_id", "==", profile_id)).stream():
             r = doc.to_dict()
             start = _parse_ddmmyyyy(r.get("start_date"))
             if start and start < today:
-                continue  # tournament already happened
-            if not start:
-                last_seen = r.get("last_seen")
-                seen_dt = last_seen if isinstance(last_seen, datetime) else None
-                if seen_dt and seen_dt < recent_cutoff:
-                    continue  # undated and stale
+                continue  # already happened
+            r["_ref"] = doc.reference
+            r["_start"] = start
+            candidates.append(r)
+
+        # 2. Re-scrape each distinct entry list once (concurrently, cached 30 min).
+        urls = {r.get("tournament_url") for r in candidates if r.get("tournament_url")}
+        members_by_url = {}
+        if urls:
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+                futs = {pool.submit(_entry_list_members, u): u for u in urls}
+                for f in as_completed(futs):
+                    try:
+                        members_by_url[futs[f]] = f.result()
+                    except Exception:
+                        members_by_url[futs[f]] = None
+
+        # 3. Confirm membership; persist withdrawn/status; keep those still entered.
+        rows = []
+        batch = db.batch()
+        writes = 0
+        for r in candidates:
+            members = members_by_url.get(r.get("tournament_url"))
+            withdrawn = bool(r.get("withdrawn"))
+            status = r.get("status")
+            if members is not None:                      # scrape succeeded → authoritative
+                entry = _find_member(members, r)
+                if entry:
+                    withdrawn = False
+                    status = entry.get("status") or status
+                else:
+                    withdrawn = True
+                try:
+                    batch.update(r["_ref"], {"withdrawn": withdrawn, "status": status,
+                                             "last_checked": firestore.SERVER_TIMESTAMP})
+                    writes += 1
+                    if writes % 400 == 0:
+                        batch.commit()
+                        batch = db.batch()
+                except Exception:
+                    pass
+            if withdrawn:
+                continue                                 # left the position → not upcoming
             rows.append({
                 "tournament_id": r.get("tournament_id"),
                 "tournament_name": r.get("tournament_name"),
                 "tournament_url": r.get("tournament_url"),
                 "discipline_name": r.get("discipline_name"),
                 "discipline_event": r.get("discipline_event"),
-                "status": r.get("status"),
-                "start_date": start.isoformat() if start else None,
+                "status": status,
+                "start_date": r["_start"].isoformat() if r["_start"] else None,
             })
-        # Dated first (soonest first), undated after.
+        if writes % 400:
+            try:
+                batch.commit()
+            except Exception:
+                pass
+
         rows.sort(key=lambda x: (x["start_date"] is None, x["start_date"] or ""))
         return {"upcoming": rows, "count": len(rows)}
     except Exception as e:

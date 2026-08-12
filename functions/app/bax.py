@@ -76,9 +76,12 @@ def _resolve_profile_id(html):
                                       empty leagues page, which is why players
                                       wrongly showed no league history before.
     """
+    # GUIDs are case-insensitive; dbv writes them in mixed case across pages, so we
+    # canonicalize to UPPER everywhere (matching tournament ids and the find/player
+    # search results) — otherwise the same player keys two different Firestore docs.
     m = re.search(r'/player-profile/([0-9a-fA-F-]{36})', html)
     if m:
-        return m.group(1)
+        return m.group(1).upper()
     m = re.search(r'/player/([0-9a-fA-F-]{36})/([A-Za-z0-9_=-]+)', html)
     if not m:
         return None
@@ -88,7 +91,7 @@ def _resolve_profile_id(html):
         loc = r.headers.get("Location", "")
         mm = re.search(r'/player-profile/([0-9a-fA-F-]{36})', loc)
         if mm:
-            return mm.group(1)
+            return mm.group(1).upper()
     except Exception as e:
         print(f"Error resolving profile id: {e}")
     return None
