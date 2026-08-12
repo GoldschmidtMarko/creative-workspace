@@ -23,6 +23,23 @@ function escapeHtml(s) {
 }
 function num(n) { return (n == null ? 0 : n).toLocaleString(); }
 
+/* Skeleton placeholders (shimmer) shown while each section loads. */
+const skelChart = () => `<div class="skel skel-block" style="height:280px"></div>`;
+const skelRows = (n) => Array.from({ length: n }, () => `<div class="skel skel-block" style="height:46px;margin-bottom:0.5rem"></div>`).join("");
+const skelTiles = (n) => Array.from({ length: n }, () => `<div class="skel skel-block" style="height:56px;flex:1;min-width:100px"></div>`).join("");
+function showProfileSkeleton() {
+    $("p-name").innerHTML = `<span class="skel skel-line" style="display:inline-block;width:240px;height:1.4rem;border-radius:6px"></span>`;
+    $("p-bax-tiles").innerHTML = skelTiles(3);
+    $("p-wl-tiles").innerHTML = skelTiles(2);
+    $("hist-body").innerHTML = skelChart();
+    $("dist-body").innerHTML = skelChart();
+    $("winloss-body").innerHTML = skelRows(3);
+    $("leagues-body").innerHTML = skelRows(3);
+    $("tournaments-body").innerHTML = skelRows(4);
+    $("titles-body").innerHTML = skelRows(4);
+    $("upcoming-body").innerHTML = skelRows(3);
+}
+
 // Page state kept for re-renders (legend toggles, view/scope/category switches).
 const state = {
     history: null, distribution: null,
@@ -82,13 +99,21 @@ async function runSearch(q) {
     const box = $("search-results");
     st.textContent = "Searching…";
     st.classList.remove("hidden");
-    box.innerHTML = "";
+    box.innerHTML = Array.from({ length: 5 }, () => `
+        <div class="search-result is-skel" aria-hidden="true">
+            <span class="skel" style="width:2.2rem;height:2.2rem;border-radius:50%;flex-shrink:0"></span>
+            <span class="search-result__body">
+                <span class="skel skel-line" style="width:42%;height:0.9rem"></span>
+                <span class="skel skel-line" style="width:62%;margin-top:0.45rem"></span>
+            </span>
+        </div>`).join("");
     try {
         const res = await searchPlayers({ q });
         if (res.data.error) throw new Error(res.data.error);
         renderSearchResults(res.data.players || [], q);
     } catch (err) {
         console.error("player search failed:", err);
+        box.innerHTML = "";
         st.textContent = "Search failed: " + err.message;
     }
 }
@@ -102,6 +127,7 @@ function renderSearchResults(list, q) {
     const st = $("search-status");
     const box = $("search-results");
     if (!list.length) {
+        box.innerHTML = "";
         st.textContent = `No players found for “${q}”.`;
         st.classList.remove("hidden");
         return;
@@ -130,6 +156,7 @@ function showProfileView() {
     $("error-view").classList.add("hidden");
     $("profile-view").classList.remove("hidden");
     const ph = $("page-header"); if (ph) ph.classList.add("hidden");   // identity card is the header now
+    showProfileSkeleton();
     setupTournamentReturn();
 }
 
@@ -230,6 +257,7 @@ function markDbvUnavailable() {
     ["winloss-body", "upcoming-body", "titles-body", "leagues-body", "tournaments-body"].forEach((id) => {
         $(id).innerHTML = msg;
     });
+    $("p-wl-tiles").innerHTML = "";
 }
 
 /* ------------------------------------------------------------------ */
@@ -476,6 +504,7 @@ async function loadDbvStats(pid, name) {
         $("winloss-body").innerHTML = msg;
         $("titles-body").innerHTML = msg;
         $("tournaments-body").innerHTML = msg;
+        $("p-wl-tiles").innerHTML = "";
     }
 }
 
@@ -491,13 +520,13 @@ function renderWinLoss(wl) {
 
     // Compact glance tiles in the right-aligned win/loss group of the header.
     const stats = $("p-wl-tiles");
-    if (stats && (t.career || t.year)) {
+    if (stats) {
         const statTile = (label, rec) => rec ? `<div class="stat stat--wl">
             <div class="stat__label">${label}</div>
             <div class="stat__value"><span class="w">${rec.won}</span><span class="sep">–</span><span class="l">${rec.lost}</span></div>
             <div class="stat__sub">${pct(rec)}% won · ${num(rec.total)} matches</div>
         </div>` : "";
-        stats.innerHTML = statTile("Career W–L", t.career) + statTile("Season W–L", t.year);
+        stats.innerHTML = (t.career || t.year) ? statTile("Career W–L", t.career) + statTile("Season W–L", t.year) : "";
     }
 
     // Full breakdown in the Win / Loss tab.

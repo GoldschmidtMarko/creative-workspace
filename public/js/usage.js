@@ -200,11 +200,28 @@ function render(data) {
     show(dashboard);
 }
 
+// Fill the dashboard with shimmer placeholders while stats load.
+function showLoadingSkeleton() {
+    const card = () => `<div class="stat">
+        <div class="skel skel-line" style="width:60%"></div>
+        <div class="skel skel-block" style="height:1.7rem;margin-top:0.45rem"></div>
+        <div class="skel skel-line" style="width:42%;margin-top:0.45rem"></div>
+    </div>`;
+    document.getElementById("summary-cards").innerHTML = Array.from({ length: 7 }, card).join("");
+    document.getElementById("usage-timeline").innerHTML = `<div class="skel skel-block" style="height:200px"></div>`;
+    const table = () => `<div style="padding:0.7rem 0.8rem">` +
+        Array.from({ length: 6 }, () => `<div class="skel skel-block" style="height:34px;margin-bottom:0.45rem"></div>`).join("") + `</div>`;
+    ["table-tournaments", "table-disciplines", "table-players", "users-table"].forEach((id) => {
+        const el = document.getElementById(id); if (el) el.innerHTML = table();
+    });
+    show(dashboard);
+}
+
 let loading = false;
 async function load() {
     if (loading) return;
     loading = true;
-    show(gateLoading);
+    showLoadingSkeleton();
     try {
         const res = await getUsageStats();
         render(res.data);

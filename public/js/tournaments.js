@@ -51,21 +51,45 @@ function tournamentHref(t) {
     return `/html/tournament.html?${q.toString()}`;
 }
 
-// Collapsible "Search & filters" card.
+// Collapsible card + two modes (search filters | direct link).
 const filterCard = document.getElementById("filter-card");
-const filterHead = document.getElementById("filter-head");
+const filterToggle = document.getElementById("filter-toggle");
 function setFilters(collapsed) {
     filterCard.classList.toggle("collapsed", collapsed);
-    filterHead.setAttribute("aria-expanded", String(!collapsed));
+    if (filterToggle) filterToggle.setAttribute("aria-expanded", String(!collapsed));
 }
-filterHead.addEventListener("click", () => setFilters(!filterCard.classList.contains("collapsed")));
-filterHead.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFilters(!filterCard.classList.contains("collapsed")); }
-});
+if (filterToggle) filterToggle.addEventListener("click", () => setFilters(!filterCard.classList.contains("collapsed")));
+
+const tabFilters = document.getElementById("tab-filters");
+const tabUrl = document.getElementById("tab-url");
+const modeFilters = document.getElementById("mode-filters");
+const modeUrl = document.getElementById("mode-url");
+function setMode(isUrl) {
+    tabUrl.classList.toggle("active", isUrl);
+    tabFilters.classList.toggle("active", !isUrl);
+    modeUrl.classList.toggle("hidden", !isUrl);
+    modeFilters.classList.toggle("hidden", isUrl);
+    setFilters(false);   // switching modes always opens the card
+    if (isUrl) { const p = document.getElementById("paste-url"); if (p) p.focus(); }
+}
+tabFilters.addEventListener("click", () => setMode(false));
+tabUrl.addEventListener("click", () => setMode(true));
+
+function skeletonTournaments(n = 6) {
+    return Array.from({ length: n }, () => `
+        <div class="tournament-card is-skel" aria-hidden="true">
+            <span class="skel" style="width:44px;height:44px;border-radius:var(--radius-sm);flex-shrink:0"></span>
+            <div class="tournament-card__body">
+                <span class="skel skel-line" style="width:78%;height:0.95rem"></span>
+                <span class="skel skel-line" style="width:52%;margin-top:0.55rem"></span>
+                <span class="skel skel-line" style="width:38%"></span>
+            </div>
+        </div>`).join("");
+}
 
 async function searchTournaments(force = false, userInitiated = false) {
     searchBtn.disabled = true;
-    tournamentList.innerHTML = "";
+    tournamentList.innerHTML = skeletonTournaments();
     setStatus(force ? "Fetching live tournament listings…" : "Searching tournaments…");
     try {
         const res = await findTournaments({
@@ -86,6 +110,7 @@ async function searchTournaments(force = false, userInitiated = false) {
         if (userInitiated && tournaments.length) setFilters(true);
     } catch (err) {
         console.error("Tournament search failed:", err);
+        tournamentList.innerHTML = "";
         setStatus("Search failed: " + err.message);
     } finally {
         searchBtn.disabled = false;
@@ -94,6 +119,7 @@ async function searchTournaments(force = false, userInitiated = false) {
 
 function renderTournaments(tournaments) {
     if (!tournaments.length) {
+        tournamentList.innerHTML = "";
         setStatus("No tournaments found for these filters.");
         return;
     }
@@ -154,6 +180,7 @@ function openPasted() {
 }
 if (pasteGo) pasteGo.addEventListener("click", openPasted);
 if (pasteUrl) pasteUrl.addEventListener("keydown", (e) => { if (e.key === "Enter") openPasted(); });
+if (pasteUrl) pasteUrl.addEventListener("input", () => pasteUrl.classList.remove("field--error"));
 
 // Auto-run an initial search so the page isn't empty on arrival.
 searchTournaments(false);
