@@ -165,7 +165,7 @@ def get_player_leagues(req: https_fn.CallableRequest) -> dict:
         m = re.search(r"([0-9a-fA-F-]{36})", pid or "")
         if not m:
             return {"error": "Missing or invalid profile id"}
-        pid = m.group(1)
+        pid = m.group(1).upper()
 
         # "Update Live" forces a fresh scrape past the cache — tightly limited.
         force = bool((req.data or {}).get("force"))

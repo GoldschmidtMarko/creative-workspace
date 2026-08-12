@@ -328,6 +328,16 @@ a.title-item:hover { border-color: var(--accent); }
 .upcoming-item__main { min-width: 0; }
 .upcoming-item__name { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upcoming-item__sub { font-size: 0.8rem; color: var(--ink-dim); margin-top: 0.1rem; }
+.upcoming-item__discs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem; }
+.disc-badge {
+    font-size: 0.72rem; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+    background: var(--card-2); border: 1px solid var(--border); color: var(--ink-dim);
+    white-space: nowrap;
+}
+.disc-badge--wait {
+    background: color-mix(in srgb, var(--disc-waiting) 14%, transparent);
+    border-color: transparent; color: var(--disc-waiting);
+}
 .upcoming-item__date { flex-shrink: 0; font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 0.85rem; text-align: right; }
 
 .titles-year { margin-bottom: 0.9rem; }

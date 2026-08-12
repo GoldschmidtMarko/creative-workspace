@@ -96,6 +96,7 @@ def upsert_player_index(profile_id, sp_code=None, name=None):
     sp_code <-> name), so a name search can light up the dbv-only sections and
     reuse the BAX cache. Written whenever both ids are seen together (every
     tournament analysis) or a profile is opened."""
+    profile_id = (profile_id or "").upper()   # GUIDs are case-insensitive; key one way
     if db is None or not profile_id:
         return
     payload = {"profile_id": profile_id, "updated_at": firestore.SERVER_TIMESTAMP}
@@ -123,7 +124,7 @@ def record_registrations(players, tid, event, tournament_name=None,
         batch = db.batch()
         n = 0
         for p in players:
-            pid = p.get("profile_id")
+            pid = (p.get("profile_id") or "").upper()   # canonical uppercase GUID
             if not pid:
                 continue
             reg = db.collection("player_registrations").document(f"{pid}__{tid}__{event or '0'}")
@@ -131,6 +132,7 @@ def record_registrations(players, tid, event, tournament_name=None,
                 "profile_id": pid,
                 "sp_code": p.get("id"),
                 "name": p.get("full_name"),
+                "profile_url": p.get("profile_url"),   # the player's entry link, for re-check matching
                 "tournament_id": tid,
                 "tournament_name": tournament_name,
                 "tournament_url": tournament_url,
@@ -138,6 +140,7 @@ def record_registrations(players, tid, event, tournament_name=None,
                 "discipline_name": discipline_name,
                 "start_date": start_date,
                 "status": p.get("status"),
+                "withdrawn": False,
                 "last_seen": firestore.SERVER_TIMESTAMP,
             }, merge=True)
             # Also remember the id mapping so a later name search resolves the dbv

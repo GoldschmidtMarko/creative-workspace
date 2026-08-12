@@ -578,6 +578,18 @@ function fmtISO(iso) {
     return p.length === 3 ? `${p[2]}.${p[1]}.${p[0]}` : iso;
 }
 
+// Translate a scraped German entry status to a short English label.
+function statusLabel(status) {
+    const s = String(status || "").trim();
+    const m = s.match(/Nachr[üu]ckerliste\s*(\d+)/i);
+    if (m) return `Reserve ${m[1]}`;
+    if (/nachr[üu]cker/i.test(s)) return "Reserve";
+    if (/warteliste/i.test(s)) return "Waiting list";
+    if (/starterliste|starter/i.test(s)) return "Starter";
+    return s;
+}
+function isWaitlisted(status) { return !!status && !/starter/i.test(String(status)); }
+
 function renderUpcoming(list) {
     const el = $("upcoming-body");
     if (!list.length) {
@@ -585,18 +597,23 @@ function renderUpcoming(list) {
             'automatically as tournaments the player has entered are analysed on the site.</div>';
         return;
     }
-    // Group by tournament so multiple disciplines collapse into one entry.
+    // Group by tournament so multiple disciplines collapse into one entry, each
+    // carrying its own current status (starter / reserve / waiting list).
     const byT = new Map();
     list.forEach((r) => {
         const key = r.tournament_id || r.tournament_name;
         if (!byT.has(key)) byT.set(key, { ...r, disciplines: [] });
-        if (r.discipline_name) byT.get(key).disciplines.push(r.discipline_name);
+        if (r.discipline_name) byT.get(key).disciplines.push({ name: r.discipline_name, status: r.status, event: r.discipline_event });
     });
     el.innerHTML = `<div class="upcoming-list">` + Array.from(byT.values()).map((r) => {
-        const discs = r.disciplines.length ? r.disciplines.map(escapeHtml).join(", ") : "";
+        const discs = r.disciplines.map((d) => {
+            const wl = isWaitlisted(d.status);
+            return `<span class="disc-badge${wl ? " disc-badge--wait" : ""}">${escapeHtml(d.name)}` +
+                `${wl ? ` · ${escapeHtml(statusLabel(d.status))}` : ""}</span>`;
+        }).join("");
         const main = `<div class="upcoming-item__main">
                 <div class="upcoming-item__name">${escapeHtml(r.tournament_name || "Tournament")}</div>
-                ${discs ? `<div class="upcoming-item__sub">${discs}</div>` : ""}
+                ${discs ? `<div class="upcoming-item__discs">${discs}</div>` : ""}
             </div>
             <div class="upcoming-item__date">${escapeHtml(fmtISO(r.start_date))}</div>`;
         // Primary: our own tournament page (deep-link the discipline only when unique).
@@ -604,7 +621,7 @@ function renderUpcoming(list) {
         if (r.tournament_id) {
             const q = new URLSearchParams({ id: r.tournament_id });
             if (r.tournament_name) q.set("name", r.tournament_name);
-            if (r.disciplines.length === 1 && r.discipline_event) q.set("event", r.discipline_event);
+            if (r.disciplines.length === 1 && r.disciplines[0].event) q.set("event", r.disciplines[0].event);
             ourHref = `/html/tournament.html?${q.toString()}`;
         }
         const linkPart = ourHref
