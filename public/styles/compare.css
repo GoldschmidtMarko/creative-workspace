@@ -1,0 +1,97 @@
+/* Compare Players page. Reuses .pcard / chart / .search-result / toggle styles
+   from player.css + bax_checker.css; adds the per-player palette and the
+   games/win-rate comparison rows. */
+
+/* Per-player categorical palette — fixed slot order, validated in light & dark
+   (dataviz skill). Colour follows the player entity, not its row, so removing a
+   player never repaints the survivors. */
+:root {
+    --cmp-0: #2a78d6; --cmp-1: #eb6834; --cmp-2: #1baf7a;
+    --cmp-3: #eda100; --cmp-4: #e87ba4; --cmp-5: #008300;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --cmp-0: #3987e5; --cmp-1: #d95926; --cmp-2: #199e70;
+        --cmp-3: #c98500; --cmp-4: #d55181; --cmp-5: #008300;
+    }
+}
+:root[data-theme="dark"] {
+    --cmp-0: #3987e5; --cmp-1: #d95926; --cmp-2: #199e70;
+    --cmp-3: #c98500; --cmp-4: #d55181; --cmp-5: #008300;
+}
+
+.compare-main { display: flex; flex-direction: column; gap: 1rem; }
+
+/* ---- selected-player chips ---------------------------------------------- */
+.cmp-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.cmp-chips:empty { display: none; }
+.cmp-chip {
+    display: inline-flex; align-items: center; gap: 0.5rem; max-width: 100%;
+    padding: 0.35rem 0.4rem 0.35rem 0.65rem;
+    background: var(--card-2); border: 1px solid var(--border);
+    border-radius: 999px; font-size: 0.85rem; font-weight: 600; color: var(--ink);
+}
+.cmp-chip__sw { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+.cmp-chip__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-chip.is-loading .cmp-chip__sw { animation: cmp-pulse 1s ease-in-out infinite; }
+.cmp-chip.is-error { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.cmp-chip.is-error .cmp-chip__name { color: var(--danger); }
+@keyframes cmp-pulse { 50% { opacity: 0.3; } }
+.cmp-chip__x {
+    display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 1.35rem; height: 1.35rem; border-radius: 50%;
+    border: none; background: transparent; color: var(--ink-faint); cursor: pointer;
+}
+.cmp-chip__x:hover { background: var(--card); color: var(--danger); }
+.cmp-chip__x svg { width: 14px; height: 14px; }
+
+/* ---- search results: mark already-added, add-icon affordance ------------ */
+.cmp-result { cursor: pointer; }
+.cmp-result[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.cmp-result[aria-disabled="true"]:hover { border-color: var(--border); transform: none; box-shadow: none; }
+.cmp-result__add { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+
+/* ---- combined-BAX chart marker ------------------------------------------ */
+.cmp-dot { stroke: var(--card); stroke-width: 1.5; }
+
+/* ---- combined-BAX comparison table (chart's table view) ----------------- */
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.cmp-table th, .cmp-table td {
+    padding: 0.5rem 0.7rem; text-align: right; white-space: nowrap;
+    font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--border);
+}
+.cmp-table th:first-child, .cmp-table td:first-child { text-align: left; }
+.cmp-table thead th { color: var(--ink-dim); font-weight: 600; font-size: 0.75rem; }
+.cmp-table thead th .cmp-chip__sw { display: inline-block; margin-right: 0.35rem; vertical-align: middle; }
+.cmp-table tbody td.cur { color: var(--ink); font-weight: 600; }
+.cmp-table tbody tr:last-child td { border-bottom: none; }
+
+/* ---- games played & win-rate rows --------------------------------------- */
+.cmp-games { display: flex; flex-direction: column; }
+.cmp-games__head, .cmp-grow {
+    display: grid;
+    grid-template-columns: minmax(110px, 1.2fr) minmax(120px, 1fr) minmax(160px, 1.5fr);
+    gap: 0.85rem; align-items: center;
+}
+.cmp-games__head { padding: 0 0.2rem 0.5rem; border-bottom: 1px solid var(--border); }
+.cmp-games__head span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-dim); font-weight: 600; }
+.cmp-grow { padding: 0.65rem 0.2rem; border-bottom: 1px solid var(--border); }
+.cmp-grow:last-child { border-bottom: none; }
+.cmp-grow__name { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; font-weight: 600; color: var(--ink); }
+.cmp-grow__name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* a bar + its value beside it — used for both games and win rate */
+.cmp-measure { display: flex; align-items: center; gap: 0.6rem; }
+.cmp-bar { flex: 1; min-width: 36px; height: 0.72rem; background: var(--card-2); border-radius: 999px; overflow: hidden; }
+.cmp-bar__fill { height: 100%; border-radius: 999px; min-width: 3px; }
+.cmp-measure__val { font-size: 0.83rem; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.cmp-measure__val .sub { color: var(--ink-dim); font-weight: 400; }
+.cmp-grow__na { color: var(--ink-faint); font-size: 0.82rem; }
+
+.cmp-empty { color: var(--ink-faint); font-size: 0.9rem; padding: 1.75rem 1rem; text-align: center; }
+
+@media (max-width: 560px) {
+    .cmp-games__head, .cmp-grow { grid-template-columns: 1fr; gap: 0.4rem; }
+    .cmp-games__head { display: none; }
+    .cmp-grow { padding: 0.85rem 0.2rem; }
+}

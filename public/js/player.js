@@ -216,6 +216,33 @@ function updateUrl(sp, pid, name) {
     history.replaceState(null, "", location.pathname + "?" + q.toString());
 }
 
+/* "Add to comparison": appends this player to the shared compare selection
+   (localStorage, same key + token format as compare.js) and opens the page. */
+const COMPARE_LS_KEY = "bax_compare_players";
+const COMPARE_MAX = 6;
+function compareToken(sp, pid, name) {
+    if (sp) return sp;
+    if (pid) return "pid:" + pid;
+    return name ? "name:" + name : "";
+}
+function setupAddCompare(sp, pid, name) {
+    const btn = $("p-add-compare");
+    if (!btn) return;
+    const token = compareToken(sp, pid, name);
+    if (!token) { btn.classList.add("hidden"); return; }
+    btn.classList.remove("hidden");
+    btn.onclick = () => {
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem(COMPARE_LS_KEY) || "[]") || []; } catch (e) { list = []; }
+        const has = list.some((t) => t === token || (pid && t === "pid:" + pid) || (sp && t === sp));
+        if (!has && list.length < COMPARE_MAX) {
+            list.push(token);
+            try { localStorage.setItem(COMPARE_LS_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+        }
+        location.href = "/html/compare.html?p=" + list.map(encodeURIComponent).join(",");
+    };
+}
+
 /* ------------------------------------------------------------------ */
 /* Load pipeline                                                      */
 /* ------------------------------------------------------------------ */
@@ -236,6 +263,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
         const rsp = (identity && identity.sp_code) || sp || "";
         state.profileId = rpid;
         updateUrl(rsp, rpid, identity && identity.name);
+        setupAddCompare(rsp, rpid, identity && identity.name);
         if (window.lucide) lucide.createIcons();
 
         if (rpid) {
@@ -635,32 +663,42 @@ function renderUpcoming(list) {
         if (r.discipline_name) byT.get(key).disciplines.push({ name: r.discipline_name, status: r.status, event: r.discipline_event });
     });
     el.innerHTML = `<div class="upcoming-list">` + Array.from(byT.values()).map((r) => {
+        // Base query for our tournament page; adding &event deep-links a discipline.
+        const baseQuery = () => {
+            const q = new URLSearchParams({ id: r.tournament_id });
+            if (r.tournament_name) q.set("name", r.tournament_name);
+            return q;
+        };
+        // Each discipline badge jumps straight to that discipline's analysis
+        // (the tournament page auto-runs the matching &event). Falls back to a
+        // plain badge when we lack the tournament id or the discipline's event.
         const discs = r.disciplines.map((d) => {
             const wl = isWaitlisted(d.status);
-            return `<span class="disc-badge${wl ? " disc-badge--wait" : ""}">${escapeHtml(d.name)}` +
-                `${wl ? ` · ${escapeHtml(statusLabel(d.status))}` : ""}</span>`;
+            const cls = `disc-badge${wl ? " disc-badge--wait" : ""}`;
+            const label = `${escapeHtml(d.name)}${wl ? ` · ${escapeHtml(statusLabel(d.status))}` : ""}`;
+            if (r.tournament_id && d.event) {
+                const q = baseQuery();
+                q.set("event", d.event);
+                return `<a class="${cls} disc-badge--link" href="/html/tournament.html?${escapeHtml(q.toString())}"` +
+                    ` title="Jump to ${escapeHtml(d.name)}">${label}</a>`;
+            }
+            return `<span class="${cls}">${label}</span>`;
         }).join("");
+        // Tournament name links to the tournament overview (all disciplines).
+        const nameText = escapeHtml(r.tournament_name || "Tournament");
+        const nameEl = r.tournament_id
+            ? `<a class="upcoming-item__name" href="/html/tournament.html?${escapeHtml(baseQuery().toString())}">${nameText}</a>`
+            : `<div class="upcoming-item__name">${nameText}</div>`;
         const main = `<div class="upcoming-item__main">
-                <div class="upcoming-item__name">${escapeHtml(r.tournament_name || "Tournament")}</div>
+                ${nameEl}
                 ${discs ? `<div class="upcoming-item__discs">${discs}</div>` : ""}
             </div>
             <div class="upcoming-item__date">${escapeHtml(fmtISO(r.start_date))}</div>`;
-        // Primary: our own tournament page (deep-link the discipline only when unique).
-        let ourHref = null;
-        if (r.tournament_id) {
-            const q = new URLSearchParams({ id: r.tournament_id });
-            if (r.tournament_name) q.set("name", r.tournament_name);
-            if (r.disciplines.length === 1 && r.disciplines[0].event) q.set("event", r.disciplines[0].event);
-            ourHref = `/html/tournament.html?${q.toString()}`;
-        }
-        const linkPart = ourHref
-            ? `<a class="upcoming-item__link" href="${escapeHtml(ourHref)}">${main}</a>`
-            : `<div class="upcoming-item__link">${main}</div>`;
         // Secondary: a small link out to the entry on dbv.turnier.de.
         const dbvPart = r.tournament_url
             ? `<a class="upcoming-item__dbv" href="${escapeHtml(r.tournament_url)}" target="_blank" rel="noopener" title="Open on dbv.turnier.de"><i data-lucide="external-link"></i></a>`
             : "";
-        return `<div class="upcoming-item">${linkPart}${dbvPart}</div>`;
+        return `<div class="upcoming-item"><div class="upcoming-item__link">${main}</div>${dbvPart}</div>`;
     }).join("") + `</div>`;
     if (window.lucide) lucide.createIcons();
 }

@@ -88,6 +88,15 @@
             text-transform: uppercase; letter-spacing: 0.03em;
             border-bottom: 1px solid var(--border);
         }
+        .usage-table th.th-sort { cursor: pointer; user-select: none; }
+        .usage-table th.th-sort:hover { color: var(--ink); }
+        .usage-table th.is-sorted { color: var(--ink); }
+        .usage-table th .sort-arrow { font-size: 0.85em; margin-left: 0.25rem; }
+        .usage-table th .sort-arrow--idle { opacity: 0; transition: opacity 0.12s; }
+        .usage-table th.th-sort:hover .sort-arrow--idle { opacity: 0.45; }
+        .usage-table th.th-sort:focus-visible {
+            outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px;
+        }
         .usage-table tbody tr { border-bottom: 1px solid var(--border); }
         .usage-table tbody tr:last-child { border-bottom: none; }
         .usage-table td.rank { color: var(--ink-faint); width: 2rem; }
@@ -115,7 +124,8 @@
         </a>
         <nav class="nav-pill" aria-label="Primary">
             <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
-            <a class="nav-pill__link" href="/html/player.html">Players</a>
+            <a class="nav-pill__link" href="/html/player.html">Player</a>
+            <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
         </nav>
         <div class="site-nav__actions">
             <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">

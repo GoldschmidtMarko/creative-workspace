@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Compare badminton players side by side — combined BAX history over the seasons plus games played and win-rate comparison.">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Compare Players | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
+    <link rel="stylesheet" href="/styles/player.css">
+    <link rel="stylesheet" href="/styles/compare.css">
+</head>
+
+<body>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Player</a>
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/compare.html">Comparison</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <header id="page-header">
+            <h1>Compare Players</h1>
+            <p>Combined BAX history plus games played &amp; win-rate — up to six players side by side</p>
+        </header>
+
+        <main class="compare-main">
+            <!-- Add players -->
+            <div class="pcard">
+                <div class="pcard__head">
+                    <h2>Players</h2>
+                    <span class="hint" id="cmp-count-hint">add up to 6 players to compare</span>
+                </div>
+                <form id="cmp-search-form">
+                    <div class="search-row">
+                        <input type="text" id="cmp-search-q" class="field" placeholder="Search by name to add a player…" autocomplete="off">
+                        <button type="submit" class="run-btn-premium" style="justify-content:center;">
+                            <i data-lucide="search" style="width:18px;height:18px;"></i>
+                            <span>Search</span>
+                        </button>
+                    </div>
+                </form>
+                <div id="cmp-search-status" class="pl-empty hidden"></div>
+                <div id="cmp-search-results" class="search-results"></div>
+                <div id="cmp-chips" class="cmp-chips"></div>
+            </div>
+
+            <!-- Combined BAX history -->
+            <div class="pcard">
+                <div class="pcard__head">
+                    <h2>Combined BAX</h2>
+                    <div class="pl-toggles">
+                        <div class="mode-tabs" id="cmp-disc">
+                            <button class="mode-tab active" data-cat="Einzel" type="button">Singles</button>
+                            <button class="mode-tab" data-cat="Doppel" type="button">Doubles</button>
+                            <button class="mode-tab" data-cat="Mixed" type="button">Mixed</button>
+                        </div>
+                        <div class="view-switch">
+                            <button class="view-btn active" data-cview="chart" type="button">Chart</button>
+                            <button class="view-btn" data-cview="table" type="button">Table</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-legend" id="cmp-bax-legend"></div>
+                <div id="cmp-bax-body"></div>
+            </div>
+
+            <!-- Games played & win rate -->
+            <div class="pcard">
+                <div class="pcard__head">
+                    <h2>Games played &amp; win rate</h2>
+                    <div class="pl-toggles">
+                        <div class="mode-tabs" id="cmp-wl-scope">
+                            <button class="mode-tab active" data-scope="total" type="button">Total</button>
+                            <button class="mode-tab" data-scope="Einzel" type="button">Singles</button>
+                            <button class="mode-tab" data-scope="Doppel" type="button">Doubles</button>
+                            <button class="mode-tab" data-scope="Mixed" type="button">Mixed</button>
+                        </div>
+                        <div class="mode-tabs" id="cmp-wl-time">
+                            <button class="mode-tab active" data-time="career" type="button">Career</button>
+                            <button class="mode-tab" data-time="year" type="button">This year</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="cmp-games-body"></div>
+            </div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="site-footer__links">
+                <a href="/impressum.html">Impressum</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="/privacy.html">Privacy Policy</a>
+            </div>
+            <div class="site-footer__copy">&copy; <span id="copyright-year"></span> BAX Checker</div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/compare.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+
+</html>

@@ -66,6 +66,72 @@ function renderSummary(summary) {
     }).join("");
 }
 
+// Compare two cell values for one column. Strings compare
+// case-insensitively/naturally; numbers and dates compare numerically with
+// blank/missing values (null) sinking to the bottom regardless of direction.
+function compareBy(a, b, type) {
+    if (type === "string") {
+        return String(a == null ? "" : a).localeCompare(
+            String(b == null ? "" : b), undefined, { sensitivity: "base", numeric: true });
+    }
+    const av = a == null ? -Infinity : a;
+    const bv = b == null ? -Infinity : b;
+    return av === bv ? 0 : av < bv ? -1 : 1;
+}
+
+// Render a table whose column headers can be clicked to re-sort it in place.
+// `columns` describe how to render and sort each column; a column with a
+// `field` is sortable (clicking toggles asc/desc, first click uses defaultDir).
+// The leading rank column has no field, so it always reflects position in the
+// current sort order. `state` holds the initial { key, dir }.
+function mountSortableTable(el, columns, rows, state) {
+    function draw() {
+        const col = columns.find((c) => c.field && c.field === state.key);
+        const data = rows.slice();
+        if (col) {
+            data.sort((a, b) => {
+                const r = compareBy(a[col.field], b[col.field], col.type);
+                return state.dir === "asc" ? r : -r;
+            });
+        }
+        const head = columns.map((c) => {
+            const sortable = c.field != null;
+            const active = sortable && c.field === state.key;
+            const cls = [c.numeric ? "n" : null, sortable ? "th-sort" : null, active ? "is-sorted" : null]
+                .filter(Boolean).join(" ");
+            const arrow = active
+                ? `<span class="sort-arrow">${state.dir === "asc" ? "▲" : "▼"}</span>`
+                : (sortable ? `<span class="sort-arrow sort-arrow--idle">↕</span>` : "");
+            const attrs = sortable
+                ? ` data-field="${escapeHtml(c.field)}" role="button" tabindex="0"` +
+                  ` aria-sort="${active ? (state.dir === "asc" ? "ascending" : "descending") : "none"}"`
+                : "";
+            return `<th class="${cls}"${attrs}>${c.label}${arrow}</th>`;
+        }).join("");
+        const body = data.map((row, i) =>
+            `<tr>${columns.map((c) => c.cell(row, i)).join("")}</tr>`).join("");
+        el.innerHTML = `<table class="usage-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+
+        el.querySelectorAll("th[data-field]").forEach((th) => {
+            const sortHere = () => {
+                const field = th.getAttribute("data-field");
+                if (state.key === field) {
+                    state.dir = state.dir === "asc" ? "desc" : "asc";
+                } else {
+                    state.key = field;
+                    state.dir = columns.find((c) => c.field === field).defaultDir || "desc";
+                }
+                draw();
+            };
+            th.addEventListener("click", sortHere);
+            th.addEventListener("keydown", (e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortHere(); }
+            });
+        });
+    }
+    draw();
+}
+
 // One ranked table of entities (tournaments / disciplines / players).
 function renderEntityTable(id, rows, nameHeader, showId) {
     const el = document.getElementById(id);
@@ -73,25 +139,23 @@ function renderEntityTable(id, rows, nameHeader, showId) {
         el.innerHTML = `<div class="usage-empty">No data yet.</div>`;
         return;
     }
-    const body = rows.map((r, i) => `
-        <tr>
-            <td class="rank">${i + 1}</td>
-            <td class="name">${escapeHtml(r.name || (showId ? r.id : "—"))}${
-                showId && r.name ? `<span class="sub">${escapeHtml(r.id)}</span>` : ""
-            }</td>
-            <td class="n">${num(r.count)}</td>
-            <td class="n dim">${num(r.count_authed)}</td>
-            <td class="n dim">${num(r.count_anon)}</td>
-            <td class="when">${fmtDate(r.lastQueried)}</td>
-        </tr>`).join("");
-    el.innerHTML = `
-        <table class="usage-table">
-            <thead><tr>
-                <th>#</th><th>${escapeHtml(nameHeader)}</th>
-                <th class="n">Total</th><th class="n">👤</th><th class="n">🕶</th><th>Last queried</th>
-            </tr></thead>
-            <tbody>${body}</tbody>
-        </table>`;
+    const columns = [
+        { label: "#", cell: (r, i) => `<td class="rank">${i + 1}</td>` },
+        {
+            label: escapeHtml(nameHeader), field: "name", type: "string", defaultDir: "asc",
+            cell: (r) => `<td class="name">${escapeHtml(r.name || (showId ? r.id : "—"))}${
+                showId && r.name ? `<span class="sub">${escapeHtml(r.id)}</span>` : ""}</td>`,
+        },
+        { label: "Total", field: "count", type: "number", numeric: true, defaultDir: "desc",
+            cell: (r) => `<td class="n">${num(r.count)}</td>` },
+        { label: "👤", field: "count_authed", type: "number", numeric: true, defaultDir: "desc",
+            cell: (r) => `<td class="n dim">${num(r.count_authed)}</td>` },
+        { label: "🕶", field: "count_anon", type: "number", numeric: true, defaultDir: "desc",
+            cell: (r) => `<td class="n dim">${num(r.count_anon)}</td>` },
+        { label: "Last queried", field: "lastQueried", type: "date", defaultDir: "desc",
+            cell: (r) => `<td class="when">${fmtDate(r.lastQueried)}</td>` },
+    ];
+    mountSortableTable(el, columns, rows, { key: "count", dir: "desc" });
 }
 
 function renderUsers(users) {
@@ -101,21 +165,20 @@ function renderUsers(users) {
         el.innerHTML = `<div class="usage-empty">No users yet.</div>`;
         return;
     }
-    const body = users.top.map((u, i) => `
-        <tr>
-            <td class="rank">${i + 1}</td>
-            <td class="name">${escapeHtml(u.name || "—")}<span class="sub">${escapeHtml(u.email)}</span></td>
-            <td class="n">${num(u.loginCount)}</td>
-            <td class="when">${fmtDate(u.lastLogin)}</td>
-            <td class="when">${fmtDate(u.registrationDate)}</td>
-        </tr>`).join("");
-    el.innerHTML = `
-        <table class="usage-table">
-            <thead><tr>
-                <th>#</th><th>User</th><th class="n">Logins</th><th>Last login</th><th>Registered</th>
-            </tr></thead>
-            <tbody>${body}</tbody>
-        </table>`;
+    const columns = [
+        { label: "#", cell: (u, i) => `<td class="rank">${i + 1}</td>` },
+        {
+            label: "User", field: "name", type: "string", defaultDir: "asc",
+            cell: (u) => `<td class="name">${escapeHtml(u.name || "—")}<span class="sub">${escapeHtml(u.email)}</span></td>`,
+        },
+        { label: "Logins", field: "loginCount", type: "number", numeric: true, defaultDir: "desc",
+            cell: (u) => `<td class="n">${num(u.loginCount)}</td>` },
+        { label: "Last login", field: "lastLogin", type: "date", defaultDir: "desc",
+            cell: (u) => `<td class="when">${fmtDate(u.lastLogin)}</td>` },
+        { label: "Registered", field: "registrationDate", type: "date", defaultDir: "desc",
+            cell: (u) => `<td class="when">${fmtDate(u.registrationDate)}</td>` },
+    ];
+    mountSortableTable(el, columns, users.top, { key: "loginCount", dir: "desc" });
 }
 
 // --- Usage-over-time bar chart (SVG) ---------------------------------------

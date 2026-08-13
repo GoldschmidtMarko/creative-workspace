@@ -33,7 +33,12 @@ _SESSION = requests.Session()
 _adapter = HTTPAdapter(
     pool_connections=MAX_WORKERS,
     pool_maxsize=MAX_WORKERS * 2,
-    max_retries=Retry(total=2, backoff_factor=0.3,
+    # read=0: never retry a read timeout. dbv.turnier.de's anti-bot defence
+    # answers a throttled client by completing TLS then holding the connection
+    # open and sending nothing (a read timeout) — retrying that just triples
+    # the load exactly when we're already being rate-limited. Connect errors
+    # and genuine 5xx are still retried.
+    max_retries=Retry(total=2, read=0, backoff_factor=0.3,
                       status_forcelist=(500, 502, 503, 504)),
 )
 _SESSION.mount("https://", _adapter)
