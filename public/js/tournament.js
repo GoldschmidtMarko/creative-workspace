@@ -7,6 +7,7 @@ import { functions, db } from "./util/firebase.js";
 
 const getBaxData = httpsCallable(functions, "get_player_bax_data", { timeout: 540000 });
 const getDisciplines = httpsCallable(functions, "get_tournament_disciplines", { timeout: 60000 });
+const getWinners = httpsCallable(functions, "get_tournament_winners", { timeout: 60000 });
 
 const $ = (id) => document.getElementById(id);
 const loader = $("loader");
@@ -16,10 +17,13 @@ const loaderStage = $("loader-stage");
 const viewControls = $("view-controls");
 const resultsContainer = $("results-container");
 const chartContainer = $("chart-container");
+const winnersContainer = $("winners-container");
 const resultsGrid = $("results-grid");
 const chartBody = $("chart-body");
+const winnersBody = $("winners-body");
 const toggleTableBtn = $("toggle-table");
 const toggleChartBtn = $("toggle-chart");
+const toggleResultsBtn = $("toggle-results");
 const disciplineFilter = $("discipline-filter");
 const emptyState = $("empty-state");
 const disciplineBar = $("discipline-bar");
@@ -37,9 +41,13 @@ let tournamentStart = qStart || "";
 let currentPlayers = [];
 let currentDiscipline = "all";
 let currentView = "table";
+let userChangedView = false;    // once true, stop auto-defaulting the view
 let currentChartTitle = "";
 let currentAnalysis = null;
 const analysisCache = new Map();
+let tournamentWinners = null;   // { resolved, groups: { event: { name, rows } } }
+let winnersResolved = false;
+let lastHeaderArgs = null;
 
 /* ---------------- helpers (shared look with the tournament tool) --------- */
 function escapeHtml(s) {
@@ -66,7 +74,12 @@ function statusLabel(status) {
     if (/starterliste/i.test(s)) return "Starter";
     return s;
 }
-function isWaitlisted(status) { return !!status && !/starter/i.test(String(status)); }
+// Only an explicit reserve/waiting-list status counts as waitlisted. A
+// completed tournament's entry list re-lists advancing teams a second time
+// under a bracket-stage status (e.g. "Playoff") instead of "Starterliste" —
+// treating "anything but starter" as waitlisted (the old rule) wrongly
+// dumped those teams into the reserve bucket.
+function isWaitlisted(status) { return /nachr[üu]cker|warteliste/i.test(String(status || "")); }
 
 // Player name links straight to the unified Player Insights page (same-tab
 // left-click, new-tab on ctrl/middle). Guests with no id fall back to DBV.
@@ -98,14 +111,17 @@ function leagueTagsHtml(m) {
 
 /* ---------------- header + discipline bar -------------------------------- */
 function renderHeader(name, start, end, city) {
+    lastHeaderArgs = { name, start, end, city };
     $("t-name").textContent = name;
     document.title = `${name} | BAX Checker`;
     const meta = [];
     const dt = start ? (end && end !== start ? `${fmt(start)} – ${fmt(end)}` : fmt(start)) : "";
     if (dt) meta.push(`📅 ${dt}`);
     if (city) meta.push(`📍 ${city}`);
-    $("t-meta").innerHTML = meta.map((m) => `<span>${escapeHtml(m)}</span>`).join("");
+    const badge = winnersResolved ? '<span class="mini-tag mini-tag--done">Completed</span>' : "";
+    $("t-meta").innerHTML = badge + meta.map((m) => `<span>${escapeHtml(m)}</span>`).join("");
 }
+function refreshHeader() { if (lastHeaderArgs) renderHeader(lastHeaderArgs.name, lastHeaderArgs.start, lastHeaderArgs.end, lastHeaderArgs.city); }
 function fmt(iso) {
     if (!iso) return "";
     if (/^\d{2}\.\d{2}\.\d{4}$/.test(iso)) return iso;      // already dd.mm.yyyy
@@ -233,25 +249,102 @@ async function runAnalysis(disc, force = false) {
 const updateLiveBtn = $("update-live-btn");
 if (updateLiveBtn) updateLiveBtn.addEventListener("click", () => { if (currentAnalysis) runAnalysis(currentAnalysis, true); });
 
+/* ---------------- results (winners) --------------------------------------- */
+async function loadWinners() {
+    try {
+        const res = await getWinners({ id: tournamentId });
+        if (res.data.error) throw new Error(res.data.error);
+        tournamentWinners = res.data;
+    } catch (err) {
+        console.error("Failed to load winners:", err);
+        tournamentWinners = { resolved: false, groups: {} };
+    }
+    winnersResolved = !!tournamentWinners.resolved;
+    if (toggleResultsBtn) {
+        toggleResultsBtn.disabled = !winnersResolved;
+        toggleResultsBtn.title = winnersResolved ? "" : "Results are published once the tournament is finished";
+    }
+    // A finished tournament defaults to its Results tab — but only if the
+    // visitor hasn't already picked a view themselves (this can resolve
+    // before or after a discipline's BAX analysis finishes).
+    if (winnersResolved && !userChangedView) currentView = "results";
+    refreshHeader();
+    // Only re-render if a discipline's analysis is already showing — before
+    // that, results/table/chart containers are all meant to stay hidden
+    // behind the "pick a discipline" empty state.
+    if (viewControls.style.display !== "none") updateDisplay();
+}
+
+function normName(s) { return String(s || "").trim().toLowerCase().replace(/\s+/g, " "); }
+
+function renderWinners() {
+    const ev = currentAnalysis && currentAnalysis.event;
+    const group = ev && tournamentWinners && tournamentWinners.groups ? tournamentWinners.groups[ev] : null;
+    if (!group || !group.rows.length) {
+        winnersBody.innerHTML = '<div class="browse-status" style="padding:2.5rem 1rem;">No results published for this discipline yet.</div>';
+        return;
+    }
+    // The winners page only gives a name + a tournament-scoped dbv link, not a
+    // profile id — match by name against this discipline's already-analysed
+    // roster (currentPlayers) so these link to the internal player page
+    // exactly like the Table tab does, instead of always opening dbv.
+    const byName = new Map();
+    currentPlayers.forEach((m) => { if (m.full_name) byName.set(normName(m.full_name), m); });
+
+    const grid = document.createElement("div");
+    grid.className = "team-grid";
+    group.rows.forEach((row) => {
+        const card = document.createElement("div");
+        // Shared placements are written like "3/4" — the leading number still
+        // means a podium finish, so parse rather than match the exact string.
+        const place = parseInt(row.rank, 10);
+        const podiumCls = place >= 1 && place <= 3 ? ` team-card--rank-${place}` : "";
+        card.className = "team-card" + podiumCls;
+        const membersHtml = row.players.map((p) => {
+            const seed = p.seed ? `<span class="tm__val">#${escapeHtml(p.seed)}</span>` : "";
+            const matched = byName.get(normName(p.name));
+            const attrs = matched ? playerLinkAttrs(matched) : `href="${escapeHtml(p.url)}" target="_blank" rel="noopener"`;
+            return `<div class="tm"><span class="tm__lead">` +
+                `<a class="tm__name player-link" ${attrs}>${escapeHtml(p.name)}</a>` +
+                `</span>${seed}</div>`;
+        }).join("");
+        card.innerHTML = `
+            <div class="team-card__head">
+                <div class="team-card__head-left"><span class="rank-badge">${escapeHtml(row.rank)}</span></div>
+            </div>
+            <div class="team-card__members">${membersHtml}</div>`;
+        grid.appendChild(card);
+    });
+    winnersBody.innerHTML = "";
+    winnersBody.appendChild(grid);
+}
+
 /* ---------------- view + rendering (ported) ------------------------------ */
 toggleTableBtn.addEventListener("click", () => switchView("table"));
 toggleChartBtn.addEventListener("click", () => switchView("chart"));
+if (toggleResultsBtn) toggleResultsBtn.addEventListener("click", () => { if (!toggleResultsBtn.disabled) switchView("results"); });
 disciplineFilter.addEventListener("change", (e) => { currentDiscipline = e.target.value; updateDisplay(); });
 function setDisciplineFilter(v) { currentDiscipline = v; if (disciplineFilter) disciplineFilter.value = v; }
-function switchView(v) { currentView = v; updateDisplay(); }
+function switchView(v) { userChangedView = true; currentView = v; updateDisplay(); }
 function updateDisplay() {
-    if (currentView === "table") {
-        resultsContainer.style.display = "block";
-        chartContainer.style.display = "none";
-        toggleTableBtn.classList.add("active");
-        toggleChartBtn.classList.remove("active");
-        renderResults(currentPlayers);
-    } else {
-        resultsContainer.style.display = "none";
+    resultsContainer.style.display = "none";
+    chartContainer.style.display = "none";
+    winnersContainer.style.display = "none";
+    toggleTableBtn.classList.remove("active");
+    toggleChartBtn.classList.remove("active");
+    if (toggleResultsBtn) toggleResultsBtn.classList.remove("active");
+    if (currentView === "results") {
+        winnersContainer.style.display = "block";
+        if (toggleResultsBtn) toggleResultsBtn.classList.add("active");
+        renderWinners();
+    } else if (currentView === "chart") {
         chartContainer.style.display = "block";
-        toggleTableBtn.classList.remove("active");
         toggleChartBtn.classList.add("active");
         renderChart(currentPlayers);
+    } else {
+        resultsContainer.style.display = "block";
+        toggleTableBtn.classList.add("active");
+        renderResults(currentPlayers);
     }
 }
 
@@ -431,11 +524,18 @@ async function boot() {
     disciplineBar.innerHTML = Array.from({ length: 7 }, (_, i) =>
         `<span class="skel" style="display:inline-block;width:${72 + (i % 3) * 26}px;height:34px;border-radius:999px"></span>`).join("");
     renderHeader(tournamentName, qStart, qEnd, qCity);
+    loadWinners(); // fire-and-forget: fills in the "Completed" badge + enables the Results tab
     try {
         const res = await getDisciplines({ id: tournamentId, name: qName });
         if (res.data.error) throw new Error(res.data.error);
         disciplines = res.data.disciplines || [];
         tournamentName = qName || res.data.name || "Tournament";
+        // The URL's ?start= is only present when arriving from a shared deep
+        // link; without it this must fall back to the scraped date so any BAX
+        // analysis records the real start date (see record_registrations —
+        // an empty start_date is why finished tournaments kept showing up in
+        // a player's "upcoming" list).
+        tournamentStart = qStart || res.data.start || "";
         renderHeader(tournamentName, qStart || res.data.start, qEnd || res.data.end, qCity);
         renderDisciplineBar();
         const ev = params.get("event");

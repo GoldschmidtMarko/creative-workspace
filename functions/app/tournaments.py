@@ -260,3 +260,117 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
         import traceback
         print(f"get_tournament_disciplines error: {e}\n{traceback.format_exc()}")
         return {"error": f"Internal Error: {str(e)}"}
+
+
+def _parse_winners_html(html):
+    """Parse dbv.turnier.de/sport/winners.aspx into per-discipline placements.
+
+    Each discipline/group's rows sit in one <table class="ruler seeding">,
+    headed by a <th><a href="event.aspx?...&event=N">GROUP-NAME</a></th> row
+    that carries the same event id used by get_tournament_disciplines.
+    Placement rows follow: rank text ("1", "5/8", ...) in the first <td>, one
+    or more player links in the second (two for doubles/mixed). Returns
+    {event: {name, rows: [{rank, players: [{name, seed, url}]}]}}.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    groups = {}
+    current = None
+    for row in soup.select("table.ruler.seeding tr"):
+        th = row.find("th")
+        if th is not None:
+            current = None
+            a = th.find("a", href=re.compile(r"event\.aspx\?.*event=\d+", re.I))
+            if a:
+                em = re.search(r"event=(\d+)", a["href"])
+                if em:
+                    current = groups.setdefault(em.group(1), {"name": a.get_text(strip=True), "rows": []})
+            continue
+        if current is None:
+            continue
+        cells = row.find_all("td")
+        if len(cells) < 2:
+            continue
+        rank = cells[0].get_text(strip=True)
+        players = []
+        for a in cells[1].find_all("a", href=re.compile(r"player\.aspx", re.I)):
+            name = a.get_text(strip=True)
+            seed = None
+            sm = re.search(r"\s*\[(\d+)\]\s*$", name)
+            if sm:
+                seed = sm.group(1)
+                name = name[:sm.start()].strip()
+            href = a["href"]
+            players.append({"name": name, "seed": seed,
+                             "url": href if href.startswith("http") else BASE + href})
+        if players:
+            current["rows"].append({"rank": rank, "players": players})
+    return groups
+
+
+def _fetch_tournament_winners(gid, force=False):
+    """Final placements per discipline, with Firestore caching. A discipline
+    with no published rows means dbv hasn't finished/posted results yet — the
+    absence of any table on the winners page is itself the "not resolved"
+    signal (there is no separate status flag upstream)."""
+    if db and not force:
+        try:
+            cache = db.collection("tournament_winners_cache").document(gid).get()
+            if cache.exists:
+                data = cache.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return {"resolved": data.get("resolved", False), "groups": data.get("groups", {})}
+        except Exception:
+            pass
+
+    session = requests.Session()
+    session.cookies.update(COOKIES)
+    resp = session.get(f"{BASE}/sport/winners.aspx?id={gid}", headers=HEADERS, timeout=20)
+    resp.raise_for_status()
+    groups = _parse_winners_html(resp.text)
+    resolved = any(g["rows"] for g in groups.values())
+
+    if db:
+        try:
+            db.collection("tournament_winners_cache").document(gid).set({
+                "resolved": resolved,
+                "groups": groups,
+                # Published results never change, so cache them long; an
+                # unresolved tournament is rechecked sooner so freshly-posted
+                # results show up promptly.
+                "expires_at": datetime.now(timezone.utc) + (timedelta(days=14) if resolved else timedelta(hours=2)),
+            })
+        except Exception:
+            pass
+    return {"resolved": resolved, "groups": groups}
+
+
+def is_tournament_resolved(gid):
+    """Best-effort: has dbv already published final results for this
+    tournament? Used elsewhere as a fallback signal for "this is clearly over"
+    when no reliable date is on hand."""
+    try:
+        return bool(_fetch_tournament_winners(gid).get("resolved"))
+    except Exception:
+        return False
+
+
+@https_fn.on_call()
+def get_tournament_winners(req: https_fn.CallableRequest) -> dict:
+    """Final placements per discipline, scraped from dbv's winners page.
+    {resolved, groups: {event: {name, rows: [{rank, players}]}}}."""
+    try:
+        gid = (req.data or {}).get("id", "")
+        m = re.search(r"([0-9A-Fa-f-]{36})", gid or "")
+        if not m:
+            return {"error": "Missing or invalid tournament id"}
+        gid = m.group(1).upper()
+
+        force = bool((req.data or {}).get("force"))
+        if force and not check_rate_limit(rate_key(req), "force_winners", 20, 3600000):
+            return {"error": "Live update limit reached. Please wait before refreshing again."}
+
+        return _fetch_tournament_winners(gid, force=force)
+    except Exception as e:
+        import traceback
+        print(f"get_tournament_winners error: {e}\n{traceback.format_exc()}")
+        return {"error": f"Internal Error: {str(e)}"}

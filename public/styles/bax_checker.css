@@ -48,6 +48,17 @@
     border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
+/* Podium finishes on the Results tab */
+.team-card--rank-1, .team-card--rank-2, .team-card--rank-3 {
+    border-width: 1.5px;
+}
+.team-card--rank-1 { border-color: color-mix(in srgb, var(--rank-gold) 60%, var(--border)); }
+.team-card--rank-2 { border-color: color-mix(in srgb, var(--rank-silver) 60%, var(--border)); }
+.team-card--rank-3 { border-color: color-mix(in srgb, var(--rank-bronze) 60%, var(--border)); }
+.team-card--rank-1 .rank-badge { background: var(--rank-gold); border-color: transparent; color: #1a1408; }
+.team-card--rank-2 .rank-badge { background: var(--rank-silver); border-color: transparent; color: #1a1408; }
+.team-card--rank-3 .rank-badge { background: var(--rank-bronze); border-color: transparent; color: #1a1408; }
+
 .team-card__head {
     display: flex;
     align-items: center;
@@ -345,6 +356,11 @@ a.league-season--link:hover .league-season__year {
     color: var(--accent-ink) !important;
 }
 
+.view-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .view-switch {
     background: var(--card-2);
     border: 1px solid var(--border);
@@ -418,6 +434,11 @@ a.league-season--link:hover .league-season__year {
 :root { --disc-einzel: #2a78d6; --disc-doppel: #1baf7a; --disc-mixed: #e34948; --disc-waiting: #c2410c; }
 :root[data-theme="light"] { --disc-einzel: #2a78d6; --disc-doppel: #1baf7a; --disc-mixed: #e34948; --disc-waiting: #c2410c; }
 :root[data-theme="dark"]  { --disc-einzel: #3987e5; --disc-doppel: #199e70; --disc-mixed: #e66767; --disc-waiting: #f59e0b; }
+
+/* Podium colours for the Results tab (top 3 placements) */
+:root { --rank-gold: #c9971f; --rank-silver: #8b95a3; --rank-bronze: #b3672c; }
+:root[data-theme="light"] { --rank-gold: #c9971f; --rank-silver: #8b95a3; --rank-bronze: #b3672c; }
+:root[data-theme="dark"]  { --rank-gold: #e0b843; --rank-silver: #aab2bd; --rank-bronze: #d4884f; }
 
 /* Client-rendered inline SVG chart (vector — crisp at any DPI) */
 .chart-header {
@@ -744,6 +765,13 @@ a.tm__name:hover { text-decoration: underline; }
     background: color-mix(in srgb, var(--success) 14%, transparent);
     border-color: transparent;
     color: var(--success);
+}
+
+.mini-tag--done {
+    background: color-mix(in srgb, var(--success) 14%, transparent);
+    border-color: transparent;
+    color: var(--success);
+    font-weight: 700;
 }
 
 /* Modal */

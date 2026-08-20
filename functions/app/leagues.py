@@ -138,6 +138,16 @@ def _scrape_leagues(profile_id, year=None, force=False):
                 leagues.append(by_league[lg])
             by_league[lg]["divisions"].append(
                 {"abbr": abbr, "division": division, "tier": tier, "team": team})
+
+        # One "Matches of {name}" link per league card (shared across all of
+        # that league's divisions, not per-division) — the Spielübersicht page
+        # it points to lists every match this player played in that whole
+        # league competition. Used by the player-network feature.
+        for a in soup.find_all("a", href=re.compile(r"/league/([0-9A-F-]+)/player/(\d+)", re.I)):
+            pm = re.search(r"/league/([0-9A-F-]+)/player/(\d+)", a["href"], re.I)
+            if pm and pm.group(1) in by_league:
+                by_league[pm.group(1)]["match_url"] = f"{BASE}/league/{pm.group(1)}/player/{pm.group(2)}"
+
         years = sorted(set(re.findall(r"/leagues/(\d{4})", resp.text)), reverse=True)
     except Exception as e:
         print(f"Error scraping leagues: {e}")

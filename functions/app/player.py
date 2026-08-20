@@ -34,6 +34,7 @@ from app.bax import _bax_update_date, get_tournament_player_links
 from app.common import BASE, COOKIES, HEADERS, MAX_WORKERS
 from app.firebase_app import db
 from app.rate_limiting import check_rate_limit
+from app.tournaments import is_tournament_resolved
 
 BAX_DEV = "https://www.badminton-bax.de/index.php/bax-portal/spieler-entwicklung"
 CATS = ("Einzel", "Doppel", "Mixed")
@@ -585,7 +586,8 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
     each stored (non-past) registration's live entry list is re-scraped (cached
     ~30 min) to confirm the player is still entered. Players who have withdrawn are
     flagged and dropped; waiting-list/reserve entries are kept with their status.
-    Clearly-past tournaments are hidden as a guard."""
+    Clearly-past tournaments are hidden as a guard — by start date, or (when no
+    date was recorded) by dbv having already published final results."""
     try:
         m = re.search(r"([0-9a-fA-F-]{36})", (req.data or {}).get("profile_id") or "")
         if not m:
@@ -598,16 +600,34 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
 
         today = datetime.now(timezone.utc).date()
 
-        # 1. Candidate registrations (skip clearly-past tournaments).
+        # 1. Candidate registrations (skip clearly-past tournaments). Older
+        #    registrations may have no start_date (captured before the
+        #    frontend reliably passed one through) — backfill it from the
+        #    disciplines cache, then as a last resort drop the row if dbv has
+        #    already published final results (unambiguously over regardless
+        #    of any date).
         candidates = []
         for doc in db.collection("player_registrations").where(
                 filter=FieldFilter("profile_id", "==", profile_id)).stream():
             r = doc.to_dict()
             start = _parse_ddmmyyyy(r.get("start_date"))
+            backfill_start = None
+            if not start and r.get("tournament_id"):
+                try:
+                    dcache = db.collection("tournament_disciplines_cache").document(r["tournament_id"]).get()
+                    if dcache.exists:
+                        backfill_start = dcache.to_dict().get("start")
+                        start = _parse_ddmmyyyy(backfill_start)
+                except Exception:
+                    pass
             if start and start < today:
                 continue  # already happened
+            if not start and r.get("tournament_id") and is_tournament_resolved(r["tournament_id"]):
+                continue  # no known date, but results are already final
             r["_ref"] = doc.reference
             r["_start"] = start
+            if backfill_start:
+                r["_backfill_start"] = backfill_start
             candidates.append(r)
 
         # 2. Re-scrape each distinct entry list once (concurrently, cached 30 min).
@@ -630,6 +650,9 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
             members = members_by_url.get(r.get("tournament_url"))
             withdrawn = bool(r.get("withdrawn"))
             status = r.get("status")
+            update_fields = {}
+            if r.get("_backfill_start"):
+                update_fields["start_date"] = r["_backfill_start"]
             if members is not None:                      # scrape succeeded → authoritative
                 entry = _find_member(members, r)
                 if entry:
@@ -637,9 +660,12 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
                     status = entry.get("status") or status
                 else:
                     withdrawn = True
+                update_fields["withdrawn"] = withdrawn
+                update_fields["status"] = status
+                update_fields["last_checked"] = firestore.SERVER_TIMESTAMP
+            if update_fields:
                 try:
-                    batch.update(r["_ref"], {"withdrawn": withdrawn, "status": status,
-                                             "last_checked": firestore.SERVER_TIMESTAMP})
+                    batch.update(r["_ref"], update_fields)
                     writes += 1
                     if writes % 400 == 0:
                         batch.commit()
