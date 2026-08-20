@@ -207,13 +207,13 @@
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-/* The Upcoming tab is the novel feature — give it its own accent (amber),
-   distinct from the teal used by every other active tab. (Rules after
-   .is-active so they win the equal-specificity tie.) */
-.subnav__tab--upcoming { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 13%, transparent); }
-.subnav__tab--upcoming svg { color: var(--disc-waiting); }
-.subnav__tab--upcoming:hover { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 20%, transparent); }
-.subnav__tab--upcoming.is-active {
+/* Upcoming and Network are the novel feature tabs — give them their own
+   accent (amber), distinct from the teal used by every other active tab.
+   (Rules after .is-active so they win the equal-specificity tie.) */
+.subnav__tab--upcoming, .subnav__tab--network { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 13%, transparent); }
+.subnav__tab--upcoming svg, .subnav__tab--network svg { color: var(--disc-waiting); }
+.subnav__tab--upcoming:hover, .subnav__tab--network:hover { color: var(--disc-waiting); background: color-mix(in srgb, var(--disc-waiting) 20%, transparent); }
+.subnav__tab--upcoming.is-active, .subnav__tab--network.is-active {
     color: var(--disc-waiting);
     background: color-mix(in srgb, var(--disc-waiting) 24%, transparent);
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--disc-waiting) 45%, transparent);
@@ -363,6 +363,20 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
 .pl-table a { color: var(--accent); text-decoration: none; }
 .pl-table a:hover { text-decoration: underline; }
 .pl-table .when { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+
+/* Network tab — teammates / opponents side by side */
+.network-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+.network-col__title { font-size: 0.8rem; font-weight: 700; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+.pl-table .winrate { font-variant-numeric: tabular-nums; }
+.pl-table .winrate--good { color: var(--success); font-weight: 600; }
+.pl-table .winrate--bad { color: var(--danger); }
+.pl-table .disc-pills { display: flex; gap: 3px; }
+.pl-table .disc-pill { font-size: 0.65rem; font-weight: 700; padding: 1px 5px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border); color: var(--ink-dim); }
+.pl-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.pl-table th.sortable:hover { color: var(--ink); }
+.pl-table th.sortable.is-sorted { color: var(--accent); }
+.network-expand { display: flex; justify-content: center; margin-top: 0.75rem; }
+.pl-table .ext-icon { width: 12px; height: 12px; margin-left: 3px; vertical-align: -1px; color: var(--ink-faint); }
 
 /* Skeleton / empty / status */
 .skeleton { color: var(--ink-faint); font-size: 0.9rem; padding: 1.25rem 0; text-align: center; }

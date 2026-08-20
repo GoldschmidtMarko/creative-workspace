@@ -75,6 +75,7 @@
 
                 <div id="view-controls" style="display:none; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
                     <div class="view-switch">
+                        <button id="toggle-results" class="view-btn" disabled title="Results are published once the tournament is finished">Results</button>
                         <button id="toggle-table" class="view-btn active">Table</button>
                         <button id="toggle-chart" class="view-btn">Chart</button>
                     </div>
@@ -94,6 +95,9 @@
                     </div>
                 </div>
 
+                <div id="winners-container" style="display:none;">
+                    <div id="winners-body"></div>
+                </div>
                 <div id="results-container" style="display:none;">
                     <div id="results-grid" class="team-grid"></div>
                 </div>

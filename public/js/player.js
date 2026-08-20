@@ -10,10 +10,12 @@ const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 12000
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
 const getPlayerLeagues = httpsCallable(functions, "get_player_leagues", { timeout: 60000 });
 const getPlayerUpcoming = httpsCallable(functions, "get_player_upcoming", { timeout: 60000 });
+const getPlayerNetwork = httpsCallable(functions, "get_player_network", { timeout: 120000 });
 const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
 
 const CATS = ["Einzel", "Doppel", "Mixed"];
 const DISC_LABEL = { Einzel: "Singles", Doppel: "Doubles", Mixed: "Mixed" };
+const NETWORK_PAGE_SIZE = 10;
 
 const $ = (id) => document.getElementById(id);
 function escapeHtml(s) {
@@ -38,6 +40,8 @@ function showProfileSkeleton() {
     $("tournaments-body").innerHTML = skelRows(4);
     $("titles-body").innerHTML = skelRows(4);
     $("upcoming-body").innerHTML = skelRows(3);
+    $("network-teammates").innerHTML = skelRows(3);
+    $("network-opponents").innerHTML = skelRows(3);
 }
 
 // Page state kept for re-renders (legend toggles, view/scope/category switches).
@@ -46,6 +50,11 @@ const state = {
     histView: "chart", histHidden: new Set(),
     distScope: "lv", distCat: "Einzel",
     profileId: null,
+    // Network tab: teammates/opponents sort & expand state independently.
+    network: {
+        teammates: { list: [], sort: "played", dir: "desc", shown: NETWORK_PAGE_SIZE },
+        opponents: { list: [], sort: "played", dir: "desc", shown: NETWORK_PAGE_SIZE },
+    },
 };
 
 /* ------------------------------------------------------------------ */
@@ -270,6 +279,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
             loadDbvStats(rpid, identity && identity.name);
             loadLeagues(rpid, identity && identity.name);
             loadUpcoming(rpid);
+            loadNetwork(rpid, rsp, identity && identity.name);
         } else {
             markDbvUnavailable();
         }
@@ -282,7 +292,8 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
 function markDbvUnavailable() {
     const msg = '<div class="pl-unavailable">Open this player from a tournament analysis once to link their ' +
         'DBV profile — then leagues, tournaments, titles, win/loss and upcoming tournaments appear here.</div>';
-    ["winloss-body", "upcoming-body", "titles-body", "leagues-body", "tournaments-body"].forEach((id) => {
+    ["winloss-body", "upcoming-body", "titles-body", "leagues-body", "tournaments-body",
+        "network-teammates", "network-opponents"].forEach((id) => {
         $(id).innerHTML = msg;
     });
     $("p-wl-tiles").innerHTML = "";
@@ -645,7 +656,7 @@ function statusLabel(status) {
     if (/starterliste|starter/i.test(s)) return "Starter";
     return s;
 }
-function isWaitlisted(status) { return !!status && !/starter/i.test(String(status)); }
+function isWaitlisted(status) { return /nachr[üu]cker|warteliste/i.test(String(status || "")); }
 
 function renderUpcoming(list) {
     const el = $("upcoming-body");
@@ -701,6 +712,109 @@ function renderUpcoming(list) {
         return `<div class="upcoming-item"><div class="upcoming-item__link">${main}</div>${dbvPart}</div>`;
     }).join("") + `</div>`;
     if (window.lucide) lucide.createIcons();
+}
+
+/* ------------------------------------------------------------------ */
+/* Network — teammates & opponents, tournaments + leagues              */
+/* ------------------------------------------------------------------ */
+const NETWORK_EMPTY_MSG = {
+    teammates: "No shared teammates found in the last 3 years.",
+    opponents: "No opponents found in the last 3 years.",
+};
+
+async function loadNetwork(pid, sp, name) {
+    try {
+        const res = await getPlayerNetwork({ profile_id: pid, sp_code: sp, name });
+        if (res.data.error) throw new Error(res.data.error);
+        state.network.teammates.list = res.data.teammates || [];
+        state.network.opponents.list = res.data.opponents || [];
+        renderNetworkColumn("teammates");
+        renderNetworkColumn("opponents");
+    } catch (err) {
+        console.error("network failed:", err);
+        const msg = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+        $("network-teammates").innerHTML = msg;
+        $("network-opponents").innerHTML = msg;
+    }
+}
+
+// Links to the internal player page when a real dbv id is known (tournament
+// peers, resolved via the H2H link on their match); league-only peers have no
+// id we've resolved (by design — see functions/app/network.py), so they fall
+// back to an external dbv.turnier.de link opened in a new tab.
+function networkPeerLinkAttrs(e) {
+    if (e.sp_code) {
+        const q = new URLSearchParams({ sp: e.sp_code });
+        if (e.name) q.set("name", e.name);
+        return `href="${escapeHtml("/html/player.html?" + q.toString())}"`;
+    }
+    if (e.url) return `href="${escapeHtml(e.url)}" target="_blank" rel="noopener"`;
+    return "";
+}
+
+function renderNetworkColumn(kind) {
+    const el = $(`network-${kind}`);
+    const col = state.network[kind];
+    if (!col.list.length) { el.innerHTML = `<div class="pl-empty">${escapeHtml(NETWORK_EMPTY_MSG[kind])}</div>`; return; }
+
+    const sorted = [...col.list].sort((a, b) => {
+        const av = a[col.sort] == null ? -1 : a[col.sort];
+        const bv = b[col.sort] == null ? -1 : b[col.sort];
+        return col.dir === "asc" ? av - bv : bv - av;
+    });
+    const shown = sorted.slice(0, col.shown);
+
+    const rows = shown.map((e) => {
+        const attrs = networkPeerLinkAttrs(e);
+        // Internal profile (sp_code known) vs. an external dbv.turnier.de
+        // link (league-only peer, no id resolved) — flag the latter with a
+        // small external-link icon right after the name.
+        const external = !e.sp_code && !!e.url;
+        const extIcon = external ? '<i data-lucide="external-link" class="ext-icon"></i>' : "";
+        const nameHtml = attrs ? `<a ${attrs}>${escapeHtml(e.name)}${extIcon}</a>` : escapeHtml(e.name);
+        const pills = Object.entries(e.disciplines || {}).filter(([, n]) => n > 0)
+            .map(([k, n]) => `<span class="disc-pill" title="${escapeHtml(DISC_LABEL[k] || k)}">${k[0]}${n}</span>`).join("");
+        const wrCls = e.winrate == null ? "" : e.winrate >= 50 ? "winrate--good" : "winrate--bad";
+        const wrText = e.winrate == null ? "–" : `${e.winrate}%`;
+        return `<tr>
+            <td class="name">${nameHtml}${pills ? `<div class="disc-pills">${pills}</div>` : ""}</td>
+            <td>${e.played}</td>
+            <td class="when">${e.wins}-${e.losses}</td>
+            <td class="winrate ${wrCls}">${wrText}</td>
+        </tr>`;
+    }).join("");
+
+    const th = (field, label) => {
+        if (!field) return `<th>${label}</th>`;
+        const arrow = col.sort === field ? (col.dir === "asc" ? " ▲" : " ▼") : "";
+        return `<th class="sortable${col.sort === field ? " is-sorted" : ""}" data-sort="${field}">${label}${arrow}</th>`;
+    };
+    const remaining = sorted.length - col.shown;
+    const expandHtml = remaining > 0
+        ? `<div class="network-expand"><button type="button" class="btn btn-secondary btn-sm" data-expand-toggle>` +
+          `Show ${Math.min(NETWORK_PAGE_SIZE, remaining)} more</button></div>`
+        : "";
+
+    el.innerHTML = `<div class="table-scroll"><table class="pl-table">
+        <thead><tr>${th(null, "Name")}${th("played", "Played")}${th(null, "W-L")}${th("winrate", "Win%")}</tr></thead>
+        <tbody>${rows}</tbody>
+    </table></div>${expandHtml}`;
+    if (window.lucide) lucide.createIcons();
+
+    el.querySelectorAll("th.sortable").forEach((h) => {
+        h.addEventListener("click", () => {
+            const field = h.getAttribute("data-sort");
+            col.dir = col.sort === field ? (col.dir === "asc" ? "desc" : "asc") : "desc";
+            col.sort = field;
+            col.shown = NETWORK_PAGE_SIZE;
+            renderNetworkColumn(kind);
+        });
+    });
+    const expandBtn = el.querySelector("[data-expand-toggle]");
+    if (expandBtn) expandBtn.addEventListener("click", () => {
+        col.shown += NETWORK_PAGE_SIZE;
+        renderNetworkColumn(kind);
+    });
 }
 
 /* ------------------------------------------------------------------ */

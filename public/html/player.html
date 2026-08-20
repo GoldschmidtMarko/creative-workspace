@@ -103,6 +103,7 @@
                 <!-- Section sub-navigation (sticky) -->
                 <nav class="subnav" id="subnav" aria-label="Player sections">
                     <button class="subnav__tab subnav__tab--upcoming is-active" type="button" data-tab="upcoming"><i data-lucide="sparkles"></i>Upcoming</button>
+                    <button class="subnav__tab subnav__tab--network" type="button" data-tab="network"><i data-lucide="users"></i>Network</button>
                     <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
                     <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
                     <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
@@ -119,6 +120,22 @@
                             <span class="hint">who's registered where — captured live as players are analysed</span>
                         </div>
                         <div id="upcoming-body"><div class="skeleton">…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="network">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Network</h2><span class="hint">teammates &amp; opponents in leagues and tournaments, last 3 years</span></div>
+                        <div class="network-cols">
+                            <div class="network-col">
+                                <h3 class="network-col__title">Teammates</h3>
+                                <div id="network-teammates"><div class="skeleton">…</div></div>
+                            </div>
+                            <div class="network-col">
+                                <h3 class="network-col__title">Opponents</h3>
+                                <div id="network-opponents"><div class="skeleton">…</div></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
