@@ -388,6 +388,9 @@ a.card:hover .card-icon {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .field::placeholder { color: var(--ink-faint); }
+/* Safari gives type="search" its own pill chrome unless disabled — keep it
+   matching the rest of the .field inputs instead (native clear button stays). */
+input[type="search"].field { -webkit-appearance: none; appearance: none; }
 .field:focus {
   outline: none;
   border-color: var(--accent);
