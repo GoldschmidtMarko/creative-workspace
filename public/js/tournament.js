@@ -44,6 +44,8 @@ let currentView = "table";
 let userChangedView = false;    // once true, stop auto-defaulting the view
 let currentChartTitle = "";
 let currentAnalysis = null;
+let analysisToken = 0;      // bumped on every runAnalysis call; guards against a slower, superseded request rendering after a newer one
+let stopTracking = null;    // unsubscribe for the currently-live job progress listener, if any
 const analysisCache = new Map();
 let tournamentWinners = null;   // { resolved, groups: { event: { name, rows } } }
 let winnersResolved = false;
@@ -194,6 +196,8 @@ function showResults(players) {
 
 async function runAnalysis(disc, force = false) {
     const url = disc.url;
+    const token = ++analysisToken;
+    if (stopTracking) stopTracking();   // a discipline change supersedes any still-running analysis; stop its progress listener now
     currentChartTitle = `${disc.name} · ${tournamentName}`;
     setDisciplineFilter(disciplineToFilter(disc.name));
     currentAnalysis = disc;
@@ -203,6 +207,7 @@ async function runAnalysis(disc, force = false) {
 
     const jobId = `job_${Date.now()}`;
     const stop = trackProgress(jobId);
+    stopTracking = stop;
     emptyState.style.display = "none";
     loader.style.display = "block";
     // Skeleton team cards fill in beneath the progress bar so it reads as content
@@ -232,11 +237,14 @@ async function runAnalysis(disc, force = false) {
         });
         if (res.data.error) throw new Error(res.data.error);
         stop();
+        analysisCache.set(url, res.data.players);
+        if (token !== analysisToken) return;   // a newer discipline was picked meanwhile — keep the result cached, don't render it
         progressBar.style.width = "100%";
         loaderText.innerText = "Analysis Complete!";
-        setTimeout(() => { analysisCache.set(url, res.data.players); showResults(res.data.players); }, 400);
+        setTimeout(() => { if (token === analysisToken) showResults(res.data.players); }, 400);
     } catch (err) {
         stop();
+        if (token !== analysisToken) return;   // superseded by a newer selection — don't clobber its UI with our error
         console.error("Scraping failed:", err);
         loader.style.display = "none";
         resultsContainer.style.display = "none";
@@ -248,6 +256,16 @@ async function runAnalysis(disc, force = false) {
 
 const updateLiveBtn = $("update-live-btn");
 if (updateLiveBtn) updateLiveBtn.addEventListener("click", () => { if (currentAnalysis) runAnalysis(currentAnalysis, true); });
+
+// Redraw the chart on real width changes (window resize / phone rotation) so
+// it keeps matching the container 1:1 instead of going stale at the size it
+// first rendered at.
+let chartResizeTimer = null;
+window.addEventListener("resize", () => {
+    if (currentView !== "chart" || !currentPlayers.length) return;
+    clearTimeout(chartResizeTimer);
+    chartResizeTimer = setTimeout(() => renderChart(currentPlayers), 150);
+});
 
 /* ---------------- results (winners) --------------------------------------- */
 async function loadWinners() {
@@ -416,7 +434,14 @@ function renderChart(players) {
     const waiters = all.filter((t) => isWaitlisted(t.status)).sort((a, b) => metric(b) - metric(a));
     const rows = starters.concat(waiters);
 
-    const W = 900, padL = 260, padR = 48, padT = 6, padB = 26;
+    // The SVG viewBox is sized to the container's actual rendered width so text
+    // (fixed px sizes in the CSS above) stays crisp and legible at any screen
+    // size instead of shrinking with it — a narrow phone gets a genuinely
+    // narrower chart, not a shrunk-and-blurry one requiring horizontal scroll.
+    // The name column (padL) steps down on narrow screens to leave the bars
+    // themselves a usable width; row-height metrics stay constant.
+    const W = Math.max(300, Math.round(chartBody.clientWidth) || 900);
+    const padL = W < 460 ? 110 : W < 640 ? 170 : 260, padR = 48, padT = 6, padB = 26;
     const plotW = W - padL - padR;
     const lineH = 17, barThick = grouped ? 11 : 18, barGap = 3, rowPad = 14;
     const groupH = grouped ? discs.length * barThick + (discs.length - 1) * barGap : barThick;

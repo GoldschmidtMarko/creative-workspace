@@ -318,6 +318,21 @@ function renderIdentity(id) {
     } else {
         dbv.classList.add("hidden");
     }
+    // The graph needs a resolved dbv profile_id (same requirement as the
+    // Matchups tab itself, which only loads when rpid is known) — hide it
+    // rather than link to a page that can only error out.
+    const graphLink = $("p-open-network-graph");
+    if (graphLink) {
+        if (id.profile_id) {
+            const q = new URLSearchParams({ pid: id.profile_id });
+            if (id.sp_code) q.set("sp", id.sp_code);
+            if (id.name) q.set("name", id.name);
+            graphLink.href = "/html/network.html?" + q.toString();
+            graphLink.classList.remove("hidden");
+        } else {
+            graphLink.classList.add("hidden");
+        }
+    }
 }
 
 function renderBaxTiles(history) {
@@ -364,6 +379,26 @@ function renderHistory() {
     else renderHistoryChart();
 }
 
+// Redraws the history chart when its container's width actually changes —
+// both real resizes (window resize / phone rotation) and the moment the
+// "BAX history" tab is switched into view (it renders off-screen at 0 width
+// while another tab is active, since display:none tabs report zero size).
+let histResizeObserver = null, histLastW = 0;
+function ensureHistResizeObserver() {
+    const body = $("hist-body");
+    if (histResizeObserver || !body || typeof ResizeObserver === "undefined") return;
+    let raf = null;
+    histResizeObserver = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0].contentRect.width);
+        if (!w || w === histLastW) return;
+        histLastW = w;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => { raf = null; if (state.histView === "chart") renderHistoryChart(); });
+    });
+    histResizeObserver.observe(body);
+}
+ensureHistResizeObserver();
+
 function renderHistoryChart() {
     const body = $("hist-body");
     const h = state.history || {};
@@ -376,7 +411,12 @@ function renderHistoryChart() {
         return;
     }
 
-    const W = 900, padL = 44, padR = 16, padT = 12, padB = 30;
+    // The viewBox is sized to the container's real rendered width so the fixed
+    // px font sizes below stay legible at any screen size (see chart-svg-wrap
+    // CSS) instead of shrinking along with a fixed-900 canvas. Falls back to
+    // 900 while the panel is still hidden (0 width) — the ResizeObserver above
+    // redraws it for real the moment its tab becomes visible.
+    const W = Math.max(280, Math.round(body.clientWidth) || 900), padL = 44, padR = 16, padT = 12, padB = 30;
     const plotW = W - padL - padR;
     const H = 320, plotH = H - padT - padB;
     const xs = seasons.length > 1 ? (i) => padL + (i / (seasons.length - 1)) * plotW : () => padL + plotW / 2;
@@ -396,10 +436,14 @@ function renderHistoryChart() {
         grid += `<line class="pl-grid" x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}"/>`;
         grid += `<text class="pl-axis" x="${padL - 8}" y="${y + 3}" text-anchor="end">${Math.round(v)}</text>`;
     }
-    // X labels.
+    // X labels — shown at a stride that keeps them from crowding into each
+    // other, however wide or narrow the chart actually is (a fixed "skip every
+    // other" only worked for the old fixed-900 canvas).
     let xlabels = "";
+    const longestLabel = Math.max(4, ...seasons.map((s) => String(s).length));
+    const labelStride = Math.max(1, Math.ceil((seasons.length * (longestLabel * 6.2 + 10)) / plotW));
     seasons.forEach((s, i) => {
-        if (seasons.length > 8 && i % 2 === 1 && i !== seasons.length - 1) return;
+        if (labelStride > 1 && i % labelStride !== 0 && i !== seasons.length - 1) return;
         xlabels += `<text class="pl-axis" x="${xs(i)}" y="${H - 10}" text-anchor="middle">${escapeHtml(s)}</text>`;
     });
 
@@ -467,6 +511,22 @@ document.querySelectorAll("#dist-cat [data-cat]").forEach((btn) => {
     });
 });
 
+let distResizeObserver = null, distLastW = 0;
+function ensureDistResizeObserver() {
+    const body = $("dist-body");
+    if (distResizeObserver || !body || typeof ResizeObserver === "undefined") return;
+    let raf = null;
+    distResizeObserver = new ResizeObserver((entries) => {
+        const w = Math.round(entries[0].contentRect.width);
+        if (!w || w === distLastW) return;
+        distLastW = w;
+        if (raf) cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(() => { raf = null; renderDistribution(); });
+    });
+    distResizeObserver.observe(body);
+}
+ensureDistResizeObserver();
+
 function renderDistribution() {
     const body = $("dist-body");
     const dist = state.distribution || {};
@@ -479,7 +539,8 @@ function renderDistribution() {
     const n = Math.min(buckets.length, freqs.length);
     const step = buckets.length > 1 ? (buckets[1] - buckets[0]) : 20;
 
-    const W = 900, padL = 40, padR = 12, padT = 12, padB = 28;
+    // See renderHistoryChart for why W tracks the container's real width.
+    const W = Math.max(280, Math.round(body.clientWidth) || 900), padL = 40, padR = 12, padT = 12, padB = 28;
     const plotW = W - padL - padR, H = 300, plotH = H - padT - padB;
     const maxF = Math.max(1, ...freqs.slice(0, n));
     const slot = plotW / n, barW = Math.max(2, slot * 0.82);
@@ -494,6 +555,10 @@ function renderDistribution() {
         grid += `<text class="pl-axis" x="${padL - 6}" y="${gy + 3}" text-anchor="end">${Math.round(maxF * f)}</text>`;
     });
 
+    // Label stride: only every Nth bucket gets an x-axis number, N chosen so
+    // labels (~4 digits wide) don't crowd into each other at the current slot
+    // width (a fixed "every 3rd" only worked for the old fixed-900 canvas).
+    const labelStride = Math.max(1, Math.ceil(34 / slot));
     let bars = "", xlabels = "";
     for (let i = 0; i < n; i++) {
         const b = buckets[i], f = freqs[i];
@@ -501,7 +566,7 @@ function renderDistribution() {
         const yy = y(f);
         const tip = `BAX ${b}–${b + step - 1}: ${num(f)} player${f === 1 ? "" : "s"}`;
         bars += `<rect class="pl-bar${mine ? " pl-bar--me" : ""}" x="${x0(i)}" y="${yy}" width="${barW}" height="${baseline - yy}" rx="1.5" data-tip="${escapeHtml(tip)}"/>`;
-        if (i % 3 === 0 || i === n - 1) xlabels += `<text class="pl-axis" x="${x0(i) + barW / 2}" y="${H - 10}" text-anchor="middle">${b}</text>`;
+        if (i % labelStride === 0 || i === n - 1) xlabels += `<text class="pl-axis" x="${x0(i) + barW / 2}" y="${H - 10}" text-anchor="middle">${b}</text>`;
     }
     // Player marker line.
     let marker = "";
@@ -589,6 +654,7 @@ function renderWinLoss(wl) {
         </table>`;
 }
 
+const PLACE_LABEL = { 1: "1.", 2: "2.", 3: "3." };
 function renderTitles(titles) {
     const el = $("titles-body");
     if (!titles.length) { el.innerHTML = '<div class="pl-empty">No titles or finals recorded.</div>'; return; }
@@ -596,15 +662,21 @@ function renderTitles(titles) {
     titles.forEach((t) => {
         const y = t.year || "—";
         if (!byYear.has(y)) byYear.set(y, []);
-        byYear.get(y).push(t.text);
+        byYear.get(y).push(t);
     });
     el.innerHTML = Array.from(byYear.entries()).map(([year, items]) => `
         <div class="titles-year">
             <div class="titles-year__label">${escapeHtml(year)}</div>
-            ${items.map((txt) => `<div class="title-item">
+            ${items.map((t) => {
+                const place = PLACE_LABEL[t.place] || (t.place ? `${t.place}.` : "");
+                const rankCls = t.place >= 1 && t.place <= 3 ? ` title-item--rank-${t.place}` : "";
+                const badge = place ? `<span class="title-item__place">${escapeHtml(place)}</span>` : "";
+                return `<div class="title-item${rankCls}">
                 <i data-lucide="trophy" class="title-item__icon" style="width:16px;height:16px;"></i>
-                <span class="title-item__text" style="flex:1;">${escapeHtml(txt)}</span>
-            </div>`).join("")}
+                <span class="title-item__text" style="flex:1;">${escapeHtml(t.text)}</span>
+                ${badge}
+            </div>`;
+            }).join("")}
         </div>`).join("");
     if (window.lucide) lucide.createIcons();
 }

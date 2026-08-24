@@ -351,6 +351,20 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
 .titles-year__label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; color: var(--ink-faint); margin-bottom: 0.35rem; }
 .title-item__text { color: var(--ink); font-size: 0.9rem; }
 .title-item__icon { color: var(--accent); flex-shrink: 0; }
+.title-item__place {
+    flex-shrink: 0; font-size: 0.78rem; font-weight: 800; font-variant-numeric: tabular-nums;
+    padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--card); color: var(--ink-dim);
+    border: 1px solid var(--border);
+}
+.title-item--rank-1 { border-color: color-mix(in srgb, var(--rank-gold) 60%, var(--border)); }
+.title-item--rank-2 { border-color: color-mix(in srgb, var(--rank-silver) 60%, var(--border)); }
+.title-item--rank-3 { border-color: color-mix(in srgb, var(--rank-bronze) 60%, var(--border)); }
+.title-item--rank-1 .title-item__icon, .title-item--rank-1 .title-item__place { color: var(--rank-gold); }
+.title-item--rank-2 .title-item__icon, .title-item--rank-2 .title-item__place { color: var(--rank-silver); }
+.title-item--rank-3 .title-item__icon, .title-item--rank-3 .title-item__place { color: var(--rank-bronze); }
+.title-item--rank-1 .title-item__place, .title-item--rank-2 .title-item__place, .title-item--rank-3 .title-item__place {
+    border-color: transparent; background: color-mix(in srgb, currentColor 16%, transparent);
+}
 
 /* Tournaments played table reuses .usage-table look */
 .table-scroll { overflow-x: auto; }
@@ -388,6 +402,4 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
 
 @media (max-width: 768px) {
     .identity__name { font-size: 1.5rem; }
-    .pl-svg { min-width: 520px; }
-    .chart-svg-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }

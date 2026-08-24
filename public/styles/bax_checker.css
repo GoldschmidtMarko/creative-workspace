@@ -883,6 +883,12 @@ a.tm__name:hover { text-decoration: underline; }
     flex-wrap: wrap;
     gap: 0.5rem;
 }
+
+/* View switch (Results/Table/Chart) + the Update-Live/Discipline cluster —
+   wrap instead of overflowing off-screen on narrow phones. */
+#view-controls { flex-wrap: wrap; row-gap: 0.75rem; }
+.view-actions { flex-wrap: wrap; row-gap: 0.5rem; }
+
 .disc-chip {
     border: 1px solid var(--border);
     background: var(--card-2);
@@ -1017,13 +1023,9 @@ a.tm__name:hover { text-decoration: underline; }
     /* One team card per row */
     .team-grid { grid-template-columns: 1fr; }
 
-    /* Chart scrolls horizontally so labels stay legible on small screens */
+    /* The chart's viewBox is sized to the container in JS, so it fits the
+       screen natively here — no forced min-width/horizontal scroll needed. */
     .chart-main-card { padding: 0.5rem; }
-    .chart-svg-wrap {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-    .bax-svg { min-width: 560px; }
     .chart-header { padding: 0 0.25rem; }
 
     /* Modals */
