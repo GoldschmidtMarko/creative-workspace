@@ -2,17 +2,19 @@
 
 import re
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import requests
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.analytics import bump_entity, bump_summary
-from app.auth import rate_key
-from app.common import BASE, COOKIES, HEADERS, _get
-from app.firebase_app import db
-from app.rate_limiting import check_rate_limit
+from app.scraping.analytics import bump_entity, bump_summary
+from app.core.auth import rate_key
+from app.core.cache_config import TOURNAMENT_DISCIPLINES_TTL, TOURNAMENT_SEARCH_TTL, \
+    TOURNAMENT_WINNERS_RESOLVED_TTL, TOURNAMENT_WINNERS_UNRESOLVED_TTL
+from app.core.common import BASE, COOKIES, HEADERS, _get
+from app.core.firebase_app import db
+from app.core.rate_limiting import check_rate_limit
 
 
 def _search_tournaments(filters):
@@ -146,7 +148,7 @@ def find_tournaments(req: https_fn.CallableRequest) -> dict:
         }
         cache_key = hashlib.md5(str(sorted(filters.items())).encode()).hexdigest()
 
-        # Firestore cache (short TTL — listings change often).
+        # Firestore cache.
         if db and not force:
             try:
                 cache = db.collection("tournament_search_cache").document(cache_key).get()
@@ -163,7 +165,7 @@ def find_tournaments(req: https_fn.CallableRequest) -> dict:
             try:
                 db.collection("tournament_search_cache").document(cache_key).set({
                     "tournaments": tournaments,
-                    "expires_at": datetime.now(timezone.utc) + timedelta(minutes=15),
+                    "expires_at": datetime.now(timezone.utc) + TOURNAMENT_SEARCH_TTL,
                 })
             except Exception:
                 pass
@@ -173,6 +175,75 @@ def find_tournaments(req: https_fn.CallableRequest) -> dict:
         import traceback
         print(f"find_tournaments error: {e}\n{traceback.format_exc()}")
         return {"error": f"Internal Error: {str(e)}"}
+
+
+def _get_tournament_disciplines(gid, force=False):
+    """Disciplines (events) of a tournament plus the URL to analyze each one —
+    the plain scrape+cache logic behind the get_tournament_disciplines
+    callable, also reusable server-side (e.g. by player.py's Upcoming
+    expansion). Returns {disciplines, count, name, start, end, city}."""
+    if db and not force:
+        try:
+            cache = db.collection("tournament_disciplines_cache").document(gid).get()
+            if cache.exists:
+                data = cache.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return {"disciplines": data["disciplines"], "count": len(data["disciplines"]),
+                            "name": data.get("name", ""), "start": data.get("start", ""),
+                            "end": data.get("end", ""), "city": data.get("city", "")}
+        except Exception:
+            pass
+
+    session = requests.Session()
+    session.cookies.update(COOKIES)
+    resp = session.get(f"{BASE}/sport/events.aspx?id={gid}", headers=HEADERS, timeout=20)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Tournament identity (so a bare shared link — id only — still renders a
+    # proper header). Name is in the .media__title; fall back to the <title>
+    # "… - <name> - Konkurrenzen". Dates are the first two dd.mm.yyyy on page.
+    tname_el = soup.find(class_="media__title")
+    tname = tname_el.get_text(" ", strip=True) if tname_el else ""
+    if not tname:
+        tt = soup.find("title")
+        m = re.search(r"-\s*(.+?)\s*-\s*Konkurrenzen", tt.get_text()) if tt else None
+        tname = m.group(1).strip() if m else ""
+    dates = re.findall(r"\d{2}\.\d{2}\.\d{4}", soup.get_text(" ", strip=True))
+    tstart = dates[0] if dates else ""
+    tend = dates[1] if len(dates) > 1 else tstart
+
+    disciplines = []
+    seen = set()
+    for a in soup.find_all("a", href=re.compile(r"event\.aspx\?id=.*event=\d+", re.I)):
+        em = re.search(r"event=(\d+)", a["href"])
+        if not em:
+            continue
+        ev = em.group(1)
+        if ev in seen:
+            continue
+        name = a.get_text(" ", strip=True)
+        if not name:
+            continue
+        seen.add(ev)
+        disciplines.append({
+            "event": ev,
+            "name": name,
+            "url": f"{BASE}/sport/event.aspx?id={gid}&event={ev}",
+        })
+
+    if db:
+        try:
+            db.collection("tournament_disciplines_cache").document(gid).set({
+                "disciplines": disciplines,
+                "name": tname, "start": tstart, "end": tend,
+                "expires_at": datetime.now(timezone.utc) + TOURNAMENT_DISCIPLINES_TTL,
+            })
+        except Exception:
+            pass
+
+    return {"disciplines": disciplines, "count": len(disciplines),
+            "name": tname, "start": tstart, "end": tend}
 
 
 @https_fn.on_call()
@@ -194,68 +265,7 @@ def get_tournament_disciplines(req: https_fn.CallableRequest) -> dict:
         bump_summary(["tournamentQueries"], authed)
         bump_entity("usage_tournaments", gid, authed, name=(req.data or {}).get("name"))
 
-        if db and not force:
-            try:
-                cache = db.collection("tournament_disciplines_cache").document(gid).get()
-                if cache.exists:
-                    data = cache.to_dict()
-                    if datetime.now(timezone.utc) < data["expires_at"]:
-                        return {"disciplines": data["disciplines"], "count": len(data["disciplines"]),
-                                "name": data.get("name", ""), "start": data.get("start", ""),
-                                "end": data.get("end", ""), "city": data.get("city", "")}
-            except Exception:
-                pass
-
-        session = requests.Session()
-        session.cookies.update(COOKIES)
-        resp = session.get(f"{BASE}/sport/events.aspx?id={gid}", headers=HEADERS, timeout=20)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-
-        # Tournament identity (so a bare shared link — id only — still renders a
-        # proper header). Name is in the .media__title; fall back to the <title>
-        # "… - <name> - Konkurrenzen". Dates are the first two dd.mm.yyyy on page.
-        tname_el = soup.find(class_="media__title")
-        tname = tname_el.get_text(" ", strip=True) if tname_el else ""
-        if not tname:
-            tt = soup.find("title")
-            m = re.search(r"-\s*(.+?)\s*-\s*Konkurrenzen", tt.get_text()) if tt else None
-            tname = m.group(1).strip() if m else ""
-        dates = re.findall(r"\d{2}\.\d{2}\.\d{4}", soup.get_text(" ", strip=True))
-        tstart = dates[0] if dates else ""
-        tend = dates[1] if len(dates) > 1 else tstart
-
-        disciplines = []
-        seen = set()
-        for a in soup.find_all("a", href=re.compile(r"event\.aspx\?id=.*event=\d+", re.I)):
-            em = re.search(r"event=(\d+)", a["href"])
-            if not em:
-                continue
-            ev = em.group(1)
-            if ev in seen:
-                continue
-            name = a.get_text(" ", strip=True)
-            if not name:
-                continue
-            seen.add(ev)
-            disciplines.append({
-                "event": ev,
-                "name": name,
-                "url": f"{BASE}/sport/event.aspx?id={gid}&event={ev}",
-            })
-
-        if db:
-            try:
-                db.collection("tournament_disciplines_cache").document(gid).set({
-                    "disciplines": disciplines,
-                    "name": tname, "start": tstart, "end": tend,
-                    "expires_at": datetime.now(timezone.utc) + timedelta(hours=6),
-                })
-            except Exception:
-                pass
-
-        return {"disciplines": disciplines, "count": len(disciplines),
-                "name": tname, "start": tstart, "end": tend}
+        return _get_tournament_disciplines(gid, force=force)
     except Exception as e:
         import traceback
         print(f"get_tournament_disciplines error: {e}\n{traceback.format_exc()}")
@@ -337,7 +347,7 @@ def _fetch_tournament_winners(gid, force=False):
                 # Published results never change, so cache them long; an
                 # unresolved tournament is rechecked sooner so freshly-posted
                 # results show up promptly.
-                "expires_at": datetime.now(timezone.utc) + (timedelta(days=14) if resolved else timedelta(hours=2)),
+                "expires_at": datetime.now(timezone.utc) + (TOURNAMENT_WINNERS_RESOLVED_TTL if resolved else TOURNAMENT_WINNERS_UNRESOLVED_TTL),
             })
         except Exception:
             pass

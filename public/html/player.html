@@ -24,6 +24,7 @@
         <nav class="nav-pill" aria-label="Primary">
             <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
             <a class="nav-pill__link is-active" aria-current="page" href="/html/player.html">Player</a>
+            <a class="nav-pill__link" href="/html/network.html">Network</a>
             <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
         </nav>
         <div class="site-nav__actions">
@@ -103,7 +104,7 @@
                 <!-- Section sub-navigation (sticky) -->
                 <nav class="subnav" id="subnav" aria-label="Player sections">
                     <button class="subnav__tab subnav__tab--upcoming is-active" type="button" data-tab="upcoming"><i data-lucide="sparkles"></i>Upcoming</button>
-                    <button class="subnav__tab subnav__tab--network" type="button" data-tab="network"><i data-lucide="users"></i>Network</button>
+                    <button class="subnav__tab subnav__tab--network" type="button" data-tab="network"><i data-lucide="users"></i>Matchups</button>
                     <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
                     <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
                     <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
@@ -125,7 +126,13 @@
 
                 <div class="tab-panel" data-panel="network">
                     <div class="pcard">
-                        <div class="pcard__head"><h2>Network</h2><span class="hint">teammates &amp; opponents in leagues and tournaments, last 3 years</span></div>
+                        <div class="pcard__head">
+                            <h2>Matchups</h2>
+                            <span class="hint">teammates &amp; opponents in leagues and tournaments, last 3 years</span>
+                            <a id="p-open-network-graph" class="btn btn-secondary btn-sm hidden" href="/html/network.html">
+                                <i data-lucide="share-2" style="width:15px;height:15px;"></i><span>Open as graph</span>
+                            </a>
+                        </div>
                         <div class="network-cols">
                             <div class="network-col">
                                 <h3 class="network-col__title">Teammates</h3>

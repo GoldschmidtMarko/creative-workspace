@@ -1,10 +1,10 @@
 """Admin-only usage dashboard.
 
-`get_usage_stats` returns the analytics written by app.analytics (usage/summary
-plus the usage_tournaments / usage_disciplines / usage_players collections) and a
-small users overview. It is gated to a fixed allow-list of admin emails and reads
-via the Admin SDK, so the Firestore security rules stay fully locked and the
-client never touches the usage collections directly.
+`get_usage_stats` returns the analytics written by app.scraping.analytics
+(usage/summary plus the usage_tournaments / usage_disciplines / usage_players
+collections) and a small users overview. It is gated to a fixed allow-list of
+admin emails and reads via the Admin SDK, so the Firestore security rules
+stay fully locked and the client never touches the usage collections directly.
 """
 
 import os
@@ -12,8 +12,8 @@ import os
 from firebase_admin import firestore
 from firebase_functions import https_fn
 
-from app.auth import Err, authenticate_user
-from app.firebase_app import db
+from app.core.auth import Err, authenticate_user
+from app.core.firebase_app import db
 
 # Emails allowed to view the usage dashboard. Add more here if needed.
 ADMIN_EMAILS = {"mgoldschmidt01@gmail.com"}

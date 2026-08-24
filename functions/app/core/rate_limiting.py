@@ -10,8 +10,8 @@ import threading
 
 from firebase_admin import firestore
 
-from app.auth import now_ms
-from app.firebase_app import db
+from app.core.auth import now_ms
+from app.core.firebase_app import db
 
 _rate_limit_store: dict[str, dict] = {}
 _rate_limit_lock = threading.Lock()

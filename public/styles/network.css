@@ -1,0 +1,158 @@
+/* Network graph page — reuses main.css tokens + bax_checker.css/player.css
+   components (.pcard, .search-*, .chart-tooltip, .btn, .skeleton). Only the
+   graph-specific layout, sidebar, and node/edge styling live here. */
+
+.network-main { width: 100%; }
+
+/* This page is new and hasn't had a real browser pass yet — flag it as such
+   rather than presenting it as a finished feature. */
+.dev-tag {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--net-opponent) 18%, transparent);
+    color: var(--net-opponent);
+    border: 1px solid color-mix(in srgb, var(--net-opponent) 40%, transparent);
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
+/* Edge/node-kind colours — deliberately not success/danger (an opponent
+   isn't a "bad" outcome), so these get their own tokens. --net-mixed marks
+   someone who's been both a teammate and an opponent. */
+:root { --net-teammate: #1baf7a; --net-opponent: #c9971f; --net-mixed: #8b5cf6; }
+:root[data-theme="light"] { --net-teammate: #1baf7a; --net-opponent: #c9971f; --net-mixed: #8b5cf6; }
+:root[data-theme="dark"]  { --net-teammate: #26c98a; --net-opponent: #e0b843; --net-mixed: #a78bfa; }
+
+.network-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.network-sidebar { position: sticky; top: 1rem; }
+.network-sidebar .pcard { padding: 1.1rem; }
+
+.ns-block { margin-top: 1.1rem; }
+.ns-block:first-of-type { margin-top: 0; }
+.ns-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 0.45rem; }
+
+.ns-center-player { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.ns-center-name { font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ns-toggles { display: flex; flex-direction: column; gap: 0.5rem; }
+.ns-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    border: 1px solid var(--border);
+    background: var(--card-2);
+    color: var(--ink-dim);
+    padding: 0.5rem 0.7rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-align: left;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    opacity: 0.55;
+}
+.ns-toggle__dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.ns-toggle--teammate .ns-toggle__dot { background: var(--net-teammate); }
+.ns-toggle--opponent .ns-toggle__dot { background: var(--net-opponent); }
+.ns-toggle.is-active { opacity: 1; color: var(--ink); border-color: var(--border-strong); }
+.ns-toggle.is-active.ns-toggle--teammate { background: color-mix(in srgb, var(--net-teammate) 14%, var(--card-2)); }
+.ns-toggle.is-active.ns-toggle--opponent { background: color-mix(in srgb, var(--net-opponent) 14%, var(--card-2)); }
+
+.ns-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--ink); cursor: pointer; user-select: none; }
+
+#ng-top-pct { width: 100%; }
+
+.ns-legend-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--ink-dim); padding: 0.15rem 0; }
+.ns-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+.ns-stats { border-top: 1px solid var(--border); padding-top: 0.9rem; }
+.ns-stats .ns-label { margin-bottom: 0; text-transform: none; letter-spacing: normal; font-weight: 600; font-size: 0.82rem; color: var(--ink-dim); }
+
+/* --- Canvas ---------------------------------------------------------- */
+.network-canvas-wrap {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    min-height: 640px;
+    overflow: hidden;
+}
+.network-loader {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    color: var(--ink-dim); font-size: 0.9rem;
+    background: var(--card);
+    z-index: 3;
+}
+#network-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+.network-svg { display: block; width: 100%; height: 640px; }
+
+.ng-sector-line { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.7; }
+.ng-sector-label { fill: var(--ink-faint); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+
+.ng-link { stroke-linecap: round; opacity: 0.55; cursor: pointer; }
+.ng-link--teammate { stroke: var(--net-teammate); }
+.ng-link--opponent { stroke: var(--net-opponent); }
+.ng-link:hover { opacity: 1; }
+
+.ng-edge-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-anchor: middle;
+    pointer-events: none;
+    paint-order: stroke;
+    stroke: var(--card);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+.ng-edge-label--teammate { fill: var(--net-teammate); }
+.ng-edge-label--opponent { fill: var(--net-opponent); }
+
+.ng-node { cursor: pointer; }
+.ng-node:active { cursor: grabbing; }
+.ng-node circle:first-child { stroke: var(--card); stroke-width: 2.5; transition: filter 0.1s ease; }
+.ng-node:hover circle:first-child { filter: brightness(1.12); }
+.ng-node--center circle:first-child { stroke: var(--accent-ink); stroke-width: 3; }
+.ng-node--center { cursor: default; }
+
+/* A thin unfilled ring marks someone whose own network is already expanded
+   into the graph. */
+.ng-node__ring { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 2 3; pointer-events: none; }
+
+/* Pulses while a click-to-expand fetch is in flight. */
+.ng-node--busy circle:first-child { animation: ng-pulse 1.1s ease-in-out infinite; }
+@keyframes ng-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .ng-node--busy circle:first-child { animation: none; opacity: 0.7; } }
+.ng-node__label {
+    fill: var(--ink);
+    font-size: 11px;
+    font-weight: 600;
+    text-anchor: middle;
+    pointer-events: none;
+    paint-order: stroke;
+    stroke: var(--card);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+.ng-node--center .ng-node__label { font-weight: 800; font-size: 12px; }
+
+@media (max-width: 900px) {
+    .network-layout { grid-template-columns: 1fr; }
+    .network-sidebar { position: static; }
+    .network-canvas-wrap, .network-svg { min-height: 480px; height: 480px; }
+}

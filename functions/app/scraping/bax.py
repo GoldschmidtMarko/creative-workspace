@@ -5,18 +5,20 @@ import time
 import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pandas as pd
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.analytics import bump_entity, bump_summary, parse_event_url, record_registrations
-from app.auth import rate_key
-from app.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
-from app.firebase_app import db
-from app.leagues import _scrape_leagues
-from app.rate_limiting import check_rate_limit
+from app.scraping.analytics import bump_entity, bump_summary, parse_event_url, record_registrations
+from app.core.auth import rate_key
+from app.core.cache_config import BAX_DATE_CHECK_SECONDS, BAX_VALUES_FALLBACK_TTL, \
+    PLAYER_PROFILE_TTL, TOURNAMENT_PLAYER_CARD_TTL
+from app.core.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
+from app.core.firebase_app import db
+from app.scraping.leagues import _scrape_leagues
+from app.core.rate_limiting import check_rate_limit
 
 
 def get_tournament_player_links(url):
@@ -97,6 +99,56 @@ def _resolve_profile_id(html):
     return None
 
 
+def _fetch_tournament_player_card(url, force=False):
+    """Raw HTML of one player's own card within one tournament
+    (sport/player.aspx?id=<tournament-or-league-guid>&player=<local-id>),
+    cached — used by player.py's Upcoming gap-fill to see exactly which
+    discipline(s) a player is entered in for a tournament with one request,
+    instead of scanning every discipline's entry list to find them."""
+    key = hashlib.md5(url.encode()).hexdigest()
+    if db and not force:
+        try:
+            cache = db.collection("tournament_player_card_cache").document(key).get()
+            if cache.exists:
+                data = cache.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return data["html"]
+        except Exception:
+            pass
+    resp = _get(url, cookies=COOKIES)
+    resp.raise_for_status()
+    if db:
+        try:
+            db.collection("tournament_player_card_cache").document(key).set({
+                "html": resp.text,
+                "expires_at": datetime.now(timezone.utc) + TOURNAMENT_PLAYER_CARD_TTL,
+            })
+        except Exception:
+            pass
+    return resp.text
+
+
+def _parse_tournament_player_card(html, gid):
+    """This player's own disciplines in ONE tournament, from their player
+    card page (see _fetch_tournament_player_card) -> (profile_id_or_None,
+    [{event, name, url}]). Does not carry entry status (starter/waitlist) —
+    callers check the specific discipline's entry list for that."""
+    soup = BeautifulSoup(html, "html.parser")
+    profile_id = _resolve_profile_id(html)
+    disciplines, seen = [], set()
+    for a in soup.select(".media__subheading-wrapper a[href*='event.aspx']"):
+        em = re.search(r"event=(\d+)", a.get("href") or "")
+        if not em or em.group(1) in seen:
+            continue
+        seen.add(em.group(1))
+        disciplines.append({
+            "event": em.group(1),
+            "name": a.get_text(" ", strip=True),
+            "url": f"{BASE}/sport/event.aspx?id={gid}&event={em.group(1)}",
+        })
+    return profile_id, disciplines
+
+
 def get_player_details(player_entry, force=False):
     url_hash = hashlib.md5(player_entry['url'].encode()).hexdigest()
 
@@ -146,7 +198,7 @@ def get_player_details(player_entry, force=False):
             try:
                 db.collection("player_profile_cache").document(url_hash).set({
                     "details": details,
-                    "expires_at": datetime.now(timezone.utc) + timedelta(days=1)
+                    "expires_at": datetime.now(timezone.utc) + PLAYER_PROFILE_TTL
                 })
             except: pass
         return {**details, "status": player_entry['status'], "group": player_entry['group'], "profile_url": player_entry['url']}
@@ -199,7 +251,7 @@ def _parse_bax_table(html):
 # values tagged with that date, so a cache entry stays valid until the site
 # actually updates — instead of expiring on a fixed timer.
 _BAX_DATE = {"date": None, "at": 0.0}
-_BAX_DATE_TTL = 600          # re-check the index page at most every 10 minutes
+_BAX_DATE_TTL = BAX_DATE_CHECK_SECONDS
 _BAX_DATE_LOCK = threading.Lock()
 
 
@@ -269,7 +321,7 @@ def get_bax_values(player_info, force=False):
                     "bax_date": site_date,
                     # The bax_date is the real validity signal; this only bounds
                     # staleness for the fallback case where the date is unreadable.
-                    "expires_at": datetime.now(timezone.utc) + timedelta(days=30),
+                    "expires_at": datetime.now(timezone.utc) + BAX_VALUES_FALLBACK_TTL,
                 })
             except: pass
     except Exception as e:

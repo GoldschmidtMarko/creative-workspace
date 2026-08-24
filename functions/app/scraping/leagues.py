@@ -2,17 +2,19 @@
 
 import re
 import time
+import hashlib
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.analytics import bump_entity, bump_summary
-from app.auth import rate_key
-from app.common import BASE, COOKIES, _get
-from app.firebase_app import db
-from app.rate_limiting import check_rate_limit
+from app.scraping.analytics import bump_entity, bump_summary
+from app.core.auth import rate_key
+from app.core.cache_config import LEAGUE_PLAYER_PAGE_TTL, LIGEN_DATE_CHECK_SECONDS, PLAYER_LEAGUES_FALLBACK_TTL
+from app.core.common import BASE, COOKIES, _get
+from app.core.firebase_app import db
+from app.core.rate_limiting import check_rate_limit
 
 # German league tiers, highest → lowest, with the abbreviation shown on the tag.
 LEAGUE_TIERS = [
@@ -41,7 +43,7 @@ def _league_tier(division):
 # with that date so it stays valid until the site actually updates — mirroring the
 # "(Turniere)" mechanism used for BAX values (see bax._bax_update_date).
 _LIGEN_DATE = {"date": None, "at": 0.0}
-_LIGEN_DATE_TTL = 600          # re-check the index page at most every 10 minutes
+_LIGEN_DATE_TTL = LIGEN_DATE_CHECK_SECONDS
 _LIGEN_DATE_LOCK = threading.Lock()
 
 
@@ -159,11 +161,94 @@ def _scrape_leagues(profile_id, year=None, force=False):
                 "ligen_date": site_date,
                 # The ligen_date is the real validity signal; this only bounds
                 # staleness for the fallback case where the date is unreadable.
-                "expires_at": datetime.now(timezone.utc) + timedelta(days=60),
+                "expires_at": datetime.now(timezone.utc) + PLAYER_LEAGUES_FALLBACK_TTL,
             })
         except Exception:
             pass
     return leagues, years
+
+
+def _fetch_league_player_page(url, force=False):
+    """Raw HTML of a league "Spielübersicht" page (a league's /player/<id>
+    page — its match_url), cached so the network feature's per-match parse
+    and the upcoming-tournaments parse (see _parse_league_tournaments) can
+    both read one fetch instead of scraping the same page twice."""
+    key = hashlib.md5(url.encode()).hexdigest()
+    if db and not force:
+        try:
+            cache = db.collection("league_player_page_cache").document(key).get()
+            if cache.exists:
+                data = cache.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return data["html"]
+        except Exception:
+            pass
+    resp = _get(url, cookies=COOKIES)
+    resp.raise_for_status()
+    if db:
+        try:
+            db.collection("league_player_page_cache").document(key).set({
+                "html": resp.text,
+                "expires_at": datetime.now(timezone.utc) + LEAGUE_PLAYER_PAGE_TTL,
+            })
+        except Exception:
+            pass
+    return resp.text
+
+
+def _parse_league_tournaments(html):
+    """Every tournament/league-competition listed in a league/player page's
+    "Turniere mit <Name>" widget — past AND future, across every year tab —
+    as [{id, name, start, end}] (dd.mm.yyyy). This is the one place dbv
+    actually exposes a player's upcoming (not-yet-played) tournaments; see
+    get_player_upcoming for how it's combined with the implicit-registration
+    capture. `id` is a tournament guid for a normal event, or a LEAGUE guid
+    for a "Ligen ..." row — callers should drop rows whose id is a league
+    they already know about.
+
+    Each row's dates are "dd.mm bis dd.mm" with no year; the enclosing
+    table's id (…_tblTournaments_<year>) anchors the START date to that year.
+    When the range wraps past New Year's (start month > end month, e.g. a
+    league season "05.09 bis 14.03"), the end date lands in <year>+1 — this
+    was confirmed against a real "Ligen NRW 2026-27" row filed under the
+    2026 tab with exactly that shape."""
+    soup = BeautifulSoup(html, "html.parser")
+    block = soup.find(class_="tabbedtournamentlist")
+    if not block:
+        return []
+    out, seen = [], set()
+    for table in block.select("table.ruler"):
+        ym = re.search(r"tblTournaments_(\d{4})", table.get("id") or "")
+        year = int(ym.group(1)) if ym else None
+        for tr in table.find_all("tr"):
+            a = tr.find("a", href=re.compile(r"[?&]id=([0-9A-Fa-f-]{36})", re.I))
+            if not a:
+                continue
+            m = re.search(r"[?&]id=([0-9A-Fa-f-]{36})[^\"']*[?&]player=(\d+)", a["href"], re.I)
+            if not m:
+                m = re.search(r"[?&]id=([0-9A-Fa-f-]{36})", a["href"])
+            gid = m.group(1).upper()
+            local_id = m.group(2) if m.lastindex and m.lastindex >= 2 else None
+            if gid in seen:
+                continue
+            date_td = tr.find("td", class_="dates")
+            dm = re.search(r"(\d{2})\.(\d{2})\s*bis\s*(\d{2})\.(\d{2})",
+                            date_td.get_text(strip=True) if date_td else "")
+            start = end = None
+            if dm and year:
+                sd, sm, ed, em = dm.groups()
+                start = f"{sd}.{sm}.{year}"
+                end_year = year + 1 if int(em) < int(sm) else year
+                end = f"{ed}.{em}.{end_year}"
+            seen.add(gid)
+            # player_local_id is this player's own competition-scoped numeric id
+            # (the "&player=" query param) — combined with `id`, it's a direct
+            # link to their own card in that one tournament (see
+            # bax._parse_tournament_player_card), which is far cheaper than
+            # scanning every discipline's entry list to find them.
+            out.append({"id": gid, "name": a.get_text(" ", strip=True), "start": start, "end": end,
+                        "player_local_id": local_id})
+    return out
 
 
 @https_fn.on_call()

@@ -41,7 +41,10 @@ creative-workspace/
 ├── functions/               # Python Cloud Functions (the backend)
 │   ├── main.py              # re-exports every callable (deploy names = __name__)
 │   ├── requirements.txt     # requests, beautifulsoup4, pandas, firebase-functions…
-│   └── app/                 # one module per domain (see §4)
+│   └── app/                 # see §4 — three subpackages, no domain module lives loose
+│       ├── core/            # infra only: no callables, no scraping
+│       ├── scraping/        # every dbv.turnier.de / badminton-bax.de feature + its callables
+│       └── platform/        # non-scraping callables: accounts, admin dashboard, health
 ├── public/                  # the static site (Firebase Hosting root)
 │   ├── html/                # pages (index, player, tournament(s), + components/)
 │   ├── js/                  # page scripts + js/util/ (firebase, auth, theme)
@@ -93,25 +96,39 @@ flowchart LR
 ## 4. Backend (`functions/app/`)
 
 `main.py` imports and re‑exports the callables; the deployed function name is each
-callable's Python `__name__`, and the frontend calls them by that exact string.
+callable's Python `__name__` (unaffected by which folder the module lives in), and
+the frontend calls them by that exact string. Every internal import is absolute
+(`from app.<pkg>.<module> import ...`), never relative, matching the app's one
+existing convention.
+
+`app/` has three subpackages:
+- **`core/`** — technical infra only. No callables, no dbv/bax business logic;
+  would look the same if this app were about something else entirely.
+- **`scraping/`** — every dbv.turnier.de / badminton‑bax.de feature and its
+  callable(s). These modules import each other freely (e.g. `player.py` pulls
+  from `bax.py`, `leagues.py`, `tournaments.py`).
+- **`platform/`** — non‑scraping callables (accounts, admin dashboard, health).
+  Only ever import from `core/`, never from `scraping/`.
 
 ### Callables
 
 | Callable | Module | Purpose | Auth |
 |---|---|---|---|
-| `get_player_bax_data` | `bax.py` | The core analysis: scrape a discipline's entry list, then per‑player identity + BAX + leagues (concurrent), return teams grouped by starting group. Also fires the **implicit registration capture**. | none (rate‑limited) |
-| `find_tournaments` | `tournaments.py` | Search dbv tournaments (POST `/find/tournament/DoSearch`). | none |
-| `get_tournament_disciplines` | `tournaments.py` | A tournament's disciplines + its **name/dates** (for bare shareable links). | none |
-| `get_player_leagues` | `leagues.py` | Per‑season league memberships/records (also reused inside the analysis). | none |
-| `get_player_bax` | `player.py` | Identity + full per‑season **BAX history** + **LV/DBV standing histograms** (badminton‑bax.de). | none |
-| `get_player_dbv_stats` | `player.py` | Career/season **win‑loss**, **titles/finals**, **tournaments played** (dbv). | none |
-| `get_player_upcoming` | `player.py` | Tournaments a player is currently registered for (from `player_registrations`). | none |
-| `search_players` | `player.py` | dbv **player search** (`/find/player?q=`) → candidates with both ids + club. | none |
-| `save_user_activity` | `accounts.py` | Upsert `users/{uid}` on login. | required |
-| `get_usage_stats` | `admin.py` | Admin usage dashboard aggregation. | required + admin allow‑list |
-| `ping` | `health.py` | Health check. | none |
+| `get_player_bax_data` | `scraping/bax.py` | The core analysis: scrape a discipline's entry list, then per‑player identity + BAX + leagues (concurrent), return teams grouped by starting group. Also fires the **implicit registration capture**. | none (rate‑limited) |
+| `find_tournaments` | `scraping/tournaments.py` | Search dbv tournaments (POST `/find/tournament/DoSearch`). | none |
+| `get_tournament_disciplines` | `scraping/tournaments.py` | A tournament's disciplines + its **name/dates** (for bare shareable links). | none |
+| `get_tournament_winners` | `scraping/tournaments.py` | Final placements per discipline once published. | none |
+| `get_player_leagues` | `scraping/leagues.py` | Per‑season league memberships/records (also reused inside the analysis and the network feature). | none |
+| `get_player_network` | `scraping/network.py` | Teammates/opponents aggregated from tournament + league match history. | none |
+| `get_player_bax` | `scraping/player.py` | Identity + full per‑season **BAX history** + **LV/DBV standing histograms** (badminton‑bax.de). | none |
+| `get_player_dbv_stats` | `scraping/player.py` | Career/season **win‑loss**, **titles/finals** (with podium `place`), **tournaments played** (dbv). | none |
+| `get_player_upcoming` | `scraping/player.py` | Tournaments a player is currently registered for — merges the implicit `player_registrations` capture with a direct read of the player's own league page(s) for tournaments nobody's analysed yet (players with no league get only the former). | none |
+| `search_players` | `scraping/player.py` | dbv **player search** (`/find/player?q=`) → candidates with both ids + club. | none |
+| `save_user_activity` | `platform/accounts.py` | Upsert `users/{uid}` on login. | required |
+| `get_usage_stats` | `platform/admin.py` | Admin usage dashboard aggregation. | required + admin allow‑list |
+| `ping` | `platform/health.py` | Health check. | none |
 
-### Support modules
+### `core/` — infra
 - **`common.py`** — the shared scraping layer: `BASE` (dbv), a pooled thread‑safe
   `requests.Session` with retries, the browser `HEADERS`, and the magic
   `COOKIES={"st": …}` that gets past dbv's consent wall. `_get()` is the single GET
@@ -119,29 +136,44 @@ callable's Python `__name__`, and the frontend calls them by that exact string.
 - **`auth.py`** — `rate_key(req)` (uid or IP), `authenticate_user`, `now_ms`.
 - **`rate_limiting.py`** — in‑process sliding window (`check_rate_limit`) + a
   Firestore‑transaction distributed limiter.
-- **`analytics.py`** — best‑effort usage counters (`bump_summary`, `bump_entity`),
-  the implicit `record_registrations` + `player_index` upsert, `name_key`, and
-  `parse_event_url`.
 - **`firebase_app.py`** — Admin SDK init; `db` is `None` if init fails (memory‑cache
   fallback) and `set_global_options` (max_instances=10, timeout 540s, 512 MB).
+- **`cache_config.py`** — every cache's freshness constant in one place (see below) —
+  tune a cache by editing the value here, nothing else needs to change.
+
+### `scraping/` — the feature modules
+- **`analytics.py`** — best‑effort usage counters (`bump_summary`, `bump_entity`),
+  the implicit `record_registrations` + `player_index` upsert, `name_key`, and
+  `parse_event_url`. Consumed by every other scraping module, not scraping-specific
+  itself.
+- **`bax.py`, `tournaments.py`, `leagues.py`, `network.py`, `player.py`** — one
+  module per feature; see the callables table above for what each owns.
 
 ### Caching & invalidation
-Every upstream fetch is cached in Firestore. Two caches key off the badminton‑bax.de
-index page's **"Stand der Aktualisierung"** dates rather than a timer, so entries stay
-valid until the source actually recomputes:
+Every upstream fetch is cached in Firestore, with the TTL for each pulled from
+**`core/cache_config.py`** rather than hardcoded inline. Two caches key off
+badminton‑bax.de's index page's **"Stand der Aktualisierung"** dates instead of a
+timer, so entries stay valid until the source actually recomputes (the TTL below is
+only the fallback used when that date can't be read):
 
-| Cache collection | Key | Freshness |
-|---|---|---|
-| `tournament_search_cache` | md5(filters) | 15 min TTL |
-| `tournament_disciplines_cache` | tournament GUID | 6 h TTL (+ name/dates) |
-| `player_profile_cache` | md5(profile_url) | 1 day |
-| `bax_values_cache` | sp_code | valid while `= "(Turniere)"` date; 30 d fallback |
-| `player_bax_cache` | sp_code | valid while `= "(Turniere)"` date; 30 d fallback |
-| `player_leagues_cache` | `{profile_id}_{year}` | valid while `= "(Ligen)"` date; 60 d fallback |
-| `player_dbv_stats_cache` | profile_id | 12 h TTL |
-| `player_search_cache` | md5(q) | 12 h TTL |
+| Cache collection | Key | Freshness | `cache_config.py` constant |
+|---|---|---|---|
+| `tournament_search_cache` | md5(filters) | 12 h | `TOURNAMENT_SEARCH_TTL` |
+| `tournament_disciplines_cache` | tournament GUID | 24 h (+ name/dates) | `TOURNAMENT_DISCIPLINES_TTL` |
+| `tournament_winners_cache` | tournament GUID | 14 d if resolved, else 2 h | `TOURNAMENT_WINNERS_RESOLVED_TTL` / `_UNRESOLVED_TTL` |
+| `player_profile_cache` | md5(profile_url) | 1 day | `PLAYER_PROFILE_TTL` |
+| `tournament_player_card_cache` | md5(player.aspx URL) | 12 h | `TOURNAMENT_PLAYER_CARD_TTL` |
+| `bax_values_cache` | sp_code | valid while `= "(Turniere)"` date; 30 d fallback | `BAX_VALUES_FALLBACK_TTL` |
+| `player_bax_cache` | sp_code | valid while `= "(Turniere)"` date; 30 d fallback | `PLAYER_BAX_FALLBACK_TTL` |
+| `player_leagues_cache` | `{profile_id}_{year}` | valid while `= "(Ligen)"` date; 60 d fallback | `PLAYER_LEAGUES_FALLBACK_TTL` |
+| `league_player_page_cache` | md5(league match URL) | 12 h | `LEAGUE_PLAYER_PAGE_TTL` |
+| `player_dbv_stats_cache` | profile_id | 12 h | `PLAYER_DBV_STATS_TTL` |
+| `player_search_cache` | md5(q) | 12 h | `PLAYER_SEARCH_TTL` |
+| `entrylist_cache` | md5(entry-list URL) | 12 h | `ENTRYLIST_TTL` |
+| `player_network` | profile_id | 24 h | `PLAYER_NETWORK_TTL` |
 
-`_bax_update_date()` / `_leagues_update_date()` read the front page (memoized 10 min).
+`_bax_update_date()` / `_leagues_update_date()` read the front page, memoized
+in‑process for `BAX_DATE_CHECK_SECONDS` / `LIGEN_DATE_CHECK_SECONDS` (600s each).
 A `force` flag on the scraping callables bypasses caches (tightly rate‑limited).
 
 ---
@@ -266,8 +298,11 @@ tournament‑player link.
 **Player search** (`search_players`) → clickable list; each result carries both ids →
 opens a full profile.
 
-**Upcoming** = read‑back of `player_registrations` (filtered to today‑or‑later). Its
-coverage is limited to tournaments that have been analysed on the site (see §11).
+**Upcoming** = read‑back of `player_registrations` (filtered to today‑or‑later), merged
+with a direct read of the player's own current league page(s) — the "Turniere mit
+`<Name>`" widget on `/league/<lg>/player/<n>` — for any tournament nobody's analysed
+on the site yet. The latter only exists for a player with at least one league this
+season; see §11.
 
 ---
 
@@ -284,18 +319,22 @@ Everything runs through **`firebase-dev.sh`** (needs `FIREBASE_TOKEN` +
 - Python deps live in `functions/venv` (3.12). Hosting serves `public/` live (no build).
 - After schema changes, deploy the Firestore index:
   `firebase deploy --only firestore:indexes`.
-- Admin (usage dashboard) is a hardcoded email allow‑list in `admin.py`; on the
-  emulator any signed‑in account is treated as admin.
+- Admin (usage dashboard) is a hardcoded email allow‑list in `platform/admin.py`; on
+  the emulator any signed‑in account is treated as admin.
 
 ---
 
 ## 11. Known limitations & future work
 
-- **Upcoming coverage is opportunistic.** dbv exposes **no** per‑player "upcoming
-  tournaments" API — a player profile only lists *played* tournaments by year. So the
-  only source of upcoming registrations is tournament entry lists, captured implicitly
-  during analyses. A **scheduled crawler** (walk registration‑open tournaments →
-  their entry lists → write `player_registrations`) would make it comprehensive.
+- **Upcoming coverage still has a gap.** dbv's per‑player profile only lists *played*
+  tournaments by year — the only place it lists *upcoming* ones is a player's own
+  league "Spielübersicht" page (`league/<lg>/player/<n>`, the "Turniere mit `<Name>`"
+  widget), which only exists for a player with at least one league membership this
+  season. `get_player_upcoming` uses that plus the implicit `player_registrations`
+  capture (tournaments analysed on the site), so a player with **no** league and whose
+  tournaments nobody's analysed yet still shows nothing. A scheduled crawler (walk
+  registration‑open tournaments → their entry lists → write `player_registrations`)
+  would be the way to close that remaining gap.
 - **`public/js/bax_checker.js` is orphaned** (superseded by `tournaments.js` +
   `tournament.js`); safe to delete in a follow‑up.
 - **Distribution parsing** depends on badminton‑bax.de's exact HTML (table of
