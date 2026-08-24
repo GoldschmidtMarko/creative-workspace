@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore a badminton player's network — teammates and opponents from tournaments and leagues, visualized as a graph and grouped by club.">
+    <meta name="theme-color" content="#0f766e">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <title>Network | BAX Checker</title>
+    <script src="/js/util/themeInit.js"></script>
+    <link rel="stylesheet" href="/styles/main.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/styles/bax_checker.css">
+    <link rel="stylesheet" href="/styles/player.css">
+    <link rel="stylesheet" href="/styles/network.css">
+</head>
+
+<body>
+    <header class="site-nav">
+        <a class="site-nav__brand" href="/html/index.html">
+            <img class="site-nav__logo" src="/favicon.svg" alt="">
+            <span>BAX Checker</span>
+        </a>
+        <nav class="nav-pill" aria-label="Primary">
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/player.html">Player</a>
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/network.html">Network</a>
+            <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
+        </nav>
+        <div class="site-nav__actions">
+            <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
+                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+            </a>
+            <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
+            <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
+                <i data-lucide="sun" class="icon-sun"></i>
+                <i data-lucide="moon" class="icon-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="container">
+        <header id="page-header">
+            <h1>Network <span class="dev-tag">Development</span></h1>
+            <p>Teammates &amp; opponents from tournaments and leagues, visualized as a graph</p>
+        </header>
+
+        <main class="network-main">
+            <!-- Search view (shown when no player is specified) -->
+            <section id="search-view">
+                <div class="pcard search-card">
+                    <div class="pcard__head"><h2>Find a player</h2></div>
+                    <form id="search-form" autocomplete="off">
+                        <div class="search-row">
+                            <input type="search" id="search-q" class="field" placeholder="Search by name…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                            <button type="submit" class="run-btn-premium" style="justify-content:center;">
+                                <i data-lucide="search" style="width:18px;height:18px;"></i>
+                                <span>Search</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="search-status" class="pl-empty hidden"></div>
+                </div>
+                <div id="search-results" class="search-results"></div>
+            </section>
+
+            <!-- Graph view -->
+            <section id="graph-view" class="hidden">
+                <div class="network-layout">
+                    <aside class="network-sidebar">
+                        <div class="pcard">
+                            <div class="pcard__head"><h2>Settings</h2><span class="dev-tag">Development</span></div>
+
+                            <div class="ns-block">
+                                <div class="ns-label">Center player</div>
+                                <div class="ns-center-player">
+                                    <span class="ns-center-name" id="ng-center-name">—</span>
+                                    <a class="btn btn-secondary btn-sm" id="ng-open-profile" href="#">Profile</a>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" id="ng-change-player" type="button" style="width:100%;margin-top:0.5rem;justify-content:center;">
+                                    <i data-lucide="search" style="width:14px;height:14px;"></i><span>Change player</span>
+                                </button>
+                            </div>
+
+                            <div class="ns-block">
+                                <div class="ns-label">Show</div>
+                                <div class="ns-toggles" role="group" aria-label="Show teammates and/or opponents">
+                                    <button type="button" class="ns-toggle ns-toggle--teammate is-active" id="ng-toggle-teammates" aria-pressed="true">
+                                        <span class="ns-toggle__dot"></span>Teammates
+                                    </button>
+                                    <button type="button" class="ns-toggle ns-toggle--opponent" id="ng-toggle-opponents" aria-pressed="false">
+                                        <span class="ns-toggle__dot"></span>Opponents
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="ns-block">
+                                <label class="ns-check"><input type="checkbox" id="ng-group-club" checked> Group by club</label>
+                            </div>
+
+                            <div class="ns-block">
+                                <div class="ns-label">Show top <span id="ng-pct-val">20</span>% most frequent</div>
+                                <input type="range" id="ng-top-pct" min="10" max="100" value="20" step="5">
+                            </div>
+
+                            <div class="ns-block" id="ng-legend"></div>
+                            <div class="ns-block ns-stats" id="ng-stats"></div>
+                        </div>
+                    </aside>
+
+                    <div class="network-canvas-wrap">
+                        <div id="network-loader" class="network-loader hidden"><span class="spinner"></span> Loading network…</div>
+                        <div id="network-empty" class="pl-empty hidden"></div>
+                        <svg id="network-svg" class="network-svg" role="img" aria-label="Player network graph"></svg>
+                        <div class="chart-tooltip hidden" id="ng-tooltip"></div>
+                    </div>
+                </div>
+            </section>
+
+            <div id="error-view" class="hidden">
+                <p id="error-msg" style="color:var(--ink-dim);"></p>
+            </div>
+        </main>
+
+        <footer class="site-footer">
+            <div class="site-footer__links">
+                <a href="/impressum.html">Impressum</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="/privacy.html">Privacy Policy</a>
+            </div>
+            <div class="site-footer__copy">&copy; <span id="copyright-year"></span> BAX Checker</div>
+        </footer>
+    </div>
+
+    <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/network.js"></script>
+    <script src="/js/util/theme.js"></script>
+</body>
+
+</html>
