@@ -36,13 +36,14 @@ from urllib.parse import parse_qs, urlsplit
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.analytics import bump_entity, bump_summary, name_key
-from app.auth import rate_key
-from app.common import BASE, COOKIES, MAX_WORKERS, _get
-from app.firebase_app import db
-from app.leagues import _scrape_leagues
-from app.player import _parse_ddmmyyyy
-from app.rate_limiting import check_rate_limit
+from app.scraping.analytics import bump_entity, bump_summary, name_key
+from app.core.auth import rate_key
+from app.core.cache_config import PLAYER_NETWORK_TTL
+from app.core.common import BASE, COOKIES, MAX_WORKERS, _get
+from app.core.firebase_app import db
+from app.scraping.leagues import _scrape_leagues, _fetch_league_player_page
+from app.scraping.player import _index_lookup, _parse_ddmmyyyy
+from app.core.rate_limiting import check_rate_limit
 
 LOOKBACK_YEARS = 3
 
@@ -168,11 +169,22 @@ def _parse_tournament_matches(html, my_sp_code, my_name_key, cutoff_date):
 # League matches — one page per league competition, name-only identity
 # --------------------------------------------------------------------------- #
 
+def _club_from_team(team_name):
+    """"BV Aachen 2" -> "BV Aachen" (strip a trailing squad number/roman
+    numeral) so the Network graph can group same-club teams together instead
+    of splitting them by squad."""
+    if not team_name:
+        return None
+    return re.sub(r"\s+(\d+|[IVXLCDM]+)$", "", team_name.strip()) or team_name.strip()
+
+
 def _parse_league_matches(html, page_url, cutoff_date):
     """Every fixture on a /league/<lg>/player/<N> 'Spielübersicht' page.
 
-    Returns [{date, discipline, teammates: [{name, url}], opponents: [...],
-              decided, won}]. No sp_code — see module docstring."""
+    Returns [{date, discipline, teammates: [{name, url, club}],
+              opponents: [{name, url, club}], decided, won}]. No sp_code —
+    see module docstring. `club` is derived from the team name already on
+    this page (see _club_from_team) — free, no extra request."""
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table", class_="matches")
     if not table:
@@ -200,6 +212,8 @@ def _parse_league_matches(html, page_url, cutoff_date):
         discipline = _discipline_from_code(disc_td.get_text(strip=True))
 
         def _team(td):
+            team_a = td.find("a", class_="teamname")
+            club = _club_from_team(team_a.get_text(" ", strip=True)) if team_a else None
             people = []
             for a in td.find_all("a"):
                 if "teamname" in (a.get("class") or []):
@@ -212,6 +226,7 @@ def _parse_league_matches(html, page_url, cutoff_date):
                     "mine": "highlighted" in (a.get("class") or []),
                     "won": a.find_parent("strong") is not None,
                     "url": url,
+                    "club": club,
                 })
             return people
 
@@ -271,9 +286,8 @@ def _fetch_league_matches(profile_id, cutoff_date):
     out = []
 
     def _one(url):
-        resp = _get(url, cookies=COOKIES)
-        resp.raise_for_status()
-        return _parse_league_matches(resp.text, url, cutoff_date)
+        html = _fetch_league_player_page(url)
+        return _parse_league_matches(html, url, cutoff_date)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         futs = {pool.submit(_one, u): u for u in urls}
@@ -298,15 +312,31 @@ def _aggregate(tournament_matches, league_matches):
             if p.get("sp_code"):
                 known_sp[name_key(p["name"])] = p["sp_code"]
 
+    # Second fallback for a league-only peer this app has simply seen before
+    # (their own profile viewed, or a tournament they were analysed in) —
+    # player_index is a plain Firestore equality read (no extra scrape), so
+    # this stays free even though it wasn't a teammate/opponent match here.
+    # Memoized per name_key since the same peer can recur across many matches.
+    index_sp = {}
+
+    def _known_sp(nk):
+        if nk in index_sp:
+            return index_sp[nk]
+        hit = _index_lookup(name_search=nk)
+        sp = (hit or {}).get("sp_code")
+        index_sp[nk] = sp
+        return sp
+
     teammates, opponents = {}, {}
 
     def _bucket(d, peer, discipline, decided, won, date):
-        sp = peer.get("sp_code") or known_sp.get(name_key(peer["name"]))
-        key = sp or ("name:" + name_key(peer["name"]))
+        nk = name_key(peer["name"])
+        sp = peer.get("sp_code") or known_sp.get(nk) or _known_sp(nk)
+        key = sp or ("name:" + nk)
         e = d.get(key)
         if e is None:
             e = d[key] = {
-                "key": key, "sp_code": sp, "name": peer["name"],
+                "key": key, "sp_code": sp, "name": peer["name"], "club": peer.get("club"),
                 "url": peer.get("url"), "played": 0, "wins": 0, "losses": 0,
                 "disciplines": {"Einzel": 0, "Doppel": 0, "Mixed": 0}, "last_played": None,
             }
@@ -316,6 +346,11 @@ def _aggregate(tournament_matches, league_matches):
             e["wins" if won else "losses"] += 1
         if peer.get("name"):
             e["name"] = peer["name"]
+        # club is only known from league matches (see _club_from_team); a
+        # tournament sighting of the same person carries none, so only
+        # overwrite when this sighting actually has one.
+        if peer.get("club"):
+            e["club"] = peer["club"]
         # Once identified (sp_code known), the frontend always links
         # internally by sp_code and ignores `url` — so `url` only needs to
         # stay meaningful for the name-only case, where it's the external
@@ -364,25 +399,34 @@ def _compute_network(profile_id, sp_code, name):
         try:
             db.collection("player_network").document(profile_id).set({
                 **result,
-                "expires_at": datetime.now(timezone.utc) + timedelta(hours=24),
+                "expires_at": datetime.now(timezone.utc) + PLAYER_NETWORK_TTL,
             })
         except Exception:
             pass
-    return result
+    return {"profile_id": profile_id, **result}
 
 
 @https_fn.on_call()
 def get_player_network(req: https_fn.CallableRequest) -> dict:
     """Teammates + opponents (with counts and win rate) from this player's
-    tournament and league matches over the last few years. Cached ~1 day."""
+    tournament and league matches over the last few years. Cached ~1 day.
+
+    profile_id is normally required (it's the dbv key everything below is
+    keyed on), but the Network graph's click-to-expand needs to look someone
+    up from just the sp_code a teammate/opponent entry carries — so when
+    profile_id is missing, try to resolve one from sp_code via player_index
+    first (a plain Firestore read, no extra scrape)."""
     try:
         d = req.data or {}
-        m = re.search(r"([0-9a-fA-F-]{36})", d.get("profile_id") or "")
-        if not m:
-            return {"error": "Missing or invalid profile id"}
-        profile_id = m.group(1).upper()
         sp_code = (d.get("sp_code") or "").strip()
         name = (d.get("name") or "").strip()
+        m = re.search(r"([0-9a-fA-F-]{36})", d.get("profile_id") or "")
+        profile_id = m.group(1).upper() if m else None
+        if not profile_id and sp_code:
+            hit = _index_lookup(sp_code=sp_code)
+            profile_id = (hit or {}).get("profile_id")
+        if not profile_id:
+            return {"error": "No dbv profile found for this player yet — analyse one of their tournaments or open their profile once first."}
 
         force = bool(d.get("force"))
         if force and not check_rate_limit(rate_key(req), "force_network", 10, 3600000):
@@ -396,7 +440,7 @@ def get_player_network(req: https_fn.CallableRequest) -> dict:
                 if snap.exists:
                     data = snap.to_dict()
                     if datetime.now(timezone.utc) < data["expires_at"]:
-                        return {"teammates": data["teammates"], "opponents": data["opponents"],
+                        return {"profile_id": profile_id, "teammates": data["teammates"], "opponents": data["opponents"],
                                 "computed_at": data["computed_at"], "stats": data.get("stats", {})}
             except Exception:
                 pass

@@ -20,7 +20,7 @@ the BAX cache.
 import re
 import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timezone
 
 import requests
 from bs4 import BeautifulSoup
@@ -28,13 +28,15 @@ from firebase_admin import firestore
 from firebase_functions import https_fn
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app.analytics import bump_entity, bump_summary, name_key, upsert_player_index
-from app.auth import rate_key
-from app.bax import _bax_update_date, get_tournament_player_links
-from app.common import BASE, COOKIES, HEADERS, MAX_WORKERS
-from app.firebase_app import db
-from app.rate_limiting import check_rate_limit
-from app.tournaments import is_tournament_resolved
+from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
+from app.core.auth import rate_key
+from app.scraping.bax import _bax_update_date, _fetch_tournament_player_card, _parse_tournament_player_card, get_tournament_player_links
+from app.core.cache_config import ENTRYLIST_TTL, PLAYER_BAX_FALLBACK_TTL, PLAYER_DBV_STATS_TTL, PLAYER_SEARCH_TTL
+from app.core.common import BASE, COOKIES, HEADERS, MAX_WORKERS
+from app.core.firebase_app import db
+from app.scraping.leagues import _fetch_league_player_page, _parse_league_tournaments, _scrape_leagues
+from app.core.rate_limiting import check_rate_limit
+from app.scraping.tournaments import is_tournament_resolved
 
 BAX_DEV = "https://www.badminton-bax.de/index.php/bax-portal/spieler-entwicklung"
 CATS = ("Einzel", "Doppel", "Mixed")
@@ -230,7 +232,10 @@ def _parse_winloss(html):
 
 
 def _parse_titles(html):
-    """Titles/Finals grouped by year -> [{year, text}] (newest first, as served)."""
+    """Titles/Finals grouped by year -> [{year, text, place}] (newest first, as
+    served). Each entry carries a "Winner"/"Finalist"/... icon
+    (class="icon-event-winner-status--1st|2nd|3rd|..."); place is that rank as
+    an int, or None if the icon isn't in the expected form."""
     soup = BeautifulSoup(html, "html.parser")
     items, year = [], None
     for el in soup.find_all(["dt", "li"]):
@@ -242,7 +247,13 @@ def _parse_titles(html):
         elif "list__item" in cls:
             t = re.sub(r"\s+", " ", el.get_text(" ", strip=True))
             if t:
-                items.append({"year": year, "text": t})
+                place = None
+                icon = el.find(class_=re.compile(r"icon-event-winner-status--\d+"))
+                if icon:
+                    pm = re.search(r"icon-event-winner-status--(\d+)", " ".join(icon.get("class") or []))
+                    if pm:
+                        place = int(pm.group(1))
+                items.append({"year": year, "text": t, "place": place})
     return items
 
 
@@ -440,7 +451,7 @@ def get_player_bax(req: https_fn.CallableRequest) -> dict:
                     db.collection("player_bax_cache").document(sp_code).set({
                         "identity": ident, "history": history, "distribution": distribution,
                         "bax_date": site_date,
-                        "expires_at": datetime.now(timezone.utc) + timedelta(days=30),
+                        "expires_at": datetime.now(timezone.utc) + PLAYER_BAX_FALLBACK_TTL,
                     })
                 except Exception:
                     pass
@@ -502,7 +513,7 @@ def get_player_dbv_stats(req: https_fn.CallableRequest) -> dict:
                     "stats": stats,
                     # dbv is the live source (updates right after tournaments), so
                     # a short TTL keeps it fresh without hammering.
-                    "expires_at": datetime.now(timezone.utc) + timedelta(hours=12),
+                    "expires_at": datetime.now(timezone.utc) + PLAYER_DBV_STATS_TTL,
                 })
             except Exception:
                 pass
@@ -529,9 +540,10 @@ def _norm_name(s):
 
 def _entry_list_members(url):
     """Current entry-list members of a tournament discipline, as
-    [{name, status, url}]. Cached ~30 min so re-checking a player's Upcoming list
-    stays cheap and doesn't hammer dbv. Returns None if the scrape fails (so the
-    caller keeps the stored state instead of wrongly marking a player as left)."""
+    [{name, status, url}]. Cached (ENTRYLIST_TTL) so re-checking a player's
+    Upcoming list stays cheap and doesn't hammer dbv. Returns None if the
+    scrape fails (so the caller keeps the stored state instead of wrongly
+    marking a player as left)."""
     if not url:
         return None
     key = hashlib.md5(url.encode()).hexdigest()
@@ -555,7 +567,7 @@ def _entry_list_members(url):
         try:
             db.collection("entrylist_cache").document(key).set({
                 "entries": members,
-                "expires_at": datetime.now(timezone.utc) + timedelta(minutes=30),
+                "expires_at": datetime.now(timezone.utc) + ENTRYLIST_TTL,
             })
         except Exception:
             pass
@@ -578,13 +590,106 @@ def _find_member(members, reg):
     return None
 
 
+def _league_sourced_rows(profile_id, known_tids, today):
+    """Fill gaps the implicit-registration capture (player_registrations)
+    missed: tournaments a player is entered in that nobody has yet analysed
+    on this site. Sourced from the "Turniere mit <Name>" widget on each of
+    the player's CURRENT league pages — the one place dbv exposes a
+    player's own upcoming tournaments directly (see
+    leagues._parse_league_tournaments). Players with no league membership
+    this season have no such page and get nothing here; their coverage stays
+    whatever player_registrations already has. Only expands tournament ids
+    not already in `known_tids`, so this never duplicates an existing row —
+    each candidate here is a tournament nobody's analysed yet, discovered
+    fresh, so (unlike player_registrations) it must confirm both the
+    discipline and current entry status itself before it can be shown."""
+    try:
+        snap = db.collection("player_index").document(profile_id).get()
+        player_name = snap.to_dict().get("name") if snap.exists else None
+    except Exception:
+        player_name = None
+    if not player_name:
+        return []   # can't match this player in an entry list without a name
+
+    try:
+        current_leagues, _ = _scrape_leagues(profile_id)
+    except Exception as e:
+        print(f"upcoming: league lookup error: {e}")
+        return []
+    match_urls = {lg["match_url"] for lg in (current_leagues or []) if lg.get("match_url")}
+    if not match_urls:
+        return []
+    league_guids = {mm.group(1).upper() for mm in
+                     (re.search(r"/league/([0-9A-Fa-f-]+)/player/", u, re.I) for u in match_urls) if mm}
+
+    tourneys = {}
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+        futs = {pool.submit(_fetch_league_player_page, u): u for u in match_urls}
+        for f in as_completed(futs):
+            try:
+                for row in _parse_league_tournaments(f.result()):
+                    tourneys.setdefault(row["id"], row)
+            except Exception as e:
+                print(f"upcoming: league-page fetch error: {e}")
+
+    candidates = []
+    for gid, row in tourneys.items():
+        if gid in league_guids or gid in known_tids:
+            continue   # a league itself, or a tournament already covered
+        end = _parse_ddmmyyyy(row.get("end")) or _parse_ddmmyyyy(row.get("start"))
+        if end and end < today:
+            continue   # already over
+        if row.get("player_local_id"):
+            candidates.append((gid, row))
+    if not candidates:
+        return []
+
+    # One request per tournament tells us exactly which discipline(s) this
+    # player is in there (their own card — see _parse_tournament_player_card)
+    # instead of scanning every discipline's whole entry list to find them.
+    def _card(gid, row):
+        url = f"{BASE}/sport/player.aspx?id={gid}&player={row['player_local_id']}"
+        _, discs = _parse_tournament_player_card(_fetch_tournament_player_card(url), gid)
+        return gid, row, discs
+
+    my_key = _norm_name(player_name)
+    rows = []
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+        futs = [pool.submit(_card, gid, row) for gid, row in candidates]
+        for f in as_completed(futs):
+            try:
+                gid, row, discs = f.result()
+            except Exception as e:
+                print(f"upcoming: tournament card fetch error: {e}")
+                continue
+            start = _parse_ddmmyyyy(row.get("start"))
+            for d in discs:
+                try:
+                    members = _entry_list_members(d.get("url"))
+                except Exception:
+                    members = None
+                entry = next((e for e in (members or []) if _norm_name(e.get("name")) == my_key), None)
+                if not entry:
+                    continue   # dbv still lists the discipline but this entry list doesn't confirm it — skip rather than guess
+                rows.append({
+                    "tournament_id": gid,
+                    "tournament_name": row.get("name"),
+                    "tournament_url": d.get("url"),
+                    "discipline_name": d.get("name"),
+                    "discipline_event": d.get("event"),
+                    "status": entry.get("status"),
+                    "start_date": start.isoformat() if start else None,
+                })
+    return rows
+
+
 @https_fn.on_call()
 def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
     """Tournaments a player is currently registered for.
 
     Captured implicitly from every tournament analysis, then RE-VALIDATED on read:
-    each stored (non-past) registration's live entry list is re-scraped (cached
-    ~30 min) to confirm the player is still entered. Players who have withdrawn are
+    each stored (non-past) registration's live entry list is re-scraped (cached,
+    see ENTRYLIST_TTL) to confirm the player is still entered. Players who have withdrawn are
     flagged and dropped; waiting-list/reserve entries are kept with their status.
     Clearly-past tournaments are hidden as a guard — by start date, or (when no
     date was recorded) by dbv having already published final results."""
@@ -630,7 +735,7 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
                 r["_backfill_start"] = backfill_start
             candidates.append(r)
 
-        # 2. Re-scrape each distinct entry list once (concurrently, cached 30 min).
+        # 2. Re-scrape each distinct entry list once (concurrently, cached — see ENTRYLIST_TTL).
         urls = {r.get("tournament_url") for r in candidates if r.get("tournament_url")}
         members_by_url = {}
         if urls:
@@ -689,6 +794,15 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
             except Exception:
                 pass
 
+        # 4. Fill in any tournament the implicit-registration capture missed
+        #    (nobody's analysed it on the site yet) from the player's own
+        #    league page(s), where dbv actually lists their upcoming entries.
+        try:
+            known_tids = {r.get("tournament_id") for r in candidates if r.get("tournament_id")}
+            rows.extend(_league_sourced_rows(profile_id, known_tids, today))
+        except Exception as e:
+            print(f"upcoming: league-sourced fill-in failed: {e}")
+
         rows.sort(key=lambda x: (x["start_date"] is None, x["start_date"] or ""))
         return {"upcoming": rows, "count": len(rows)}
     except Exception as e:
@@ -724,7 +838,7 @@ def search_players(req: https_fn.CallableRequest) -> dict:
             try:
                 db.collection("player_search_cache").document(key).set({
                     "players": players,
-                    "expires_at": datetime.now(timezone.utc) + timedelta(hours=12),
+                    "expires_at": datetime.now(timezone.utc) + PLAYER_SEARCH_TTL,
                 })
             except Exception:
                 pass

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from firebase_admin import firestore
 
-from app.firebase_app import db
+from app.core.firebase_app import db
 
 
 def _suffix(authed):

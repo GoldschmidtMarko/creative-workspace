@@ -9,9 +9,9 @@ tournaments, linked badminton account, watchlist) hang off this same collection.
 from firebase_admin import firestore
 from firebase_functions import https_fn
 
-from app.auth import Err, authenticate_user
-from app.firebase_app import db
-from app.rate_limiting import check_firestore_rate_limit
+from app.core.auth import Err, authenticate_user
+from app.core.firebase_app import db
+from app.core.rate_limiting import check_firestore_rate_limit
 
 
 @https_fn.on_call()
