@@ -10,7 +10,7 @@ from firebase_admin import firestore
 from firebase_functions import https_fn
 
 from app.core.auth import Err, authenticate_user
-from app.core.firebase_app import db
+from app.core.firebase_app import db, log_firestore_error
 from app.core.rate_limiting import check_firestore_rate_limit
 
 
@@ -42,5 +42,5 @@ def save_user_activity(req: https_fn.CallableRequest) -> dict:
         ref.set(profile, merge=True)
         return {"success": True, "persisted": True}
     except Exception as error:
-        print(f"save_user_activity error: {error}")
+        log_firestore_error("save_user_activity", error)
         raise https_fn.HttpsError(Err.INTERNAL, "Failed to save activity.")

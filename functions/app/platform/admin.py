@@ -13,7 +13,7 @@ from firebase_admin import firestore
 from firebase_functions import https_fn
 
 from app.core.auth import Err, authenticate_user
-from app.core.firebase_app import db
+from app.core.firebase_app import db, log_firestore_error
 
 # Emails allowed to view the usage dashboard. Add more here if needed.
 ADMIN_EMAILS = {"mgoldschmidt01@gmail.com"}
@@ -64,7 +64,7 @@ def _top_entities(collection, limit=50):
                 "lastQueried": _ms(d.get("lastQueried")),
             })
     except Exception as e:
-        print(f"usage _top_entities({collection}) error: {e}")
+        log_firestore_error(f"usage _top_entities({collection})", e)
     return out
 
 
@@ -87,7 +87,7 @@ def _daily_series(limit=120):
             })
         out.reverse()  # oldest -> newest for plotting
     except Exception as e:
-        print(f"usage _daily_series error: {e}")
+        log_firestore_error("usage _daily_series", e)
     return out
 
 
@@ -111,7 +111,7 @@ def _users_overview(limit=15):
         rows.sort(key=lambda r: r["loginCount"], reverse=True)
         result["top"] = rows[:limit]
     except Exception as e:
-        print(f"usage _users_overview error: {e}")
+        log_firestore_error("usage _users_overview", e)
     return result
 
 
@@ -129,7 +129,7 @@ def get_usage_stats(req: https_fn.CallableRequest) -> dict:
             if snap.exists:
                 summary = snap.to_dict() or {}
         except Exception as e:
-            print(f"usage summary error: {e}")
+            log_firestore_error("usage summary", e)
 
     return {
         "summary": summary,

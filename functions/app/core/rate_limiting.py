@@ -11,7 +11,7 @@ import threading
 from firebase_admin import firestore
 
 from app.core.auth import now_ms
-from app.core.firebase_app import db
+from app.core.firebase_app import db, log_firestore_error
 
 _rate_limit_store: dict[str, dict] = {}
 _rate_limit_lock = threading.Lock()
@@ -59,5 +59,5 @@ def check_firestore_rate_limit(user_id: str, action: str, max_requests: int = 10
     try:
         return _run(db.transaction())
     except Exception as error:
-        print(f"Firestore rate limit check failed: {error}")
+        log_firestore_error("check_firestore_rate_limit", error)
         return check_rate_limit(user_id, action, max_requests, window_ms)
