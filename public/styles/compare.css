@@ -51,6 +51,21 @@
 .cmp-result[aria-disabled="true"]:hover { border-color: var(--border); transform: none; box-shadow: none; }
 .cmp-result__add { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
 
+/* ---- recommendations: teammates/opponents of the players already added -- */
+.cmp-recs { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.cmp-recs__toggle {
+    display: flex; align-items: center; gap: 0.4rem; width: 100%;
+    background: none; border: none; padding: 0; margin: 0 0 0.75rem;
+    color: var(--ink-dim); font: inherit; font-size: 0.85rem; text-align: left; cursor: pointer;
+}
+.cmp-recs__toggle:hover { color: var(--ink); }
+.cmp-recs__chev { width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.15s ease; }
+.cmp-recs.is-collapsed .cmp-recs__chev { transform: rotate(-90deg); }
+.cmp-recs.is-collapsed .network-cols { display: none; }
+.cmp-recs__col { display: flex; flex-direction: column; gap: 0.4rem; }
+.cmp-recs__col:empty::after { content: "None found yet."; color: var(--ink-faint); font-size: 0.85rem; }
+.cmp-recs__sub { display: block; }
+
 /* ---- combined-BAX chart marker ------------------------------------------ */
 .cmp-dot { stroke: var(--card); stroke-width: 1.5; }
 

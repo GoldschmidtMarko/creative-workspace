@@ -16,6 +16,10 @@ const searchPlayers = httpsCallable(functions, "search_players", { timeout: 6000
 const CATS = ["Einzel", "Doppel", "Mixed"];
 const DISC_LABEL = { Einzel: "Singles", Doppel: "Doubles", Mixed: "Mixed" };
 const NETWORK_PAGE_SIZE = 10;
+// Recently viewed (sessionStorage) — declared up here since showSearchView()
+// below reads it on the very first, synchronous pass through this script.
+const RECENT_KEY = "bax_recent_players";
+const RECENT_MAX = 8;
 
 const $ = (id) => document.getElementById(id);
 function escapeHtml(s) {
@@ -99,6 +103,41 @@ function showSearchView() {
     $("error-view").classList.add("hidden");
     $("search-view").classList.remove("hidden");
     const ph = $("page-header"); if (ph) ph.classList.remove("hidden");
+    renderRecentPlayers();
+}
+
+/* Recently viewed — sessionStorage only (cleared with the tab), so it's a
+   quick way back to whoever you were just looking at, not a permanent log. */
+function recentPlayersList() {
+    try { return JSON.parse(sessionStorage.getItem(RECENT_KEY) || "[]") || []; } catch (e) { return []; }
+}
+function recordRecentPlayer(sp, pid, name) {
+    if (!sp && !pid && !name) return;
+    const token = pid ? "pid:" + pid : (sp || "name:" + name);
+    const list = recentPlayersList().filter((r) => r.token !== token);
+    list.unshift({ token, sp: sp || "", pid: pid || "", name: name || "" });
+    try { sessionStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) { /* ignore */ }
+}
+function renderRecentPlayers() {
+    const wrap = $("recent-players-wrap");
+    if (!wrap) return;
+    const list = recentPlayersList();
+    if (!list.length) { wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    $("recent-players").innerHTML = list.map((r) => {
+        const qp = new URLSearchParams();
+        if (r.sp) qp.set("sp", r.sp);
+        if (r.pid) qp.set("pid", r.pid);
+        if (r.name) qp.set("name", r.name);
+        return `<a class="search-result" href="/html/player.html?${qp.toString()}">
+            <span class="search-result__avatar">${escapeHtml(initials(r.name).toUpperCase())}</span>
+            <span class="search-result__body">
+                <span class="search-result__name">${escapeHtml(r.name || r.sp || "Player")}</span>
+            </span>
+            <i data-lucide="chevron-right" class="search-result__chev"></i>
+        </a>`;
+    }).join("");
+    if (window.lucide) lucide.createIcons();
 }
 
 // dbv.turnier.de player search → a clickable list of candidates. Each result
@@ -106,6 +145,8 @@ function showSearchView() {
 async function runSearch(q) {
     const st = $("search-status");
     const box = $("search-results");
+    const recentWrap = $("recent-players-wrap");
+    if (recentWrap) recentWrap.classList.add("hidden");
     st.textContent = "Searching…";
     st.classList.remove("hidden");
     box.innerHTML = Array.from({ length: 5 }, () => `
@@ -258,7 +299,32 @@ function setupAddCompare(sp, pid, name) {
 async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
     try {
         const res = await getPlayerBax({ sp_code: sp, profile_id: pid, name, vorname });
-        if (res.data.error) { showError(res.data.error); return; }
+        if (res.data.error) {
+            // badminton-bax.de (BAX ratings) and dbv.turnier.de (leagues,
+            // tournaments, profiles) are two separate systems — someone only
+            // ever seen as a league opponent can have a resolved dbv profile
+            // (pid) with no badminton-bax.de match at all. That's not a dead
+            // end if we already have their pid: show what dbv itself has
+            // (leagues, matchups, upcoming, tournaments) instead of a hard
+            // error, same spirit as markDbvUnavailable's inverse case below.
+            if (!pid) { showError(res.data.error); return; }
+            renderIdentity({ name, profile_id: pid, sp_code: sp });
+            state.history = { Einzel: [], Doppel: [], Mixed: [] };
+            state.distribution = {};
+            renderBaxTiles(state.history);
+            renderHistory();
+            renderDistribution();
+            state.profileId = pid;
+            updateUrl(sp, pid, name);
+            recordRecentPlayer(sp, pid, name);
+            setupAddCompare(sp, pid, name);
+            if (window.lucide) lucide.createIcons();
+            loadDbvStats(pid, name);
+            loadLeagues(pid, name);
+            loadUpcoming(pid);
+            loadNetwork(pid, sp, name);
+            return;
+        }
         const { identity, history, distribution } = res.data;
         state.history = history;
         state.distribution = distribution;
@@ -272,6 +338,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
         const rsp = (identity && identity.sp_code) || sp || "";
         state.profileId = rpid;
         updateUrl(rsp, rpid, identity && identity.name);
+        recordRecentPlayer(rsp, rpid, identity && identity.name);
         setupAddCompare(rsp, rpid, identity && identity.name);
         if (window.lucide) lucide.createIcons();
 
@@ -810,18 +877,40 @@ async function loadNetwork(pid, sp, name) {
     }
 }
 
-// Links to the internal player page when a real dbv id is known (tournament
-// peers, resolved via the H2H link on their match); league-only peers have no
-// id we've resolved (by design — see functions/app/network.py), so they fall
-// back to an external dbv.turnier.de link opened in a new tab.
-function networkPeerLinkAttrs(e) {
-    if (e.sp_code) {
-        const q = new URLSearchParams({ sp: e.sp_code });
-        if (e.name) q.set("name", e.name);
-        return `href="${escapeHtml("/html/player.html?" + q.toString())}"`;
-    }
-    if (e.url) return `href="${escapeHtml(e.url)}" target="_blank" rel="noopener"`;
-    return "";
+// A peer's own entry here never carries their dbv profile_id (network.py's
+// aggregation only tracks sp_code, for whoever it happens to know) — so even
+// when sp_code IS known, navigating with just `sp` can strand the page with
+// no profile_id and the whole dbv-sourced half (leagues, matchups, upcoming,
+// titles, standing) silently unavailable. Every peer click instead resolves
+// on demand — same url-based lookup the Network graph's click-to-expand
+// uses — and only falls back to sp-only (still gets BAX data) or an
+// external dbv.turnier.de link if that genuinely can't find a profile.
+function wireNetworkPeerResolve(container) {
+    container.querySelectorAll("[data-resolve-name]").forEach((a) => {
+        a.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            if (a.classList.contains("is-loading")) return;
+            const name = a.dataset.resolveName, url = a.dataset.resolveUrl, spCode = a.dataset.resolveSp || "";
+            a.classList.add("is-loading");
+            a.insertAdjacentHTML("beforeend", ' <span class="spinner"></span>');
+            try {
+                const res = await getPlayerNetwork({ sp_code: spCode, profile_id: "", name, url: url || "" });
+                const sp = (res.data && res.data.sp_code) || spCode;
+                const pid = (res.data && !res.data.error) ? res.data.profile_id : "";
+                if (!sp && !pid) throw new Error((res.data && res.data.error) || "Could not resolve this player.");
+                const q = new URLSearchParams();
+                if (sp) q.set("sp", sp);
+                if (pid) q.set("pid", pid);
+                if (name) q.set("name", name);
+                location.href = "/html/player.html?" + q.toString();
+            } catch (err) {
+                console.warn("peer resolve failed, opening dbv page instead:", err.message);
+                if (url) window.open(url, "_blank", "noopener");
+                a.classList.remove("is-loading");
+                const sp2 = a.querySelector(".spinner"); if (sp2) sp2.remove();
+            }
+        });
+    });
 }
 
 function renderNetworkColumn(kind) {
@@ -837,13 +926,9 @@ function renderNetworkColumn(kind) {
     const shown = sorted.slice(0, col.shown);
 
     const rows = shown.map((e) => {
-        const attrs = networkPeerLinkAttrs(e);
-        // Internal profile (sp_code known) vs. an external dbv.turnier.de
-        // link (league-only peer, no id resolved) — flag the latter with a
-        // small external-link icon right after the name.
-        const external = !e.sp_code && !!e.url;
-        const extIcon = external ? '<i data-lucide="external-link" class="ext-icon"></i>' : "";
-        const nameHtml = attrs ? `<a ${attrs}>${escapeHtml(e.name)}${extIcon}</a>` : escapeHtml(e.name);
+        const nameHtml = (e.url || e.sp_code)
+            ? `<a href="#" data-resolve-name="${escapeHtml(e.name)}" data-resolve-url="${escapeHtml(e.url || "")}" data-resolve-sp="${escapeHtml(e.sp_code || "")}">${escapeHtml(e.name)}</a>`
+            : escapeHtml(e.name);
         const pills = Object.entries(e.disciplines || {}).filter(([, n]) => n > 0)
             .map(([k, n]) => `<span class="disc-pill" title="${escapeHtml(DISC_LABEL[k] || k)}">${k[0]}${n}</span>`).join("");
         const wrCls = e.winrate == null ? "" : e.winrate >= 50 ? "winrate--good" : "winrate--bad";
@@ -872,6 +957,7 @@ function renderNetworkColumn(kind) {
         <tbody>${rows}</tbody>
     </table></div>${expandHtml}`;
     if (window.lucide) lucide.createIcons();
+    wireNetworkPeerResolve(el);
 
     el.querySelectorAll("th.sortable").forEach((h) => {
         h.addEventListener("click", () => {

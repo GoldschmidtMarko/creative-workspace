@@ -52,8 +52,15 @@ def get_tournament_player_links(url):
                     # Capture the name from the entry-list link text. This is
                     # authoritative — some players (guests/foreign) have no
                     # linked DBV profile, so their profile page must not be
-                    # trusted for the name.
-                    entries.append({"url": full_url, "name": a.get_text(strip=True), "status": status, "group": group_id})
+                    # trusted for the name. On some entry lists (regional-open
+                    # style tournaments with foreign/cross-border entrants) dbv
+                    # prefixes the link text with a bracketed nationality tag
+                    # ("[GER]Marko Goldschmidt") with no separating space —
+                    # strip it, or every name-based match against this entry
+                    # (e.g. get_player_upcoming confirming someone's still
+                    # entered) silently fails.
+                    name = re.sub(r"^\[[A-Z]{2,4}\]\s*", "", a.get_text(strip=True))
+                    entries.append({"url": full_url, "name": name, "status": status, "group": group_id})
                 group_id += 1
 
         return entries

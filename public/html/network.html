@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/styles/bax_checker.css">
     <link rel="stylesheet" href="/styles/player.css">
     <link rel="stylesheet" href="/styles/network.css">
+    <link rel="stylesheet" href="/styles/feedback.css">
 </head>
 
 <body>
@@ -25,7 +26,6 @@
         <nav class="nav-pill" aria-label="Primary">
             <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
             <a class="nav-pill__link" href="/html/player.html">Player</a>
-            <a class="nav-pill__link is-active" aria-current="page" href="/html/network.html">Network</a>
             <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
         </nav>
         <div class="site-nav__actions">
@@ -112,7 +112,7 @@
                     <div class="network-canvas-wrap">
                         <div id="network-loader" class="network-loader hidden"><span class="spinner"></span> Loading network…</div>
                         <div id="network-empty" class="pl-empty hidden"></div>
-                        <svg id="network-svg" class="network-svg" role="img" aria-label="Player network graph"></svg>
+                        <div id="network-svg" class="network-svg" role="img" aria-label="Player network graph"></div>
                         <div class="chart-tooltip hidden" id="ng-tooltip"></div>
                     </div>
                 </div>
@@ -134,6 +134,7 @@
     </div>
 
     <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/util/feedback.js"></script>
     <script type="module" src="/js/network.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>
