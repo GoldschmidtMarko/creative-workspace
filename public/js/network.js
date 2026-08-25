@@ -501,10 +501,10 @@ function wireNodeInteractions(g, n, linkEls) {
                 label.setAttribute("y", (line.y1.baseVal.value + n.y) / 2);
             });
         };
-        const onUp = () => {
+        const onUp = (upEv) => {
             g.removeEventListener("pointermove", onMove);
             g.removeEventListener("pointerup", onUp);
-            if (!moved) onNodeClick(n);
+            if (!moved) onNodeClick(n, upEv);
         };
         g.addEventListener("pointermove", onMove);
         g.addEventListener("pointerup", onUp);
@@ -518,7 +518,7 @@ function wireNodeInteractions(g, n, linkEls) {
 // Click = select this player and expand their own 1-hop neighborhood into
 // the graph (per-click, not a toggle — already-expanded people just re-open
 // their profile on a second click since there's nothing more to add).
-async function onNodeClick(n) {
+async function onNodeClick(n, e) {
     if (n.isCenter || n.expanding) return;
     if (n.expanded) { goToPlayer(n); return; }
     if (!n.sp_code) {
@@ -537,10 +537,20 @@ async function onNodeClick(n) {
         });
         expansionOrder.push(n.id);
     } catch (err) {
-        console.error("expand failed:", err);
+        console.warn("expand failed, falling back:", err.message);
+        // Most people in the graph were never individually analysed on the
+        // site, so they have no resolvable internal profile — that's the
+        // expected common case here (see get_player_network), not a real
+        // failure. Fall back to their external dbv link when we have one
+        // instead of just showing an error.
         hideTooltip();
-        showTooltip({ clientX: 0, clientY: 0 }, `Couldn't expand: ${escapeHtml(err.message)}`);
-        setTimeout(hideTooltip, 3000);
+        if (n.url) {
+            window.open(n.url, "_blank", "noopener");
+            if (e) showTooltip(e, "No graph preview for them yet — opened their dbv page instead.");
+        } else if (e) {
+            showTooltip(e, `Couldn't expand: ${escapeHtml(err.message)}`);
+        }
+        if (e) setTimeout(hideTooltip, 3000);
     } finally {
         n.expanding = false;
         render();
