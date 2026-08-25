@@ -115,6 +115,31 @@ def _users_overview(limit=15):
     return result
 
 
+def _recent_feedback(limit=100):
+    """Most recent submissions from submit_feedback (app.platform.feedback),
+    newest first."""
+    out = []
+    if db is None:
+        return out
+    try:
+        q = (db.collection("feedback")
+               .order_by("createdAt", direction=firestore.Query.DESCENDING)
+               .limit(limit))
+        for doc in q.stream():
+            d = doc.to_dict() or {}
+            out.append({
+                "id": doc.id,
+                "message": d.get("message") or "",
+                "category": d.get("category") or "other",
+                "createdAt": _ms(d.get("createdAt")),
+                "userName": d.get("userName"),
+                "userId": d.get("userId"),
+            })
+    except Exception as e:
+        log_firestore_error("usage _recent_feedback", e)
+    return out
+
+
 @https_fn.on_call()
 def get_usage_stats(req: https_fn.CallableRequest) -> dict:
     """Return the aggregated usage analytics. Admin-only."""
@@ -138,4 +163,5 @@ def get_usage_stats(req: https_fn.CallableRequest) -> dict:
         "disciplines": _top_entities("usage_disciplines"),
         "players": _top_entities("usage_players"),
         "users": _users_overview(),
+        "feedback": _recent_feedback(),
     }

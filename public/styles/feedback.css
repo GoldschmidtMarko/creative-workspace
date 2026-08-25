@@ -1,0 +1,100 @@
+/* Site-wide feedback widget — a bottom-left row of floating buttons (info /
+   why-is-this-slow / feedback) plus their popups. Self-contained: only uses
+   tokens from main.css, since this loads on every page and several pages
+   don't pull in bax_checker.css / player.css. */
+
+.fab-row {
+    position: fixed;
+    bottom: clamp(0.75rem, 2vw, 1.5rem);
+    left: clamp(0.75rem, 2vw, 1.5rem);
+    display: flex;
+    align-items: center;
+    gap: clamp(0.5rem, 1.5vw, 0.75rem);
+    z-index: 40;
+}
+
+.fab {
+    width: clamp(2.25rem, 2.5vw + 1.25rem, 2.75rem);
+    height: clamp(2.25rem, 2.5vw + 1.25rem, 2.75rem);
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--ink-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.fab:hover { color: var(--accent); border-color: var(--accent); transform: translateY(-2px); }
+.fab:active { transform: translateY(0); }
+.fab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.fab svg { width: 1.05rem; height: 1.05rem; stroke: currentColor; }
+
+.fb-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 70;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.fb-overlay.is-open { opacity: 1; }
+
+.fb-popup {
+    width: 100%;
+    max-width: 440px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: 1.5rem;
+    transform: scale(0.94);
+    transition: transform 0.2s ease;
+}
+.fb-overlay.is-open .fb-popup { transform: scale(1); }
+
+.fb-popup__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.fb-popup__title { font-size: 1.1rem; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.fb-popup__close {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem;
+    border: none; background: transparent; color: var(--ink-faint);
+    border-radius: 50%; cursor: pointer;
+}
+.fb-popup__close:hover { background: var(--card-2); color: var(--ink); }
+
+.fb-popup__body { font-size: 0.9rem; color: var(--ink-dim); line-height: 1.55; }
+.fb-popup__body p { margin: 0 0 0.75rem; }
+.fb-popup__body p:last-child { margin-bottom: 0; }
+.fb-popup__body strong { color: var(--ink); }
+.fb-popup__body a { color: var(--accent); }
+
+.fb-note {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.9rem;
+    margin: 0 0 0.75rem;
+}
+.fb-note:last-child { margin-bottom: 0; }
+
+.fb-popup__actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.1rem; }
+
+.fb-select { margin-bottom: 0.6rem; }
+.fb-status { font-size: 0.82rem; margin: 0.6rem 0 0; min-height: 1.2em; }
+.fb-status.is-error { color: var(--danger); }
+.fb-status.is-ok { color: var(--success); }
+
+@media (max-width: 480px) {
+    .fb-popup { padding: 1.15rem; }
+}

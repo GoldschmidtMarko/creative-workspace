@@ -9,6 +9,7 @@
     <title>Usage Dashboard | BAX Checker</title>
     <script src="/js/util/themeInit.js"></script>
     <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/feedback.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         .usage-main { width: 100%; max-width: 1100px; margin: 0 auto; }
@@ -109,10 +110,22 @@
         .usage-table td.n { color: var(--ink); font-variant-numeric: tabular-nums; }
         .usage-table td.n.dim { color: var(--ink-dim); }
         .usage-table td.when { color: var(--ink-dim); font-size: 0.8rem; }
+        .usage-table td.msg { color: var(--ink); white-space: normal; max-width: 480px; }
         .usage-empty { padding: 1.25rem; color: var(--ink-faint); text-align: center; font-size: 0.85rem; }
 
         .users-total { color: var(--ink-dim); font-size: 0.85rem; }
         .users-total b { color: var(--ink); font-size: 1.05rem; }
+
+        /* Feedback category pills */
+        .fb-cat {
+            display: inline-block; padding: 2px 8px; border-radius: 999px;
+            font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .fb-cat--bug { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+        .fb-cat--feature { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+        .fb-cat--data { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
+        .fb-cat--other { background: var(--card-2); color: var(--ink-dim); }
     </style>
 </head>
 
@@ -188,17 +201,17 @@
                 </div>
 
                 <div class="section-head">
-                    <h2>Top tournaments</h2><span class="hint">by times opened</span>
+                    <h2>Top tournaments</h2><span class="hint">times opened · most recently queried first</span>
                 </div>
                 <div class="usage-card"><div class="table-scroll" id="table-tournaments"></div></div>
 
                 <div class="section-head">
-                    <h2>Top disciplines</h2><span class="hint">analyses per discipline</span>
+                    <h2>Top disciplines</h2><span class="hint">analyses per discipline · most recently queried first</span>
                 </div>
                 <div class="usage-card"><div class="table-scroll" id="table-disciplines"></div></div>
 
                 <div class="section-head">
-                    <h2>Top players</h2><span class="hint">profile lookups</span>
+                    <h2>Top players</h2><span class="hint">profile lookups · most recently queried first</span>
                 </div>
                 <div class="usage-card"><div class="table-scroll" id="table-players"></div></div>
 
@@ -206,11 +219,17 @@
                     <h2>Users</h2><span class="users-total">Total registered: <b id="users-total">0</b></span>
                 </div>
                 <div class="usage-card"><div class="table-scroll" id="users-table"></div></div>
+
+                <div class="section-head">
+                    <h2>Feedback</h2><span class="hint">bug reports, feature requests &amp; notes from users · most recent first</span>
+                </div>
+                <div class="usage-card"><div class="table-scroll" id="table-feedback"></div></div>
             </div>
         </main>
     </div>
 
     <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/util/feedback.js"></script>
     <script type="module" src="/js/usage.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>

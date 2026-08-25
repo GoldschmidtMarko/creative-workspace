@@ -9,6 +9,7 @@ import { functions } from "./util/firebase.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
+const getPlayerNetwork = httpsCallable(functions, "get_player_network", { timeout: 120000 });
 const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
 
 // Cap how many DBV win/loss lookups run at once. A full comparison would
@@ -52,7 +53,8 @@ function takeSlot() { for (let i = 0; i < MAX_PLAYERS; i++) if (!usedSlots.has(i
 function freeSlot(i) { usedSlots.delete(i); }
 
 let uidSeq = 0;
-const players = [];   // { uid, slot, sp_code, profile_id, name, club, status, wlStatus, history, winLoss, error }
+// netStatus/teammates/opponents feed the recommendations panel (computeRecs).
+const players = [];   // { uid, slot, sp_code, profile_id, name, club, status, wlStatus, history, winLoss, error, netStatus, teammates, opponents }
 const baxHidden = new Set();  // uids hidden from the BAX chart via legend toggle
 
 let discipline = "Einzel";  // combined-BAX discipline
@@ -70,12 +72,22 @@ const readyPlayers = () => players.filter((p) => p.status === "ready");
 /* ------------------------------------------------------------------ */
 /* Persistence: URL (?p=) + localStorage                              */
 /* ------------------------------------------------------------------ */
+// Once a player has both ids resolved, carry both in the token — otherwise a
+// reload or a shared link falls back to sp_code-only, which only re-resolves
+// a profile_id for free if player_index still happens to have it cached (see
+// the fallback search in loadPlayerData). "@" is safe in both halves: sp
+// codes are digits/dashes/letters, profile ids are GUIDs.
 function tokenFor(p) {
+    if (p.sp_code && p.profile_id) return p.sp_code + "@" + p.profile_id;
     if (p.sp_code) return p.sp_code;
     if (p.profile_id) return "pid:" + p.profile_id;
     return "name:" + p.name;
 }
 function decodeToken(tok) {
+    if (tok.includes("@")) {
+        const [sp, pid] = tok.split("@");
+        return { sp_code: sp, profile_id: pid };
+    }
     if (tok.startsWith("pid:")) return { profile_id: tok.slice(4) };
     if (tok.startsWith("name:")) return { name: tok.slice(5) };
     return { sp_code: tok };
@@ -105,6 +117,7 @@ function addPlayer(seed) {
         sp_code: seed.sp_code || "", profile_id: seed.profile_id || "",
         name: seed.name || "", club: seed.club || "",
         status: "loading", wlStatus: "idle", history: {}, winLoss: null, error: "",
+        netStatus: "idle", teammates: [], opponents: [],
     };
     players.push(p);
     persist();
@@ -133,10 +146,29 @@ async function loadPlayerData(p) {
         p.profile_id = id.profile_id || p.profile_id;
         p.history = res.data.history || {};
         p.status = "ready";
+
+        // badminton-bax.de (BAX ratings, what we just fetched) and
+        // dbv.turnier.de (win/loss, recommendations) are separate systems —
+        // get_player_bax only resolves a dbv profile_id for free when
+        // player_index already has it cached for this sp_code. If not, fall
+        // back to a dbv name search (returns both ids together, same as the
+        // search box above) instead of leaving win/loss and recommendations
+        // permanently unavailable for someone we very much do have a real
+        // profile for.
+        if (!p.profile_id && p.sp_code && p.name) {
+            try {
+                const sres = await searchPlayers({ q: p.name });
+                const hit = (sres.data.players || []).find((r) =>
+                    r.sp_code && r.sp_code.toLowerCase() === p.sp_code.toLowerCase());
+                if (hit) { p.profile_id = hit.profile_id || p.profile_id; p.club = p.club || hit.club; }
+            } catch (e) { /* best-effort — leave profile_id unresolved */ }
+        }
+
         p.wlStatus = p.profile_id ? "loading" : "none";
+        p.netStatus = p.profile_id ? "loading" : "none";
         persist();  // identity may have filled in ids → refresh the shareable token
         renderAll();
-        if (p.profile_id) loadWinLoss(p);
+        if (p.profile_id) { loadWinLoss(p); loadPlayerNetwork(p); }
     } catch (err) {
         p.status = "error";
         p.error = err.message || String(err);
@@ -154,6 +186,23 @@ async function loadWinLoss(p) {
         p.wlStatus = "error";
     }
     renderGames();
+}
+// Powers the "Suggested — teammates & opponents" panel below the chips —
+// reuses the same get_player_network data the Player page's Matchups tab
+// and the Network graph are built on, staggered the same way as win/loss so
+// a full six-player comparison doesn't burst dbv.turnier.de.
+async function loadPlayerNetwork(p) {
+    try {
+        const res = await dbvLimit(() => getPlayerNetwork({ sp_code: p.sp_code, profile_id: p.profile_id, name: p.name }));
+        if (res.data.error) throw new Error(res.data.error);
+        p.teammates = res.data.teammates || [];
+        p.opponents = res.data.opponents || [];
+        p.netStatus = "ready";
+    } catch (err) {
+        p.teammates = []; p.opponents = [];
+        p.netStatus = "error";
+    }
+    renderRecs();
 }
 
 /* ------------------------------------------------------------------ */
@@ -241,6 +290,7 @@ function renderAll() {
     renderChips();
     renderBax();
     renderGames();
+    renderRecs();
 }
 
 function renderChips() {
@@ -267,6 +317,85 @@ function renderChips() {
 }
 
 const emptyPrompt = () => `<div class="cmp-empty">Search for players above and add them to build a comparison.</div>`;
+
+/* ------------------------------------------------------------------ */
+/* Recommendations: teammates/opponents of the players already added  */
+/* ------------------------------------------------------------------ */
+const REC_LIMIT = 6;
+
+// Pools every added (resolved) player's teammates/opponents, drops anyone
+// already in the comparison, merges the same person seen from more than one
+// source player (their played counts add up — someone who's a shared
+// connection of several added players naturally floats to the top), and
+// keeps the most-played handful.
+function computeRecs(kind) {
+    const byKey = new Map();
+    readyPlayers().forEach((p) => {
+        (p[kind] || []).forEach((e) => {
+            if (!e || !e.name) return;
+            if (players.some((existing) => sameIdentity(existing, e))) return;   // already added
+            const key = e.key || e.sp_code || "name:" + normName(e.name);
+            const cur = byKey.get(key);
+            if (cur) { cur.played += e.played || 0; cur.sources.add(p.uid); }
+            else byKey.set(key, { name: e.name, sp_code: e.sp_code || "", club: e.club || "", played: e.played || 0, sources: new Set([p.uid]) });
+        });
+    });
+    return Array.from(byKey.values()).sort((a, b) => b.played - a.played).slice(0, REC_LIMIT);
+}
+
+function renderRecList(id, kind) {
+    const el = $(id);
+    const recs = computeRecs(kind);
+    const full = players.length >= MAX_PLAYERS;
+    el.innerHTML = recs.map((r, i) => {
+        const sub = [r.club, r.sources.size > 1 ? `shared by ${r.sources.size}` : `${num(r.played)} matches`]
+            .filter(Boolean).map(escapeHtml).join(" · ");
+        return `<div class="search-result cmp-result" data-i="${i}" role="button" tabindex="0"
+                ${full ? 'aria-disabled="true"' : ""}
+                title="${full ? "Remove a player first" : "Add to comparison"}">
+            <span class="search-result__avatar">${escapeHtml(initials(r.name).toUpperCase())}</span>
+            <span class="search-result__body">
+                <span class="search-result__name">${escapeHtml(r.name)}</span>
+                <span class="search-result__sub cmp-recs__sub">${sub}</span>
+            </span>
+            <i data-lucide="plus" class="cmp-result__add"></i>
+        </div>`;
+    }).join("");
+    el.querySelectorAll(".cmp-result").forEach((node) => {
+        const r = recs[+node.getAttribute("data-i")];
+        const activate = () => {
+            if (node.getAttribute("aria-disabled") === "true") return;
+            addPlayer(r);
+        };
+        node.addEventListener("click", activate);
+        node.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); } });
+    });
+}
+
+// Folded state persists across visits (same spirit as the player selection
+// itself) — someone who's decided they don't want suggestions shouldn't have
+// to re-collapse the panel every time they come back.
+const RECS_COLLAPSED_KEY = "bax_compare_recs_collapsed";
+function setRecsCollapsed(collapsed) {
+    const wrap = $("cmp-recs");
+    wrap.classList.toggle("is-collapsed", collapsed);
+    $("cmp-recs-toggle").setAttribute("aria-expanded", String(!collapsed));
+    try { localStorage.setItem(RECS_COLLAPSED_KEY, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+}
+$("cmp-recs-toggle").addEventListener("click", () => {
+    setRecsCollapsed(!$("cmp-recs").classList.contains("is-collapsed"));
+});
+
+function renderRecs() {
+    const wrap = $("cmp-recs");
+    const anyNetwork = readyPlayers().some((p) => p.netStatus === "ready" || p.netStatus === "loading");
+    if (!anyNetwork) { wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    renderRecList("cmp-recs-teammates", "teammates");
+    renderRecList("cmp-recs-opponents", "opponents");
+    if (window.lucide) lucide.createIcons();
+}
+try { setRecsCollapsed(localStorage.getItem(RECS_COLLAPSED_KEY) === "1"); } catch (e) { /* ignore */ }
 
 /* ------------------------------------------------------------------ */
 /* Combined BAX — legend + chart / table                             */

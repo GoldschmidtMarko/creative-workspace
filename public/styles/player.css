@@ -390,7 +390,8 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
 .pl-table th.sortable:hover { color: var(--ink); }
 .pl-table th.sortable.is-sorted { color: var(--accent); }
 .network-expand { display: flex; justify-content: center; margin-top: 0.75rem; }
-.pl-table .ext-icon { width: 12px; height: 12px; margin-left: 3px; vertical-align: -1px; color: var(--ink-faint); }
+.pl-table .is-loading { opacity: 0.6; pointer-events: none; }
+.pl-table .spinner { color: var(--ink-faint); vertical-align: -2px; }
 
 /* Skeleton / empty / status */
 .skeleton { color: var(--ink-faint); font-size: 0.9rem; padding: 1.25rem 0; text-align: center; }

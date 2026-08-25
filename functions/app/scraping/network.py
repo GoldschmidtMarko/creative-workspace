@@ -36,11 +36,12 @@ from urllib.parse import parse_qs, urlsplit
 from bs4 import BeautifulSoup
 from firebase_functions import https_fn
 
-from app.scraping.analytics import bump_entity, bump_summary, name_key
+from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.core.auth import rate_key
 from app.core.cache_config import PLAYER_NETWORK_TTL
 from app.core.common import BASE, COOKIES, MAX_WORKERS, _get
 from app.core.firebase_app import db
+from app.scraping.bax import get_player_details
 from app.scraping.leagues import _scrape_leagues, _fetch_league_player_page
 from app.scraping.player import _index_lookup, _parse_ddmmyyyy
 from app.core.rate_limiting import check_rate_limit
@@ -412,21 +413,33 @@ def get_player_network(req: https_fn.CallableRequest) -> dict:
     tournament and league matches over the last few years. Cached ~1 day.
 
     profile_id is normally required (it's the dbv key everything below is
-    keyed on), but the Network graph's click-to-expand needs to look someone
-    up from just the sp_code a teammate/opponent entry carries — so when
-    profile_id is missing, try to resolve one from sp_code via player_index
-    first (a plain Firestore read, no extra scrape)."""
+    keyed on), but the Network graph's click-to-expand and the Matchups
+    tab's "resolve on click" both need to look someone up from just the
+    sp_code or url a teammate/opponent entry carries. Resolution tries, in
+    order: the player_index (a plain Firestore read, no extra scrape); then,
+    if the caller passed the peer's own dbv `url` (every peer carries
+    one — a tournament player-card for a tournament-sourced peer, a league
+    Spielübersicht page for a league-only one), a scrape of that page via
+    get_player_details to resolve a global profile id (see bax.py's
+    _resolve_profile_id, page-agnostic). A tournament card also carries the
+    person's sp_code directly; a league page doesn't, so when that first
+    scrape doesn't turn one up, a second request to the resolved profile_id's
+    own canonical /player-profile/<id> page reads it from there instead (the
+    one place a league-only peer's sp_code is actually exposed). Both extra
+    requests only ever happen once per never-before-seen person — the result
+    is upserted into player_index, so every later lookup is free. Returns the
+    resolved sp_code alongside profile_id so callers that navigate elsewhere
+    (the Matchups tab) can carry it along instead of re-deriving it."""
     try:
         d = req.data or {}
         sp_code = (d.get("sp_code") or "").strip()
         name = (d.get("name") or "").strip()
+        url = (d.get("url") or "").strip()
         m = re.search(r"([0-9a-fA-F-]{36})", d.get("profile_id") or "")
         profile_id = m.group(1).upper() if m else None
         if not profile_id and sp_code:
             hit = _index_lookup(sp_code=sp_code)
             profile_id = (hit or {}).get("profile_id")
-        if not profile_id:
-            return {"error": "No dbv profile found for this player yet — analyse one of their tournaments or open their profile once first."}
 
         force = bool(d.get("force"))
         if force and not check_rate_limit(rate_key(req), "force_network", 10, 3600000):
@@ -434,13 +447,34 @@ def get_player_network(req: https_fn.CallableRequest) -> dict:
         if not check_rate_limit(rate_key(req), "get_player_network", 60, 3600000):
             return {"error": "You're looking up players too quickly. Please wait a bit."}
 
+        if not profile_id and url:
+            details = get_player_details({"url": url, "name": name, "status": "", "group": 0})
+            if details and details.get("profile_id"):
+                profile_id = details["profile_id"]
+                sp_code = sp_code or (details.get("id") if details.get("id") != "N/A" else "") or ""
+                name = details.get("full_name") or name
+                # A league-scoped Spielübersicht page (the usual `url` for a
+                # league-only peer) has no sp_code on it — only the person's
+                # own canonical /player-profile/<id> page does, in the same
+                # "(NN-NNNNNN)" aside get_player_details already knows how to
+                # read. One more request, only for a never-before-seen person.
+                if not sp_code:
+                    card = get_player_details({"url": f"{BASE}/player-profile/{profile_id}", "name": name, "status": "", "group": 0})
+                    if card:
+                        sp_code = (card.get("id") if card.get("id") != "N/A" else "") or ""
+                        name = card.get("full_name") or name
+                upsert_player_index(profile_id, sp_code=sp_code or None, name=name or None)
+
+        if not profile_id:
+            return {"error": "No dbv profile found for this player yet — analyse one of their tournaments or open their profile once first."}
+
         if db and not force:
             try:
                 snap = db.collection("player_network").document(profile_id).get()
                 if snap.exists:
                     data = snap.to_dict()
                     if datetime.now(timezone.utc) < data["expires_at"]:
-                        return {"profile_id": profile_id, "teammates": data["teammates"], "opponents": data["opponents"],
+                        return {"profile_id": profile_id, "sp_code": sp_code or None, "teammates": data["teammates"], "opponents": data["opponents"],
                                 "computed_at": data["computed_at"], "stats": data.get("stats", {})}
             except Exception:
                 pass
@@ -449,7 +483,7 @@ def get_player_network(req: https_fn.CallableRequest) -> dict:
         bump_summary(["networkQueries"], authed)
         bump_entity("usage_players", profile_id, authed, name=name or None)
 
-        return _compute_network(profile_id, sp_code, name)
+        return {"sp_code": sp_code or None, **_compute_network(profile_id, sp_code, name)}
     except Exception as e:
         import traceback
         print(f"get_player_network error: {e}\n{traceback.format_exc()}")

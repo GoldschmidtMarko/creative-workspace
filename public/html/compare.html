@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/styles/bax_checker.css">
     <link rel="stylesheet" href="/styles/player.css">
     <link rel="stylesheet" href="/styles/compare.css">
+    <link rel="stylesheet" href="/styles/feedback.css">
 </head>
 
 <body>
@@ -25,7 +26,6 @@
         <nav class="nav-pill" aria-label="Primary">
             <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
             <a class="nav-pill__link" href="/html/player.html">Player</a>
-            <a class="nav-pill__link" href="/html/network.html">Network</a>
             <a class="nav-pill__link is-active" aria-current="page" href="/html/compare.html">Comparison</a>
         </nav>
         <div class="site-nav__actions">
@@ -65,6 +65,23 @@
                 <div id="cmp-search-status" class="pl-empty hidden"></div>
                 <div id="cmp-search-results" class="search-results"></div>
                 <div id="cmp-chips" class="cmp-chips"></div>
+
+                <div id="cmp-recs" class="cmp-recs hidden">
+                    <button type="button" class="cmp-recs__toggle" id="cmp-recs-toggle" aria-expanded="true">
+                        <i data-lucide="chevron-down" class="cmp-recs__chev"></i>
+                        <span>Suggested — teammates &amp; opponents of the players you've added</span>
+                    </button>
+                    <div class="network-cols" id="cmp-recs-body">
+                        <div class="network-col">
+                            <h3 class="network-col__title">Teammates</h3>
+                            <div id="cmp-recs-teammates" class="cmp-recs__col"></div>
+                        </div>
+                        <div class="network-col">
+                            <h3 class="network-col__title">Opponents</h3>
+                            <div id="cmp-recs-opponents" class="cmp-recs__col"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Combined BAX history -->
@@ -119,6 +136,7 @@
     </div>
 
     <script type="module" src="/js/util/auth.js"></script>
+    <script type="module" src="/js/util/feedback.js"></script>
     <script type="module" src="/js/compare.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>

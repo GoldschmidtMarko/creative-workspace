@@ -3,18 +3,13 @@
 // Reuses get_player_network (the same data behind the profile page's
 // "Matchups" tab).
 //
-// Layout is a hand-rolled deterministic radial tree, not a physics
-// simulation. The root's direct connections sit on one ring, grouped into
-// club sectors; expanding someone adds their own connections one ring
-// further out, fanned across an arc facing away from their parent. Every
-// edge is a straight line between two rings at different angles from a
-// shared origin, so nothing needs to physically settle — the layout is
-// recomputed once per change and stays put. Two branches can still share a
-// person (a cross-link, drawn as an extra edge to the existing node rather
-// than a duplicate) — that's the one case that can still cross another edge,
-// but it's rare and it's an honest depiction of a real shared connection.
+// Rendered with Cytoscape.js (canvas-based graph library) rather than
+// hand-rolled SVG — it gives us proper zoom/pan, drag, and a breadthfirst
+// layout that natively avoids node overlap and keeps a branch's whole
+// subtree nested near its parent instead of free-floating.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
+import cytoscape from "https://esm.sh/cytoscape@3.30.2";
 
 const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
 const getPlayerNetwork = httpsCallable(functions, "get_player_network", { timeout: 120000 });
@@ -26,12 +21,6 @@ function escapeHtml(s) {
         { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
     ));
 }
-const SVGNS = "http://www.w3.org/2000/svg";
-const el = (tag, attrs) => {
-    const n = document.createElementNS(SVGNS, tag);
-    for (const k in (attrs || {})) n.setAttribute(k, attrs[k]);
-    return n;
-};
 
 const params = new URLSearchParams(location.search);
 const initial = { sp: (params.get("sp") || "").trim(), pid: (params.get("pid") || "").trim(), name: (params.get("name") || "").trim() };
@@ -46,6 +35,10 @@ const state = { showTeammates: true, showOpponents: false, groupByClub: true, to
 let fetched = new Map();
 let expansionOrder = [];     // ids in the order they were successfully expanded (root implicit first)
 let manualPos = new Map();   // node id -> {x,y}, for dragged nodes
+
+let cy = null;                        // the Cytoscape instance, created once and reused
+let nodeById = new Map();             // latest render()'s plain node-data objects, for event handlers
+let edgeById = new Map();             // ditto for links
 
 if (initial.sp || initial.pid) {
     showGraphView();
@@ -142,7 +135,7 @@ $("ng-change-player").addEventListener("click", () => {
 async function loadNetwork({ sp, pid, name }) {
     $("network-loader").classList.remove("hidden");
     $("network-empty").classList.add("hidden");
-    $("network-svg").innerHTML = "";
+    if (cy) cy.elements().remove();
     fetched = new Map();
     expansionOrder = [];
     manualPos = new Map();
@@ -232,6 +225,7 @@ function buildVisible() {
     nodes.set("center", root);
     if (root.sp_code) nodes.set(root.sp_code, root);   // alias so peers referencing the root by sp_code dedupe onto it
 
+    const seenPairs = new Set();   // "idA|idB|kind" (sorted) — one edge per real-world relationship, even if it's recorded from both sides
     const queue = ["center", ...expansionOrder.filter((id) => fetched.has(id))];
     queue.forEach((parentId) => {
         const parent = nodes.get(parentId);
@@ -244,6 +238,14 @@ function buildVisible() {
                 const existing = nodes.get(p.key);
                 if (existing) {
                     if (existing.id === parent.id) return;
+                    // A cross-link can come back the other way too — this
+                    // same pair already expanded from the far side and
+                    // recorded the identical relationship in reverse (it's
+                    // one shared history, counted from both people's own
+                    // data). Keep the first one, skip the mirror.
+                    const pairKey = [parent.id, existing.id].sort().join("|") + "|" + kind;
+                    if (seenPairs.has(pairKey)) return;
+                    seenPairs.add(pairKey);
                     links.push({ id: `${parent.id}>${kind}:${p.key}`, parentId: parent.id, targetId: existing.id, kind, played: p.played, winrate: p.winrate });
                     return;
                 }
@@ -254,6 +256,7 @@ function buildVisible() {
                     expanded: expansionOrder.includes(p.key), expanding: false,
                 };
                 nodes.set(p.key, node);
+                seenPairs.add([parent.id, p.key].sort().join("|") + "|" + kind);
                 links.push({ id: `${parent.id}>${kind}:${p.key}`, parentId: parent.id, targetId: p.key, kind, played: p.played, winrate: p.winrate });
             });
         };
@@ -273,104 +276,17 @@ function buildVisible() {
     return { nodes: Array.from(new Set(nodes.values())), links };
 }
 
-/* ---------------- deterministic radial-tree layout -------------------------- */
-function groupKeyOf(n) {
-    if (state.groupByClub) return n.club || "Unknown club";
-    if (n.teammatePlayed && n.opponentPlayed) return "Mixed";
-    return n.teammatePlayed ? "Teammates" : "Opponents";
-}
-
-// Places every depth-1 node around the full circle (grouped into club
-// sectors if enabled) and every deeper node in an arc facing away from its
-// own parent, one ring further out. Radius depends only on depth — not on
-// frequency — so busy nodes don't collapse in on the center (node size and
-// edge thickness already encode frequency).
-function layout(nodes, links, W, H) {
-    const cx = W / 2, cy = H / 2;
-    const ring = Math.min(W, H) * 0.16;
-    const root = nodes.find((n) => n.isCenter);
-    root.x = cx; root.y = cy; root.angle = -Math.PI / 2;
-
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const childrenOf = new Map();
-    const placedChildIds = new Set();   // a node can have 2 links from the same parent (teammate + opponent) — only place it once
-    links.forEach((l) => {
-        const child = byId.get(l.targetId);
-        if (child && child.parentId === l.parentId && !placedChildIds.has(child.id)) {
-            if (!childrenOf.has(l.parentId)) childrenOf.set(l.parentId, []);
-            childrenOf.get(l.parentId).push(child);
-            placedChildIds.add(child.id);
-        }
-    });
-
-    const sectors = [];   // only the root's own direct sectors (for the club dividers/labels)
-
-    // Auto-placed kids get a fresh angle below; a manually-dragged kid keeps
-    // its own x/y but still needs *an* angle so ITS children (if expanded)
-    // fan out from the right direction — derive it from where it actually is.
-    function placeChildren(parent) {
-        const allKids = childrenOf.get(parent.id) || [];
-        if (!allKids.length) return;
-        const kids = allKids.filter((k) => manualPos.get(k.id) == null);
-        allKids.forEach((k) => {
-            const manual = manualPos.get(k.id);
-            if (manual) { k.x = manual.x; k.y = manual.y; k.angle = Math.atan2(k.y - cy, k.x - cx); }
-        });
-        const r = ring * (parent.depth + 1);
-
-        if (parent.isCenter) {
-            const groups = new Map();
-            kids.forEach((n) => {
-                const k = groupKeyOf(n);
-                if (!groups.has(k)) groups.set(k, []);
-                groups.get(k).push(n);
-            });
-            const order = Array.from(groups.keys()).sort((a, b) => {
-                const ta = groups.get(a).reduce((s, n) => s + n.totalPlayed, 0);
-                const tb = groups.get(b).reduce((s, n) => s + n.totalPlayed, 0);
-                return tb - ta || a.localeCompare(b);
-            });
-            const GAP = order.length > 1 ? 0.08 : 0;
-            const usable = Math.PI * 2 - GAP * order.length;
-            let cursor = -Math.PI / 2;
-            order.forEach((key) => {
-                const members = groups.get(key).sort((a, b) => b.totalPlayed - a.totalPlayed);
-                const span = Math.max(0.25, (members.length / kids.length) * usable);
-                const start = cursor;
-                members.forEach((n, i) => {
-                    const t = members.length === 1 ? 0.5 : i / (members.length - 1);
-                    n.angle = start + t * span;
-                    n.x = cx + Math.cos(n.angle) * r;
-                    n.y = cy + Math.sin(n.angle) * r;
-                });
-                sectors.push({ key, start, end: start + span, mid: start + span / 2, r });
-                cursor = start + span + GAP;
-            });
-        } else {
-            // Fan across an arc centered on the ray from this node's own
-            // parent through it — i.e. keep growing outward, not folding back.
-            const span = Math.min(Math.PI * 0.85, 0.5 + kids.length * 0.35);
-            const sorted = kids.slice().sort((a, b) => b.totalPlayed - a.totalPlayed);
-            sorted.forEach((n, i) => {
-                const t = sorted.length === 1 ? 0.5 : i / (sorted.length - 1);
-                n.angle = parent.angle - span / 2 + t * span;
-                n.x = cx + Math.cos(n.angle) * r;
-                n.y = cy + Math.sin(n.angle) * r;
-            });
-        }
-        allKids.forEach((n) => placeChildren(n));
-    }
-    placeChildren(root);
-
-    return { cx, cy, sectors };
-}
-
-/* ---------------- render ---------------------------------------------------- */
+/* ---------------- Cytoscape rendering ----------------------------------------
+ * Node/edge visuals are just data + a stylesheet; Cytoscape's own
+ * breadthfirst layout (radiating out from the root, one ring per hop,
+ * avoidOverlap on) does the positioning instead of a hand-rolled layout, so
+ * it can't produce the branch-crossing/node-overlap layouts the old SVG
+ * renderer sometimes did. ---------------------------------------------------- */
 function nodeRadius(n) { return n.isCenter ? 24 : 9 + Math.min(14, Math.sqrt(n.totalPlayed || 1) * 3.5); }
-function nodeColor(n) {
-    if (n.isCenter) return "var(--accent)";
-    if (n.teammatePlayed && n.opponentPlayed) return "var(--net-mixed)";
-    return n.teammatePlayed ? "var(--net-teammate)" : "var(--net-opponent)";
+function nodeKind(n) {
+    if (n.isCenter) return "center";
+    if (n.teammatePlayed && n.opponentPlayed) return "mixed";
+    return n.teammatePlayed ? "teammate" : "opponent";
 }
 function shortName(name) {
     const parts = (name || "").trim().split(/\s+/);
@@ -378,142 +294,169 @@ function shortName(name) {
     return `${parts[0][0]}. ${parts[parts.length - 1]}`;
 }
 
+// Resolved colours read live from the CSS tokens in network.css, so the
+// graph follows the light/dark toggle instead of baking in one theme.
+function cssVar(name, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+function palette() {
+    return {
+        accent: cssVar("--accent", "#0f766e"), accentInk: cssVar("--accent-ink", "#0f766e"),
+        ink: cssVar("--ink", "#1a1a1a"), inkFaint: cssVar("--ink-faint", "#94a3b8"),
+        card: cssVar("--card", "#fff"), border: cssVar("--border", "#e2e8f0"),
+        teammate: cssVar("--net-teammate", "#1baf7a"), opponent: cssVar("--net-opponent", "#c9971f"),
+        mixed: cssVar("--net-mixed", "#8b5cf6"),
+    };
+}
+
+function buildStyle() {
+    const c = palette();
+    const FONT = "Inter, sans-serif";
+    return [
+        { selector: "node[kind]", style: {
+            "width": "data(size)", "height": "data(size)",
+            "background-color": c.teammate,
+            "border-width": 2.5, "border-color": c.card,
+            "label": "data(label)", "color": c.ink, "font-family": FONT,
+            "font-size": 11, "font-weight": 600,
+            "text-valign": "bottom", "text-margin-y": 6,
+            "text-outline-width": 3, "text-outline-color": c.card, "text-outline-opacity": 1,
+        } },
+        { selector: 'node[kind="opponent"]', style: { "background-color": c.opponent } },
+        { selector: 'node[kind="mixed"]', style: { "background-color": c.mixed } },
+        { selector: 'node[kind="center"]', style: {
+            "background-color": c.accent, "border-color": c.accentInk, "border-width": 3,
+            "font-weight": 800, "font-size": 12,
+        } },
+        { selector: "node.expanded", style: { "border-width": 3.5, "border-style": "dashed", "border-color": c.inkFaint } },
+        { selector: "node.busy", style: { "opacity": 0.5 } },
+        { selector: "node.hover", style: { "overlay-color": c.ink, "overlay-opacity": 0.1, "overlay-padding": 4 } },
+        { selector: "edge", style: {
+            "width": "data(width)", "line-color": c.teammate, "target-arrow-shape": "none",
+            "curve-style": "bezier", "opacity": 0.55,
+            "label": "data(label)", "font-size": 9, "font-family": FONT, "font-weight": 700, "color": c.teammate,
+            "text-background-color": c.card, "text-background-opacity": 1, "text-background-padding": 2,
+        } },
+        { selector: 'edge[kind="opponent"]', style: { "line-color": c.opponent, "color": c.opponent } },
+        { selector: "edge.hover", style: { "opacity": 1 } },
+    ];
+}
+
+// "Group by club" clusters the root's direct connections by club, ordering
+// them adjacently so breadthfirst's angular placement puts club-mates next
+// to each other. (Cytoscape compound-node boxes were tried here first, but
+// breadthfirst doesn't lay out compound children close enough together to
+// keep the box tight — it ends up spanning far enough to swallow unrelated
+// nodes in between, which looked worse than no grouping at all. A per-club
+// cluster without a drawn boundary is the reliable middle ground; the club
+// is still one hover away in the tooltip.)
+function buildElements(nodes, links) {
+    const grouping = state.groupByClub;
+    const els = [];
+
+    const ordered = grouping
+        ? nodes.filter((n) => n.depth !== 1).concat(
+            nodes.filter((n) => n.depth === 1).sort((a, b) => (a.club || "Unknown club").localeCompare(b.club || "Unknown club")))
+        : nodes;
+
+    ordered.forEach((n) => {
+        const data = { id: n.id, label: n.isCenter ? n.name : shortName(n.name), size: nodeRadius(n) * 2, kind: nodeKind(n) };
+        const classes = [];
+        if (n.expanded && !n.isCenter) classes.push("expanded");
+        if (n.expanding) classes.push("busy");
+        const ele = { group: "nodes", data, classes: classes.join(" ") };
+        const manual = manualPos.get(n.id);
+        if (manual) { ele.position = { x: manual.x, y: manual.y }; ele.locked = true; }
+        els.push(ele);
+    });
+
+    links.forEach((l) => {
+        els.push({ group: "edges", data: {
+            id: l.id, source: l.parentId, target: l.targetId, kind: l.kind,
+            width: 1 + Math.min(6, Math.sqrt(l.played) * 1.6), label: String(l.played),
+        } });
+    });
+    return els;
+}
+
+// Created once; every render() after that just swaps its elements and
+// re-runs layout. All node/edge interaction is wired here rather than
+// per-element, since Cytoscape dispatches events by selector.
+function ensureCy() {
+    if (cy) return cy;
+    cy = cytoscape({
+        container: $("network-svg"),
+        style: buildStyle(),
+        elements: [],
+        minZoom: 0.1,
+        maxZoom: 3,
+        boxSelectionEnabled: false,
+    });
+
+    cy.on("tap", "node", (evt) => onNodeClick(nodeById.get(evt.target.id()), evt.originalEvent));
+    cy.on("mouseover", "node", (evt) => {
+        evt.target.addClass("hover");
+        showTooltip(evt.originalEvent, nodeTooltip(nodeById.get(evt.target.id())));
+    });
+    cy.on("mouseout", "node", (evt) => { evt.target.removeClass("hover"); hideTooltip(); });
+    cy.on("mousemove", "node", (evt) => moveTooltip(evt.originalEvent));
+
+    cy.on("mouseover", "edge", (evt) => {
+        evt.target.addClass("hover");
+        showTooltip(evt.originalEvent, linkTooltip(edgeById.get(evt.target.id())));
+    });
+    cy.on("mouseout", "edge", (evt) => { evt.target.removeClass("hover"); hideTooltip(); });
+    cy.on("mousemove", "edge", (evt) => moveTooltip(evt.originalEvent));
+
+    // Persist a drag so the next render() (a filter toggle, an expand
+    // elsewhere) keeps this node right where it was left.
+    cy.on("dragfree", "node", (evt) => {
+        const p = evt.target.position();
+        manualPos.set(evt.target.id(), { x: p.x, y: p.y });
+    });
+    return cy;
+}
+
 function render() {
     if (!fetched.has("center")) return;
     const { nodes, links } = buildVisible();
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    links.forEach((l) => { l.source = byId.get(l.parentId); l.target = byId.get(l.targetId); });
+    nodeById = new Map(nodes.map((n) => [n.id, n]));
+    edgeById = new Map(links.map((l) => [l.id, l]));
 
     $("ng-stats").innerHTML = `<div class="ns-label">People: ${nodes.length - 1} &middot; Connections: ${links.length}</div>`;
 
-    const svg = $("network-svg");
     if (nodes.length <= 1) {
         $("network-empty").classList.remove("hidden");
         $("network-empty").textContent = "No matches for this filter yet.";
-        svg.innerHTML = "";
+        if (cy) cy.elements().remove();
         renderLegend();
         return;
     }
     $("network-empty").classList.add("hidden");
     renderLegend();
 
-    const rect = svg.getBoundingClientRect();
-    const W = Math.max(320, Math.round(rect.width) || 900), H = Math.max(420, Math.round(rect.height) || 640);
-    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-    const { sectors } = layout(nodes, links, W, H);
-
-    svg.innerHTML = "";
-    const sectorLayer = el("g", { class: "ng-sectors" });
-    const linkLayer = el("g", { class: "ng-links" });
-    const labelLayer = el("g", { class: "ng-edge-labels" });
-    const nodeLayer = el("g", { class: "ng-nodes" });
-    svg.append(sectorLayer, linkLayer, labelLayer, nodeLayer);
-
-    if (sectors.length > 1) {
-        const root = byId.get("center");
-        sectors.forEach((s) => {
-            const x1 = root.x + Math.cos(s.start) * (s.r + 26), y1 = root.y + Math.sin(s.start) * (s.r + 26);
-            sectorLayer.appendChild(el("line", { class: "ng-sector-line", x1: root.x, y1: root.y, x2: x1, y2: y1 }));
-            const lx = root.x + Math.cos(s.mid) * (s.r + 30), ly = root.y + Math.sin(s.mid) * (s.r + 30);
-            const t = el("text", {
-                class: "ng-sector-label", x: lx, y: ly,
-                "text-anchor": Math.cos(s.mid) > 0.15 ? "start" : Math.cos(s.mid) < -0.15 ? "end" : "middle",
-            });
-            t.textContent = s.key;
-            sectorLayer.appendChild(t);
-        });
-    }
-
-    const linkEls = links.map((l) => {
-        const line = el("line", {
-            class: `ng-link ng-link--${l.kind}`,
-            "stroke-width": 1 + Math.min(6, Math.sqrt(l.played) * 1.6),
-            x1: l.source.x, y1: l.source.y, x2: l.target.x, y2: l.target.y,
-        });
-        line.addEventListener("pointerenter", (e) => showTooltip(e, linkTooltip(l)));
-        line.addEventListener("pointermove", moveTooltip);
-        line.addEventListener("pointerleave", hideTooltip);
-        linkLayer.appendChild(line);
-
-        const mx = (l.source.x + l.target.x) / 2, my = (l.source.y + l.target.y) / 2;
-        const label = el("text", { class: `ng-edge-label ng-edge-label--${l.kind}`, x: mx, y: my });
-        label.textContent = l.played;
-        labelLayer.appendChild(label);
-
-        return { data: l, line, label };
-    });
-    // Two labels landing on the same spot (e.g. a teammate+opponent pair, or
-    // a cross-link doubling up) — nudge the later one apart.
-    const seenMid = new Map();
-    linkEls.forEach(({ data, label }) => {
-        const key = data.parentId + ">" + data.targetId;
-        const n = (seenMid.get(key) || 0);
-        seenMid.set(key, n + 1);
-        if (n > 0) label.setAttribute("dy", 12 * n);
-    });
-
-    nodes.forEach((n) => {
-        const g = el("g", { class: "ng-node" + (n.isCenter ? " ng-node--center" : "") + (n.expanding ? " ng-node--busy" : ""), transform: `translate(${n.x},${n.y})` });
-        const r = nodeRadius(n);
-        g.appendChild(el("circle", { r, fill: nodeColor(n) }));
-        if (!n.isCenter && n.expanded) g.appendChild(el("circle", { class: "ng-node__ring", r: r + 3.5 }));
-        const label = el("text", { class: "ng-node__label", y: r + 13 });
-        label.textContent = n.isCenter ? n.name : shortName(n.name);
-        g.appendChild(label);
-        nodeLayer.appendChild(g);
-        wireNodeInteractions(g, n, linkEls);
-    });
+    const instance = ensureCy();
+    instance.resize();
+    instance.style(buildStyle());
+    instance.elements().remove();
+    instance.add(buildElements(nodes, links));
+    instance.layout({
+        name: "breadthfirst",
+        roots: "#center",
+        circle: true,
+        avoidOverlap: true,
+        spacingFactor: 1.35,
+        animate: false,
+        fit: true,
+        padding: 36,
+    }).run();
 }
 
-/* ---------------- node interactions: drag + click(=expand) + hover -------- */
-function wireNodeInteractions(g, n, linkEls) {
-    if (n.isCenter) {
-        g.addEventListener("pointerenter", (e) => showTooltip(e, nodeTooltip(n)));
-        g.addEventListener("pointermove", moveTooltip);
-        g.addEventListener("pointerleave", hideTooltip);
-        return;
-    }
-    const svg = $("network-svg");
-    const toSvgPoint = (e) => {
-        const pt = svg.createSVGPoint();
-        pt.x = e.clientX; pt.y = e.clientY;
-        const m = svg.getScreenCTM();
-        return m ? pt.matrixTransform(m.inverse()) : { x: n.x, y: n.y };
-    };
-    const myLinks = linkEls.filter((l) => l.data.targetId === n.id);
-
-    let moved = false, downAt = null;
-    g.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        moved = false;
-        downAt = toSvgPoint(e);
-        g.setPointerCapture(e.pointerId);
-
-        const onMove = (ev) => {
-            const p = toSvgPoint(ev);
-            if (Math.abs(p.x - downAt.x) > 3 || Math.abs(p.y - downAt.y) > 3) moved = true;
-            n.x = p.x; n.y = p.y;
-            manualPos.set(n.id, { x: p.x, y: p.y });
-            g.setAttribute("transform", `translate(${n.x},${n.y})`);
-            myLinks.forEach(({ line, label }) => {
-                line.setAttribute("x2", n.x); line.setAttribute("y2", n.y);
-                label.setAttribute("x", (line.x1.baseVal.value + n.x) / 2);
-                label.setAttribute("y", (line.y1.baseVal.value + n.y) / 2);
-            });
-        };
-        const onUp = (upEv) => {
-            g.removeEventListener("pointermove", onMove);
-            g.removeEventListener("pointerup", onUp);
-            if (!moved) onNodeClick(n, upEv);
-        };
-        g.addEventListener("pointermove", onMove);
-        g.addEventListener("pointerup", onUp);
-    });
-
-    g.addEventListener("pointerenter", (e) => showTooltip(e, nodeTooltip(n)));
-    g.addEventListener("pointermove", moveTooltip);
-    g.addEventListener("pointerleave", hideTooltip);
-}
+// Redraw with fresh colours whenever the light/dark toggle flips — the
+// stylesheet bakes in resolved colours rather than living CSS var()
+// references, since Cytoscape draws to a <canvas>.
+new MutationObserver(() => { if (cy) cy.style(buildStyle()); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
 // Click = select this player and expand their own 1-hop neighborhood into
 // the graph (per-click, not a toggle — already-expanded people just re-open
@@ -528,7 +471,7 @@ async function onNodeClick(n, e) {
     n.expanding = true;
     render();
     try {
-        const res = await getPlayerNetwork({ sp_code: n.sp_code, profile_id: n.profile_id || "", name: n.name });
+        const res = await getPlayerNetwork({ sp_code: n.sp_code, profile_id: n.profile_id || "", name: n.name, url: n.url || "" });
         if (res.data.error) throw new Error(res.data.error);
         fetched.set(n.id, {
             profile_id: res.data.profile_id,
@@ -538,11 +481,13 @@ async function onNodeClick(n, e) {
         expansionOrder.push(n.id);
     } catch (err) {
         console.warn("expand failed, falling back:", err.message);
-        // Most people in the graph were never individually analysed on the
-        // site, so they have no resolvable internal profile — that's the
-        // expected common case here (see get_player_network), not a real
-        // failure. Fall back to their external dbv link when we have one
-        // instead of just showing an error.
+        // get_player_network already tries to analyse an unresolved peer on
+        // our behalf (via the url we just sent it, tournament- or
+        // league-scoped) before giving up, so a failure here means that
+        // didn't work either — someone with no real dbv profile at all (a
+        // guest/foreign entrant), or no url in the first place. Not a real
+        // failure on our end; fall back to their external dbv link when we
+        // have one instead of just showing an error.
         hideTooltip();
         if (n.url) {
             window.open(n.url, "_blank", "noopener");
@@ -561,6 +506,13 @@ function goToPlayer(n) {
     if (n.isCenter) return;
     if (n.sp_code) {
         const q = new URLSearchParams({ sp: n.sp_code });
+        // Reaching here means this node's own expand already succeeded (see
+        // onNodeClick), so their profile_id was already resolved — it just
+        // lives in `fetched`, not on the per-render node object. Carry it
+        // along so the player page doesn't have to re-resolve it (or worse,
+        // land with sp only and show "no dbv profile linked" until it does).
+        const raw = fetched.get(n.id);
+        if (raw && raw.profile_id) q.set("pid", raw.profile_id);
         if (n.name) q.set("name", n.name);
         location.href = "/html/player.html?" + q.toString();
     } else if (n.url) {

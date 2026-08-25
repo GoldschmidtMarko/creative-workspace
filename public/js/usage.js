@@ -155,7 +155,7 @@ function renderEntityTable(id, rows, nameHeader, showId) {
         { label: "Last queried", field: "lastQueried", type: "date", defaultDir: "desc",
             cell: (r) => `<td class="when">${fmtDate(r.lastQueried)}</td>` },
     ];
-    mountSortableTable(el, columns, rows, { key: "count", dir: "desc" });
+    mountSortableTable(el, columns, rows, { key: "lastQueried", dir: "desc" });
 }
 
 function renderUsers(users) {
@@ -178,7 +178,33 @@ function renderUsers(users) {
         { label: "Registered", field: "registrationDate", type: "date", defaultDir: "desc",
             cell: (u) => `<td class="when">${fmtDate(u.registrationDate)}</td>` },
     ];
-    mountSortableTable(el, columns, users.top, { key: "loginCount", dir: "desc" });
+    mountSortableTable(el, columns, users.top, { key: "lastLogin", dir: "desc" });
+}
+
+const FEEDBACK_CATEGORY_LABEL = { bug: "Bug", feature: "Feature", data: "Data", other: "Other" };
+
+function renderFeedback(rows) {
+    const el = document.getElementById("table-feedback");
+    if (!rows || !rows.length) {
+        el.innerHTML = `<div class="usage-empty">No feedback yet.</div>`;
+        return;
+    }
+    const columns = [
+        { label: "#", cell: (r, i) => `<td class="rank">${i + 1}</td>` },
+        {
+            label: "Category", field: "category", type: "string", defaultDir: "asc",
+            cell: (r) => `<td><span class="fb-cat fb-cat--${escapeHtml(r.category)}">${escapeHtml(FEEDBACK_CATEGORY_LABEL[r.category] || "Other")}</span></td>`,
+        },
+        { label: "Message", field: "message", type: "string", defaultDir: "asc",
+            cell: (r) => `<td class="msg">${escapeHtml(r.message)}</td>` },
+        {
+            label: "From", field: "userName", type: "string", defaultDir: "asc",
+            cell: (r) => `<td class="name">${escapeHtml(r.userName || "Anonymous")}</td>`,
+        },
+        { label: "When", field: "createdAt", type: "date", defaultDir: "desc",
+            cell: (r) => `<td class="when">${fmtDate(r.createdAt)}</td>` },
+    ];
+    mountSortableTable(el, columns, rows, { key: "createdAt", dir: "desc" });
 }
 
 // --- Usage-over-time bar chart (SVG) ---------------------------------------
@@ -260,6 +286,7 @@ function render(data) {
     renderEntityTable("table-disciplines", data.disciplines, "Discipline", true);
     renderEntityTable("table-players", data.players, "Player", true);
     renderUsers(data.users || { total: 0, top: [] });
+    renderFeedback(data.feedback || []);
     show(dashboard);
 }
 
@@ -274,7 +301,7 @@ function showLoadingSkeleton() {
     document.getElementById("usage-timeline").innerHTML = `<div class="skel skel-block" style="height:200px"></div>`;
     const table = () => `<div style="padding:0.7rem 0.8rem">` +
         Array.from({ length: 6 }, () => `<div class="skel skel-block" style="height:34px;margin-bottom:0.45rem"></div>`).join("") + `</div>`;
-    ["table-tournaments", "table-disciplines", "table-players", "users-table"].forEach((id) => {
+    ["table-tournaments", "table-disciplines", "table-players", "users-table", "table-feedback"].forEach((id) => {
         const el = document.getElementById(id); if (el) el.innerHTML = table();
     });
     show(dashboard);
