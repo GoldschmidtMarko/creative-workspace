@@ -6,7 +6,7 @@ settings automatically; when Firestore is unavailable (e.g. local scripts)
 """
 
 from firebase_admin import initialize_app, firestore
-from firebase_functions.options import set_global_options
+from firebase_functions.options import SupportedRegion, set_global_options
 
 try:
     # Explicit projectId rather than relying on implicit detection.
@@ -19,7 +19,11 @@ except Exception as e:
     print(f"⚠️  Firestore initialization failed: {e}. Using memory cache instead.")
     db = None
 
-set_global_options(max_instances=10, timeout_sec=540, memory=512)
+
+# europe-west3 = Frankfurt, Germany — every callable deploys here instead of
+# the us-central1 default (see public/js/util/firebase.js, which must name
+# the same region so the client calls the right endpoint).
+set_global_options(region=SupportedRegion.EUROPE_WEST3, max_instances=10, timeout_sec=540, memory=512)
 
 
 def log_firestore_error(context: str, error: Exception) -> None:

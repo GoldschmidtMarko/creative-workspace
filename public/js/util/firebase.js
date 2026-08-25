@@ -8,7 +8,9 @@ import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs
 import { firebaseConfig } from "./firebaseConfig.js";
 
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const functions = getFunctions(app);
+// europe-west3 (Frankfurt) — must match the region every callable deploys to
+// (see functions/app/core/firebase_app.py's set_global_options).
+export const functions = getFunctions(app, "europe-west3");
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
