@@ -79,7 +79,7 @@
             box-shadow: var(--shadow-sm);
             overflow: hidden;
         }
-        .table-scroll { overflow-x: auto; }
+        .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .usage-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
         .usage-table th, .usage-table td {
             padding: 0.55rem 0.8rem; text-align: left; white-space: nowrap;
@@ -104,7 +104,7 @@
         .usage-table td.name { color: var(--ink); font-weight: 500; white-space: normal; }
         .usage-table td.name .sub {
             display: block; color: var(--ink-faint); font-size: 0.72rem;
-            font-family: monospace; font-weight: 400;
+            font-family: monospace; font-weight: 400; overflow-wrap: anywhere;
         }
         .usage-table th.n, .usage-table td.n { text-align: right; }
         .usage-table td.n { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -112,6 +112,16 @@
         .usage-table td.when { color: var(--ink-dim); font-size: 0.8rem; }
         .usage-table td.msg { color: var(--ink); white-space: normal; max-width: 480px; }
         .usage-empty { padding: 1.25rem; color: var(--ink-faint); text-align: center; font-size: 0.85rem; }
+
+        /* "Show N more" footer under a truncated table */
+        .table-more { border-top: 1px solid var(--border); text-align: center; }
+        .table-more__btn {
+            width: 100%; padding: 0.65rem; background: none; border: none;
+            color: var(--accent); font: inherit; font-size: 0.82rem; font-weight: 600;
+            cursor: pointer;
+        }
+        .table-more__btn:hover { background: var(--card-2); }
+        .table-more__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
         .users-total { color: var(--ink-dim); font-size: 0.85rem; }
         .users-total b { color: var(--ink); font-size: 1.05rem; }
@@ -126,6 +136,34 @@
         .fb-cat--feature { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
         .fb-cat--data { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
         .fb-cat--other { background: var(--card-2); color: var(--ink-dim); }
+
+        /* Mobile ------------------------------------------------------- */
+        @media (max-width: 640px) {
+            .usage-main { max-width: 100%; }
+            .section-head {
+                flex-direction: column; align-items: flex-start; gap: 0.15rem;
+                margin: 1.5rem 0 0.6rem;
+            }
+            .section-head .hint, .section-head .users-total { font-size: 0.76rem; }
+
+            .stat-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 0.6rem; }
+            .stat { padding: 0.75rem 0.85rem; }
+            .stat__value { font-size: 1.55rem; }
+            .stat__split { font-size: 0.75rem; gap: 0.7rem; }
+
+            /* Secondary columns (signed-in/anon split, registration date) fold
+               away first — Name/Total/Last-queried carry the useful signal. */
+            .usage-table .mobile-hide { display: none; }
+            .usage-table th, .usage-table td { padding: 0.5rem 0.6rem; font-size: 0.82rem; }
+            .usage-table th.th-sort { padding-top: 0.65rem; padding-bottom: 0.65rem; }
+            .usage-table td.msg { max-width: 150px; }
+            .usage-table td.name { max-width: 140px; }
+            /* Date+time columns drop the time onto its own line instead of
+               forcing the table wider than the screen. */
+            .usage-table .when-time { display: block; }
+
+            .gate { padding: 2.25rem 1rem; }
+        }
     </style>
 </head>
 
@@ -203,27 +241,27 @@
                 <div class="section-head">
                     <h2>Top tournaments</h2><span class="hint">times opened · most recently queried first</span>
                 </div>
-                <div class="usage-card"><div class="table-scroll" id="table-tournaments"></div></div>
+                <div class="usage-card" id="table-tournaments"></div>
 
                 <div class="section-head">
                     <h2>Top disciplines</h2><span class="hint">analyses per discipline · most recently queried first</span>
                 </div>
-                <div class="usage-card"><div class="table-scroll" id="table-disciplines"></div></div>
+                <div class="usage-card" id="table-disciplines"></div>
 
                 <div class="section-head">
                     <h2>Top players</h2><span class="hint">profile lookups · most recently queried first</span>
                 </div>
-                <div class="usage-card"><div class="table-scroll" id="table-players"></div></div>
+                <div class="usage-card" id="table-players"></div>
 
                 <div class="section-head">
                     <h2>Users</h2><span class="users-total">Total registered: <b id="users-total">0</b></span>
                 </div>
-                <div class="usage-card"><div class="table-scroll" id="users-table"></div></div>
+                <div class="usage-card" id="users-table"></div>
 
                 <div class="section-head">
                     <h2>Feedback</h2><span class="hint">bug reports, feature requests &amp; notes from users · most recent first</span>
                 </div>
-                <div class="usage-card"><div class="table-scroll" id="table-feedback"></div></div>
+                <div class="usage-card" id="table-feedback"></div>
             </div>
         </main>
     </div>
