@@ -453,7 +453,7 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   gap: 0.5rem;
   color: var(--ink-dim);
   text-decoration: none;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   font-weight: 500;
   transition: color 0.2s;
 }
@@ -514,6 +514,7 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   align-items: center;
   gap: 1rem;
   height: 56px;
+  margin-bottom: 0;   /* it's a <header>, so it'd otherwise inherit the generic header's 4rem */
   padding: 0 clamp(0.9rem, 3vw, 1.75rem);
   background: color-mix(in srgb, var(--card) 78%, transparent);
   backdrop-filter: saturate(180%) blur(14px);
