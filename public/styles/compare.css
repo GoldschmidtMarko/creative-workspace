@@ -64,6 +64,14 @@
 .pcard.is-collapsed .fold-body { display: none; }
 .pcard.is-collapsed .fold-header__chevron { transform: rotate(-90deg); }
 
+/* Signed out, there's nothing meaningful to fold — always show the (blurred)
+   sign-in teaser regardless of collapsed state, and drop the now-pointless
+   fold toggle. */
+html:not(.is-authed) #cmp-bax-card.is-collapsed .fold-body,
+html:not(.is-authed) #cmp-games-card.is-collapsed .fold-body { display: block; }
+html:not(.is-authed) #cmp-bax-card .fold-btn,
+html:not(.is-authed) #cmp-games-card .fold-btn { display: none; }
+
 /* ---- recommendations: teammates/opponents of the players already added -- */
 .cmp-recs { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .cmp-recs__toggle {

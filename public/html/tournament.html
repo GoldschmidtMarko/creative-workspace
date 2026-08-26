@@ -60,8 +60,9 @@
                 <div class="browse-status" style="padding:0.5rem 0;">Loading disciplines…</div>
             </div>
 
-            <div class="card results-card" id="results-card"
+            <div class="card results-card auth-gate" id="results-card"
                 style="align-items:stretch; text-align:left; padding:1.5rem; margin-top:1.25rem;">
+                <div class="auth-gate__content">
 
                 <div id="empty-state" class="browse-status" style="padding:2.5rem 1rem;">
                     Pick a discipline above to rank its teams by BAX.
@@ -106,6 +107,15 @@
                 <div id="chart-container" style="display:none;">
                     <div class="chart-main-card"><div id="chart-body"></div></div>
                 </div>
+
+                </div><!-- /.auth-gate__content -->
+                <div class="auth-gate__overlay">
+                    <i data-lucide="lock" class="auth-gate__lock"></i>
+                    <p class="auth-gate__msg">Sign in with Google to see this tournament's BAX rankings.</p>
+                    <button type="button" class="btn btn-primary btn-sm auth-gate__signin">
+                        <i data-lucide="log-in"></i> Sign in with Google
+                    </button>
+                </div>
             </div>
         </main>
 
@@ -121,6 +131,7 @@
 
     <script type="module" src="/js/util/auth.js"></script>
     <script type="module" src="/js/util/feedback.js"></script>
+    <script type="module" src="/js/util/authGate.js"></script>
     <script type="module" src="/js/tournament.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>
