@@ -5,6 +5,7 @@
 // Sections render progressively, each with its own skeleton.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
+import { mountFavoriteStar } from "./util/favorites.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -293,6 +294,19 @@ function setupAddCompare(sp, pid, name) {
     };
 }
 
+// Reuses the same identity token as "Add to comparison" (sp_code, else
+// pid:<profile_id>, else name:<name>) as the favorite's stable id.
+function setupFavoriteStar(sp, pid, name) {
+    const el = $("p-star");
+    if (!el) return;
+    const id = compareToken(sp, pid, name);
+    mountFavoriteStar(el, {
+        type: "player", id, name,
+        meta: { sp_code: sp || "", profile_id: pid || "" },
+        label: { off: "Star", on: "Starred" },
+    });
+}
+
 /* ------------------------------------------------------------------ */
 /* Load pipeline                                                      */
 /* ------------------------------------------------------------------ */
@@ -318,6 +332,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
             updateUrl(sp, pid, name);
             recordRecentPlayer(sp, pid, name);
             setupAddCompare(sp, pid, name);
+            setupFavoriteStar(sp, pid, name);
             if (window.lucide) lucide.createIcons();
             loadDbvStats(pid, name);
             loadLeagues(pid, name);
@@ -340,6 +355,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
         updateUrl(rsp, rpid, identity && identity.name);
         recordRecentPlayer(rsp, rpid, identity && identity.name);
         setupAddCompare(rsp, rpid, identity && identity.name);
+        setupFavoriteStar(rsp, rpid, identity && identity.name);
         if (window.lucide) lucide.createIcons();
 
         if (rpid) {

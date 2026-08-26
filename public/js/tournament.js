@@ -4,6 +4,7 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { functions, db } from "./util/firebase.js";
+import { mountFavoriteStar } from "./util/favorites.js";
 
 const getBaxData = httpsCallable(functions, "get_player_bax_data", { timeout: 540000 });
 const getDisciplines = httpsCallable(functions, "get_tournament_disciplines", { timeout: 60000 });
@@ -122,6 +123,12 @@ function renderHeader(name, start, end, city) {
     if (city) meta.push(`📍 ${city}`);
     const badge = winnersResolved ? '<span class="mini-tag mini-tag--done">Completed</span>' : "";
     $("t-meta").innerHTML = badge + meta.map((m) => `<span>${escapeHtml(m)}</span>`).join("");
+
+    mountFavoriteStar($("t-star"), {
+        type: "tournament", id: tournamentId, name,
+        meta: { start: start || "", end: end || "", city: city || "" },
+        label: { off: "Star", on: "Starred" },
+    });
 }
 function refreshHeader() { if (lastHeaderArgs) renderHeader(lastHeaderArgs.name, lastHeaderArgs.start, lastHeaderArgs.end, lastHeaderArgs.city); }
 function fmt(iso) {
@@ -136,13 +143,24 @@ function renderDisciplineBar() {
         disciplineBar.innerHTML = '<div class="browse-status" style="padding:0.5rem 0;">No disciplines published for this tournament yet.</div>';
         return;
     }
+    // A two-part pill rather than a single <button> — the label selects the
+    // discipline, the star (a separate control; buttons can't nest) favorites
+    // this tournament+discipline combination.
     disciplineBar.innerHTML = disciplines.map((d) =>
-        `<button class="disc-chip" type="button" data-event="${escapeHtml(d.event)}">${escapeHtml(d.name)}</button>`
+        `<div class="disc-chip" data-event="${escapeHtml(d.event)}">
+            <button class="disc-chip__select" type="button">${escapeHtml(d.name)}</button>
+            <span class="disc-chip__star" data-event="${escapeHtml(d.event)}"></span>
+        </div>`
     ).join("");
-    disciplineBar.querySelectorAll("[data-event]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const d = disciplines.find((x) => x.event === btn.getAttribute("data-event"));
-            if (d) selectDiscipline(d);
+    disciplineBar.querySelectorAll(".disc-chip__select").forEach((btn, i) => {
+        btn.addEventListener("click", () => selectDiscipline(disciplines[i]));
+    });
+    disciplineBar.querySelectorAll(".disc-chip__star").forEach((el, i) => {
+        const d = disciplines[i];
+        mountFavoriteStar(el, {
+            type: "discipline", id: `${tournamentId}::${d.event}`, name: d.name,
+            meta: { tournamentId, tournamentName: tournamentName || "", event: d.event },
+            iconOnly: true,
         });
     });
 }

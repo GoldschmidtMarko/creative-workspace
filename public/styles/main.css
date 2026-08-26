@@ -276,6 +276,39 @@ header p {
 .icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 .icon-btn svg { width: 1.15rem; height: 1.15rem; stroke: currentColor; }
 
+/* Favorite star toggle ---------------------------------------------------
+   Shared by the player/tournament identity headers and the discipline bar
+   (mounted via public/js/util/favorites.js's mountFavoriteStar). Amber is a
+   one-off color here rather than a design token — it only ever means
+   "starred", nowhere else in the UI. Hidden while signed out, since
+   favorites don't exist without an account (see html.is-authed below). */
+.star-btn {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--ghost-border);
+  background: var(--card);
+  color: var(--ghost-ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+html.is-authed .star-btn { display: inline-flex; }
+.star-btn:hover { background: var(--card-2); border-color: var(--border-strong); transform: scale(1.03); }
+.star-btn:active { transform: scale(0.96); }
+.star-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.star-btn svg { width: 1rem; height: 1rem; stroke: currentColor; fill: none; }
+.star-btn.is-starred { color: #b45309; border-color: #f5b942; background: color-mix(in srgb, #f5b942 16%, var(--card)); }
+.star-btn.is-starred svg { fill: #f5b942; stroke: #b45309; }
+.star-btn.is-starred:hover { background: color-mix(in srgb, #f5b942 26%, var(--card)); }
+
+/* Icon-only variant (no label) — used inline in tighter spots. */
+.star-btn--icon { padding: 0.4rem; border-radius: 50%; }
+
 /* Theme toggle ---------------------------------------------------------- */
 
 .theme-toggle { position: relative; }

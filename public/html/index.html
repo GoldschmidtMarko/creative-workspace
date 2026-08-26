@@ -15,6 +15,48 @@
     <link rel="stylesheet" href="/styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/styles/feedback.css">
+    <style>
+        /* "Your Favorites" — signed-in only (see html.is-authed gating below,
+           the same class auth.js already toggles for other auth-gated UI). */
+        .favorites-section { display: none; max-width: 900px; margin: 0 auto 2.5rem; }
+        html.is-authed .favorites-section { display: block; }
+        .favorites-section h2 {
+            font-size: 1.05rem; color: var(--ink); margin: 0 0 0.9rem;
+            text-align: center;
+        }
+        .fav-group { margin-bottom: 1rem; }
+        .fav-group.hidden { display: none; }
+        .fav-group h3 {
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--ink-faint); margin: 0 0 0.5rem;
+        }
+        .fav-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .fav-chip {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+            padding: 0.4rem 0.5rem 0.4rem 0.85rem; box-shadow: var(--shadow-sm);
+        }
+        .fav-chip__link {
+            display: inline-flex; align-items: center; gap: 0.45rem;
+            color: var(--ink); text-decoration: none; font-size: 0.85rem; font-weight: 500;
+            max-width: 260px;
+        }
+        .fav-chip__link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .fav-chip__link:hover { color: var(--accent); }
+        .fav-chip__link svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--ink-faint); }
+        .fav-chip__sub { color: var(--ink-faint); font-weight: 400; }
+        .fav-chip__remove {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.3rem; height: 1.3rem; border-radius: 50%; border: none;
+            background: transparent; color: var(--ink-faint); cursor: pointer; font-size: 1rem; line-height: 1;
+        }
+        .fav-chip__remove:hover { background: var(--card-2); color: var(--danger); }
+        .favorites-empty {
+            text-align: center; color: var(--ink-faint); font-size: 0.88rem;
+            border: 1px dashed var(--border); border-radius: var(--radius); padding: 1.5rem;
+        }
+        .favorites-empty.hidden { display: none; }
+    </style>
 </head>
 <body>
     <header class="site-nav">
@@ -45,6 +87,23 @@
             <p class="hero__sub">BAX ratings, history and standings for German badminton.</p>
         </section>
 
+        <section id="favorites-section" class="favorites-section">
+            <h2>Your Favorites</h2>
+            <div class="fav-group hidden" id="fav-group-tournament">
+                <h3>Tournaments</h3>
+                <div class="fav-chips" id="fav-list-tournament"></div>
+            </div>
+            <div class="fav-group hidden" id="fav-group-discipline">
+                <h3>Disciplines</h3>
+                <div class="fav-chips" id="fav-list-discipline"></div>
+            </div>
+            <div class="fav-group hidden" id="fav-group-player">
+                <h3>Players</h3>
+                <div class="fav-chips" id="fav-list-player"></div>
+            </div>
+            <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline or player to see it here.</p>
+        </section>
+
         <main class="entry-grid">
             <a href="/html/tournaments.html" class="entry-card">
                 <div class="entry-card__icon"><i data-lucide="trophy"></i></div>
@@ -70,6 +129,7 @@
 
     <script type="module" src="/js/util/auth.js"></script>
     <script type="module" src="/js/util/feedback.js"></script>
+    <script type="module" src="/js/index.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>
 </html>

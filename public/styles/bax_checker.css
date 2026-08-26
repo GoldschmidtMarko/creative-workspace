@@ -889,26 +889,48 @@ a.tm__name:hover { text-decoration: underline; }
 #view-controls { flex-wrap: wrap; row-gap: 0.75rem; }
 .view-actions { flex-wrap: wrap; row-gap: 0.5rem; }
 
+/* Two-zone pill: .disc-chip__select picks the discipline, .disc-chip__star
+   (a separate control — buttons can't nest) favorites this tournament's
+   discipline. When signed out the star is hidden (see .star-btn in
+   main.css) and the pill reads as a plain single-zone chip. */
 .disc-chip {
-    border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: stretch;
     background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.disc-chip.is-active { background: var(--accent); border-color: transparent; box-shadow: var(--shadow-sm); }
+
+.disc-chip__select {
+    border: none;
+    background: transparent;
     color: var(--ink-dim);
     padding: 0.45rem 0.9rem;
-    border-radius: 999px;
     cursor: pointer;
     font-weight: 600;
     font-size: 0.85rem;
     white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    transition: color 0.15s ease;
 }
-.disc-chip:hover { color: var(--ink); border-color: var(--border-strong); }
-.disc-chip:active { transform: translateY(1px); }
-.disc-chip.is-active {
-    background: var(--accent);
-    border-color: transparent;
-    color: var(--accent-ink);
-    box-shadow: var(--shadow-sm);
+.disc-chip:hover .disc-chip__select { color: var(--ink); }
+.disc-chip.is-active .disc-chip__select { color: var(--accent-ink); }
+.disc-chip:active .disc-chip__select { transform: translateY(1px); }
+
+.disc-chip__star { display: inline-flex; align-items: center; }
+.disc-chip__star .star-btn--icon {
+    border: none;
+    background: transparent;
+    border-radius: 0;
+    padding: 0 0.7rem 0 0;
+    color: var(--ink-faint);
 }
+.disc-chip__star .star-btn--icon:hover { background: transparent; color: var(--accent); transform: none; }
+.disc-chip.is-active .disc-chip__star .star-btn--icon { color: var(--accent-ink); opacity: 0.8; }
+.disc-chip.is-active .disc-chip__star .star-btn--icon:hover { opacity: 1; }
+.disc-chip__star .star-btn--icon.is-starred { color: #f5b942; }
 
 /* "or paste a link" divider + panel */
 .or-divider {

@@ -12,6 +12,7 @@ from app.scraping.network import get_player_network
 from app.scraping.player import get_player_bax, get_player_dbv_stats, get_player_upcoming, search_players
 from app.platform.accounts import save_user_activity
 from app.platform.admin import get_usage_stats
+from app.platform.favorites import toggle_favorite
 from app.platform.feedback import submit_feedback
 from app.platform.health import ping
 
@@ -28,6 +29,7 @@ __all__ = [
     "search_players",
     "save_user_activity",
     "get_usage_stats",
+    "toggle_favorite",
     "submit_feedback",
     "ping",
 ]
