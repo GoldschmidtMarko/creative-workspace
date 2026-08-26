@@ -328,6 +328,10 @@ onFavoritesChange((f) => { favoritesState = f; renderFavoritePlayers(); });
 /* Render: chips + count                                              */
 /* ------------------------------------------------------------------ */
 function renderAll() {
+    // The BAX/games detail cards are just empty shells with nothing selected
+    // — hide them outright rather than showing dead chart/table controls.
+    $("cmp-bax-card").classList.toggle("hidden", !players.length);
+    $("cmp-games-card").classList.toggle("hidden", !players.length);
     renderChips();
     renderFavoritePlayers();
     renderBax();
