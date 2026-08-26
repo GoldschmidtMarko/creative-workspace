@@ -68,4 +68,24 @@ function render(favorites) {
     if (window.lucide) lucide.createIcons();
 }
 
+// Per-group fold state (localStorage, so a collapsed group stays collapsed
+// across visits). The toggle buttons are static markup, wired once — only
+// the chip lists inside them are re-rendered on favorites changes.
+const FOLD_KEY = "bax_favorites_collapsed";
+function getFolded() {
+    try { return JSON.parse(localStorage.getItem(FOLD_KEY) || "{}"); } catch (e) { return {}; }
+}
+function setFolded(map) {
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
+}
+document.querySelectorAll(".fav-group__head").forEach((head) => {
+    const type = head.dataset.favToggle;
+    const group = head.closest(".fav-group");
+    if (getFolded()[type]) group.classList.add("is-collapsed");
+    head.addEventListener("click", () => {
+        const collapsed = group.classList.toggle("is-collapsed");
+        setFolded({ ...getFolded(), [type]: collapsed });
+    });
+});
+
 onFavoritesChange(render);

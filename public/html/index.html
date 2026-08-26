@@ -26,10 +26,16 @@
         }
         .fav-group { margin-bottom: 1rem; }
         .fav-group.hidden { display: none; }
-        .fav-group h3 {
-            font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-            color: var(--ink-faint); margin: 0 0 0.5rem;
+        .fav-group__head {
+            display: flex; align-items: center; gap: 0.35rem;
+            background: none; border: none; padding: 0; margin: 0 0 0.5rem; cursor: pointer;
+            font: inherit; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--ink-faint);
         }
+        .fav-group__head:hover { color: var(--ink-dim); }
+        .fav-group__chev { width: 14px; height: 14px; transition: transform 0.15s ease; }
+        .fav-group.is-collapsed .fav-group__chev { transform: rotate(-90deg); }
+        .fav-group.is-collapsed .fav-chips { display: none; }
         .fav-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
         .fav-chip {
             display: inline-flex; align-items: center; gap: 0.5rem;
@@ -90,15 +96,21 @@
         <section id="favorites-section" class="favorites-section">
             <h2>Your Favorites</h2>
             <div class="fav-group hidden" id="fav-group-tournament">
-                <h3>Tournaments</h3>
+                <button class="fav-group__head" type="button" data-fav-toggle="tournament">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Tournaments</span>
+                </button>
                 <div class="fav-chips" id="fav-list-tournament"></div>
             </div>
             <div class="fav-group hidden" id="fav-group-discipline">
-                <h3>Disciplines</h3>
+                <button class="fav-group__head" type="button" data-fav-toggle="discipline">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Disciplines</span>
+                </button>
                 <div class="fav-chips" id="fav-list-discipline"></div>
             </div>
             <div class="fav-group hidden" id="fav-group-player">
-                <h3>Players</h3>
+                <button class="fav-group__head" type="button" data-fav-toggle="player">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Players</span>
+                </button>
                 <div class="fav-chips" id="fav-list-player"></div>
             </div>
             <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline or player to see it here.</p>
@@ -114,6 +126,11 @@
                 <div class="entry-card__icon"><i data-lucide="user-round"></i></div>
                 <h2>Players</h2>
                 <p>Every player's rating, history &amp; standing.</p>
+            </a>
+            <a href="/html/compare.html" class="entry-card">
+                <div class="entry-card__icon"><i data-lucide="git-compare"></i></div>
+                <h2>Comparison</h2>
+                <p>Compare players head to head.</p>
             </a>
         </main>
 
