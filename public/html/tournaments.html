@@ -46,7 +46,8 @@
             <div class="card input-card" id="filter-card" style="align-items: stretch; text-align: left; padding: 0.85rem 1.1rem;">
                 <div class="input-head">
                     <div class="mode-tabs">
-                        <button id="tab-filters" class="mode-tab active" type="button">Search filters</button>
+                        <button id="tab-favorites" class="mode-tab active" type="button">Favorites</button>
+                        <button id="tab-filters" class="mode-tab" type="button">Search filters</button>
                         <button id="tab-url" class="mode-tab" type="button">Direct link</button>
                     </div>
                     <button class="fold-btn" id="filter-toggle" type="button" aria-expanded="true"
@@ -55,7 +56,22 @@
                     </button>
                 </div>
                 <div id="filter-body" class="fold-body">
-                <div id="mode-filters">
+                <div id="mode-favorites">
+                    <div id="fav-tournaments-group" class="hidden">
+                        <div class="fav-label">Tournaments</div>
+                        <div class="fav-chips" id="fav-tournaments-list"></div>
+                    </div>
+                    <div id="fav-disciplines-group" class="hidden" style="margin-top:0.85rem;">
+                        <div class="fav-label">Disciplines</div>
+                        <div class="fav-chips" id="fav-disciplines-list"></div>
+                    </div>
+                    <div class="browse-status" id="fav-tab-empty" style="padding:0.5rem 0;">
+                        You haven't starred any tournaments yet — star one from its page, or switch to
+                        "Search filters" to find one.
+                    </div>
+                </div><!-- /#mode-favorites -->
+
+                <div id="mode-filters" class="hidden">
                 <div class="filter-grid">
                     <div>
                         <label class="field-label" for="filter-q">Search</label>

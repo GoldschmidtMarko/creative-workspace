@@ -15,6 +15,33 @@
     <link rel="stylesheet" href="/styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/styles/feedback.css">
+    <style>
+        /* "Your Favorites" — signed-in only (see html.is-authed gating below,
+           the same class auth.js already toggles for other auth-gated UI). */
+        .favorites-section { display: none; max-width: 900px; margin: 0 auto 1.5rem; }
+        html.is-authed .favorites-section { display: block; }
+        .favorites-section h2 {
+            font-size: 1.05rem; color: var(--ink); margin: 0 0 0.6rem;
+            text-align: center;
+        }
+        .fav-group { margin-bottom: 0.7rem; }
+        .fav-group.hidden { display: none; }
+        .fav-group__head {
+            display: flex; align-items: center; gap: 0.35rem;
+            background: none; border: none; padding: 0; margin: 0 0 0.5rem; cursor: pointer;
+            font: inherit; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+            color: var(--ink-faint);
+        }
+        .fav-group__head:hover { color: var(--ink-dim); }
+        .fav-group__chev { width: 14px; height: 14px; transition: transform 0.15s ease; }
+        .fav-group.is-collapsed .fav-group__chev { transform: rotate(-90deg); }
+        .fav-group.is-collapsed .fav-chips { display: none; }
+        .favorites-empty {
+            text-align: center; color: var(--ink-faint); font-size: 0.88rem;
+            border: 1px dashed var(--border); border-radius: var(--radius); padding: 1.5rem;
+        }
+        .favorites-empty.hidden { display: none; }
+    </style>
 </head>
 <body>
     <header class="site-nav">
@@ -45,6 +72,29 @@
             <p class="hero__sub">BAX ratings, history and standings for German badminton.</p>
         </section>
 
+        <section id="favorites-section" class="favorites-section">
+            <h2>Your Favorites</h2>
+            <div class="fav-group hidden" id="fav-group-tournament">
+                <button class="fav-group__head" type="button" data-fav-toggle="tournament">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Tournaments</span>
+                </button>
+                <div class="fav-chips" id="fav-list-tournament"></div>
+            </div>
+            <div class="fav-group hidden" id="fav-group-discipline">
+                <button class="fav-group__head" type="button" data-fav-toggle="discipline">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Disciplines</span>
+                </button>
+                <div class="fav-chips" id="fav-list-discipline"></div>
+            </div>
+            <div class="fav-group hidden" id="fav-group-player">
+                <button class="fav-group__head" type="button" data-fav-toggle="player">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Players</span>
+                </button>
+                <div class="fav-chips" id="fav-list-player"></div>
+            </div>
+            <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline or player to see it here.</p>
+        </section>
+
         <main class="entry-grid">
             <a href="/html/tournaments.html" class="entry-card">
                 <div class="entry-card__icon"><i data-lucide="trophy"></i></div>
@@ -55,6 +105,11 @@
                 <div class="entry-card__icon"><i data-lucide="user-round"></i></div>
                 <h2>Players</h2>
                 <p>Every player's rating, history &amp; standing.</p>
+            </a>
+            <a href="/html/compare.html" class="entry-card">
+                <div class="entry-card__icon"><i data-lucide="git-compare"></i></div>
+                <h2>Comparison</h2>
+                <p>Compare players head to head.</p>
             </a>
         </main>
 
@@ -70,6 +125,7 @@
 
     <script type="module" src="/js/util/auth.js"></script>
     <script type="module" src="/js/util/feedback.js"></script>
+    <script type="module" src="/js/index.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>
 </html>

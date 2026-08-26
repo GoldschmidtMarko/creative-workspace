@@ -5,6 +5,7 @@
 // Sections render progressively, each with its own skeleton.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
+import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -20,6 +21,9 @@ const NETWORK_PAGE_SIZE = 10;
 // below reads it on the very first, synchronous pass through this script.
 const RECENT_KEY = "bax_recent_players";
 const RECENT_MAX = 8;
+// Same reason: showSearchView() -> renderRecentPlayers() reads this on that
+// same first pass, before the `let` further down would otherwise initialize.
+let favoritePlayers = [];
 
 const $ = (id) => document.getElementById(id);
 function escapeHtml(s) {
@@ -118,10 +122,48 @@ function recordRecentPlayer(sp, pid, name) {
     list.unshift({ token, sp: sp || "", pid: pid || "", name: name || "" });
     try { sessionStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) { /* ignore */ }
 }
+// Favorite players — mirrors the "Recently viewed" list/markup but sourced
+// from the shared favorites store (see util/favorites.js), so it updates live
+// as stars are toggled anywhere on the site. favoritePlayers itself is
+// declared near RECENT_KEY above — see the comment there.
+function sameAsFavorite(recent, fav) {
+    if (recent.pid && fav.profile_id) return recent.pid.toLowerCase() === fav.profile_id.toLowerCase();
+    if (recent.sp && fav.sp_code) return recent.sp.toLowerCase() === fav.sp_code.toLowerCase();
+    const rn = (recent.name || "").trim().toLowerCase();
+    const fn = (fav.name || "").trim().toLowerCase();
+    return !!rn && rn === fn;
+}
+function renderFavoritePlayers(favorites) {
+    const wrap = $("favorite-players-wrap");
+    favoritePlayers = Object.values((favorites && favorites.player) || {});
+    if (!wrap) return;
+    if (!favoritePlayers.length) { wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    $("favorite-players").innerHTML = favoritePlayers
+        .slice().sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+        .map((f) => {
+            const qp = new URLSearchParams();
+            if (f.sp_code) qp.set("sp", f.sp_code);
+            if (f.profile_id) qp.set("pid", f.profile_id);
+            if (f.name) qp.set("name", f.name);
+            return `<a class="search-result" href="/html/player.html?${qp.toString()}">
+                <span class="search-result__avatar">${escapeHtml(initials(f.name).toUpperCase())}</span>
+                <span class="search-result__body">
+                    <span class="search-result__name">${escapeHtml(f.name || "Player")}</span>
+                </span>
+                <i data-lucide="chevron-right" class="search-result__chev"></i>
+            </a>`;
+        }).join("");
+    if (window.lucide) lucide.createIcons();
+}
+onFavoritesChange((f) => { renderFavoritePlayers(f); renderRecentPlayers(); });
+
+// Recently viewed, minus anyone already starred — they already have their
+// own section above, so listing them twice would just be noise.
 function renderRecentPlayers() {
     const wrap = $("recent-players-wrap");
     if (!wrap) return;
-    const list = recentPlayersList();
+    const list = recentPlayersList().filter((r) => !favoritePlayers.some((f) => sameAsFavorite(r, f)));
     if (!list.length) { wrap.classList.add("hidden"); return; }
     wrap.classList.remove("hidden");
     $("recent-players").innerHTML = list.map((r) => {
@@ -293,6 +335,19 @@ function setupAddCompare(sp, pid, name) {
     };
 }
 
+// Reuses the same identity token as "Add to comparison" (sp_code, else
+// pid:<profile_id>, else name:<name>) as the favorite's stable id.
+function setupFavoriteStar(sp, pid, name) {
+    const el = $("p-star");
+    if (!el) return;
+    const id = compareToken(sp, pid, name);
+    mountFavoriteStar(el, {
+        type: "player", id, name,
+        meta: { sp_code: sp || "", profile_id: pid || "" },
+        label: { off: "Star", on: "Starred" },
+    });
+}
+
 /* ------------------------------------------------------------------ */
 /* Load pipeline                                                      */
 /* ------------------------------------------------------------------ */
@@ -318,6 +373,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
             updateUrl(sp, pid, name);
             recordRecentPlayer(sp, pid, name);
             setupAddCompare(sp, pid, name);
+            setupFavoriteStar(sp, pid, name);
             if (window.lucide) lucide.createIcons();
             loadDbvStats(pid, name);
             loadLeagues(pid, name);
@@ -340,6 +396,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
         updateUrl(rsp, rpid, identity && identity.name);
         recordRecentPlayer(rsp, rpid, identity && identity.name);
         setupAddCompare(rsp, rpid, identity && identity.name);
+        setupFavoriteStar(rsp, rpid, identity && identity.name);
         if (window.lucide) lucide.createIcons();
 
         if (rpid) {

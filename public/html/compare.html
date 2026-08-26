@@ -64,6 +64,12 @@
                 </form>
                 <div id="cmp-search-status" class="pl-empty hidden"></div>
                 <div id="cmp-search-results" class="search-results"></div>
+
+                <div id="cmp-favorites" class="cmp-favorites hidden">
+                    <div class="cmp-favorites__label">Favorite players</div>
+                    <div id="cmp-favorites-list" class="search-results"></div>
+                </div>
+
                 <div id="cmp-chips" class="cmp-chips"></div>
 
                 <div id="cmp-recs" class="cmp-recs hidden">
@@ -85,9 +91,14 @@
             </div>
 
             <!-- Combined BAX history -->
-            <div class="pcard">
+            <div class="pcard" id="cmp-bax-card">
                 <div class="pcard__head">
-                    <h2>Combined BAX</h2>
+                    <span class="pcard__head-left">
+                        <button type="button" class="fold-btn" id="cmp-bax-toggle" aria-expanded="false" aria-controls="cmp-bax-fold-body" aria-label="Expand Combined BAX">
+                            <i data-lucide="chevron-down" class="fold-header__chevron"></i>
+                        </button>
+                        <h2>Combined BAX</h2>
+                    </span>
                     <div class="pl-toggles">
                         <div class="mode-tabs" id="cmp-disc">
                             <button class="mode-tab active" data-cat="Einzel" type="button">Singles</button>
@@ -100,14 +111,32 @@
                         </div>
                     </div>
                 </div>
-                <div class="chart-legend" id="cmp-bax-legend"></div>
-                <div id="cmp-bax-body"></div>
+                <div class="fold-body" id="cmp-bax-fold-body">
+                    <div class="auth-gate">
+                        <div class="auth-gate__content">
+                            <div class="chart-legend" id="cmp-bax-legend"></div>
+                            <div id="cmp-bax-body"></div>
+                        </div>
+                        <div class="auth-gate__overlay">
+                            <i data-lucide="lock" class="auth-gate__lock"></i>
+                            <p class="auth-gate__msg">Sign in with Google to see combined BAX history.</p>
+                            <button type="button" class="btn btn-primary btn-sm auth-gate__signin">
+                                <i data-lucide="log-in"></i> Sign in with Google
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Games played & win rate -->
-            <div class="pcard">
+            <div class="pcard" id="cmp-games-card">
                 <div class="pcard__head">
-                    <h2>Games played &amp; win rate</h2>
+                    <span class="pcard__head-left">
+                        <button type="button" class="fold-btn" id="cmp-games-toggle" aria-expanded="false" aria-controls="cmp-games-fold-body" aria-label="Expand Games played & win rate">
+                            <i data-lucide="chevron-down" class="fold-header__chevron"></i>
+                        </button>
+                        <h2>Games played &amp; win rate</h2>
+                    </span>
                     <div class="pl-toggles">
                         <div class="mode-tabs" id="cmp-wl-scope">
                             <button class="mode-tab active" data-scope="total" type="button">Total</button>
@@ -121,7 +150,20 @@
                         </div>
                     </div>
                 </div>
-                <div id="cmp-games-body"></div>
+                <div class="fold-body" id="cmp-games-fold-body">
+                    <div class="auth-gate">
+                        <div class="auth-gate__content">
+                            <div id="cmp-games-body"></div>
+                        </div>
+                        <div class="auth-gate__overlay">
+                            <i data-lucide="lock" class="auth-gate__lock"></i>
+                            <p class="auth-gate__msg">Sign in with Google to see games played &amp; win rate.</p>
+                            <button type="button" class="btn btn-primary btn-sm auth-gate__signin">
+                                <i data-lucide="log-in"></i> Sign in with Google
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -137,6 +179,7 @@
 
     <script type="module" src="/js/util/auth.js"></script>
     <script type="module" src="/js/util/feedback.js"></script>
+    <script type="module" src="/js/util/authGate.js"></script>
     <script type="module" src="/js/compare.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>

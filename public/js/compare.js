@@ -6,6 +6,7 @@
 // in localStorage, so it is shareable and the player page can add to it.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
+import { onFavoritesChange } from "./util/favorites.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -284,10 +285,55 @@ function renderSearchResults(list, q) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Favorite players — quick-add without needing to search first        */
+/* ------------------------------------------------------------------ */
+let favoritesState = { tournament: {}, discipline: {}, player: {} };
+function renderFavoritePlayers() {
+    const wrap = $("cmp-favorites");
+    const el = $("cmp-favorites-list");
+    const entries = Object.entries(favoritesState.player || {})
+        .sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
+    if (!entries.length) { wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    const full = players.length >= MAX_PLAYERS;
+    el.innerHTML = entries.map(([id, f], i) => {
+        const seed = { sp_code: f.sp_code || "", profile_id: f.profile_id || "", name: f.name || "" };
+        const added = players.some((p) => sameIdentity(p, seed));
+        const disabled = added || (full && !added);
+        const icon = added ? "check" : "plus";
+        return `<div class="search-result cmp-result" data-i="${i}" role="button" tabindex="0"
+                ${disabled ? 'aria-disabled="true"' : ""}
+                title="${added ? "Already added" : full ? "Remove a player first" : "Add to comparison"}">
+            <span class="search-result__avatar">${escapeHtml(initials(f.name).toUpperCase())}</span>
+            <span class="search-result__body">
+                <span class="search-result__name">${escapeHtml(f.name || "Player")}</span>
+            </span>
+            <i data-lucide="${icon}" class="cmp-result__add"></i>
+        </div>`;
+    }).join("");
+    el.querySelectorAll(".cmp-result").forEach((node) => {
+        const [, f] = entries[+node.getAttribute("data-i")];
+        const activate = () => {
+            if (node.getAttribute("aria-disabled") === "true") return;
+            addPlayer({ sp_code: f.sp_code || "", profile_id: f.profile_id || "", name: f.name || "" });
+        };
+        node.addEventListener("click", activate);
+        node.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); } });
+    });
+    if (window.lucide) lucide.createIcons();
+}
+onFavoritesChange((f) => { favoritesState = f; renderFavoritePlayers(); });
+
+/* ------------------------------------------------------------------ */
 /* Render: chips + count                                              */
 /* ------------------------------------------------------------------ */
 function renderAll() {
+    // The BAX/games detail cards are just empty shells with nothing selected
+    // — hide them outright rather than showing dead chart/table controls.
+    $("cmp-bax-card").classList.toggle("hidden", !players.length);
+    $("cmp-games-card").classList.toggle("hidden", !players.length);
     renderChips();
+    renderFavoritePlayers();
     renderBax();
     renderGames();
     renderRecs();
@@ -396,6 +442,27 @@ function renderRecs() {
     if (window.lucide) lucide.createIcons();
 }
 try { setRecsCollapsed(localStorage.getItem(RECS_COLLAPSED_KEY) === "1"); } catch (e) { /* ignore */ }
+
+/* ------------------------------------------------------------------ */
+/* Foldable pcards — Combined BAX / Games played & win rate start        */
+/* collapsed (the six-player comparison detail is a lot to land on),     */
+/* per-card state remembered the same way as the Suggested panel above.  */
+/* ------------------------------------------------------------------ */
+function makeFoldable(cardId, toggleId, storageKey) {
+    const card = $(cardId);
+    const btn = $(toggleId);
+    function setCollapsed(collapsed) {
+        card.classList.toggle("is-collapsed", collapsed);
+        btn.setAttribute("aria-expanded", String(!collapsed));
+        try { localStorage.setItem(storageKey, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+    }
+    btn.addEventListener("click", () => setCollapsed(!card.classList.contains("is-collapsed")));
+    let stored = null;
+    try { stored = localStorage.getItem(storageKey); } catch (e) { /* ignore */ }
+    setCollapsed(stored === null ? true : stored === "1");
+}
+makeFoldable("cmp-bax-card", "cmp-bax-toggle", "bax_compare_bax_collapsed");
+makeFoldable("cmp-games-card", "cmp-games-toggle", "bax_compare_games_collapsed");
 
 /* ------------------------------------------------------------------ */
 /* Combined BAX — legend + chart / table                             */

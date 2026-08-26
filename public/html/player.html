@@ -63,6 +63,11 @@
                 </div>
                 <div id="search-results" class="search-results"></div>
 
+                <div id="favorite-players-wrap" class="pcard search-card hidden">
+                    <div class="pcard__head"><h2>Favorite players</h2></div>
+                    <div id="favorite-players" class="search-results"></div>
+                </div>
+
                 <div id="recent-players-wrap" class="pcard search-card hidden">
                     <div class="pcard__head"><h2>Recently viewed</h2></div>
                     <div id="recent-players" class="search-results"></div>
@@ -89,6 +94,7 @@
                             <div class="identity__meta" id="p-meta"></div>
                         </div>
                         <div class="identity__links">
+                            <span id="p-star"></span>
                             <button class="btn btn-secondary btn-sm hidden" id="p-add-compare" type="button" title="Add this player to a comparison">
                                 <i data-lucide="users" style="width:15px;height:15px;"></i> Add to comparison
                             </button>
@@ -100,6 +106,15 @@
                             </a>
                         </div>
                     </div>
+                </div>
+
+                <!-- Everything below the identity — BAX numbers, matchups,
+                     history, etc. — is a sign-in teaser for signed-out
+                     visitors (see .auth-gate in main.css). -->
+                <div class="auth-gate auth-gate--tall" id="player-data-gate">
+                <div class="auth-gate__content">
+
+                <div class="pcard">
                     <div class="identity-stats">
                         <div class="stat-grid" id="p-bax-tiles"></div>
                         <div class="stat-grid" id="p-wl-tiles"></div>
@@ -210,6 +225,16 @@
                         <div id="dist-body"><div class="skeleton"><span class="spinner"></span> Loading…</div></div>
                     </div>
                 </div>
+
+                </div><!-- /.auth-gate__content -->
+                <div class="auth-gate__overlay">
+                    <i data-lucide="lock" class="auth-gate__lock"></i>
+                    <p class="auth-gate__msg">Sign in with Google to see BAX ratings, matchups, history, leagues and more.</p>
+                    <button type="button" class="btn btn-primary btn-sm auth-gate__signin">
+                        <i data-lucide="log-in"></i> Sign in with Google
+                    </button>
+                </div>
+                </div><!-- /#player-data-gate -->
             </section>
 
             <!-- Error view -->
@@ -232,6 +257,7 @@
 
     <script type="module" src="/js/util/auth.js"></script>
     <script type="module" src="/js/util/feedback.js"></script>
+    <script type="module" src="/js/util/authGate.js"></script>
     <script type="module" src="/js/player.js"></script>
     <script src="/js/util/theme.js"></script>
 </body>
