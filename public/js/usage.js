@@ -38,8 +38,12 @@ function num(n) {
 function fmtDate(ms) {
     if (!ms) return "—";
     const d = new Date(ms);
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) +
-        " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const date = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    // The time sits in its own inline span so mobile CSS can drop it onto a
+    // second line (`.when-time { display: block }`) without affecting the
+    // single-line desktop layout, where it just renders inline after a space.
+    return `${date} <span class="when-time">${time}</span>`;
 }
 
 function escapeHtml(s) {
@@ -82,9 +86,15 @@ function compareBy(a, b, type) {
 // Render a table whose column headers can be clicked to re-sort it in place.
 // `columns` describe how to render and sort each column; a column with a
 // `field` is sortable (clicking toggles asc/desc, first click uses defaultDir).
-// The leading rank column has no field, so it always reflects position in the
-// current sort order. `state` holds the initial { key, dir }.
-function mountSortableTable(el, columns, rows, state) {
+// A column with `mobileHide` folds away below the narrow-screen breakpoint
+// (see the CSS `.mobile-hide` rule) to keep the table from forcing horizontal
+// scroll on a phone. The leading rank column has no field, so it always
+// reflects position in the current sort order. `state` holds the initial
+// { key, dir }. `opts.limit`, if set, truncates the table to that many rows
+// with a "Show N more" footer that expands it in place.
+function mountSortableTable(el, columns, rows, state, opts = {}) {
+    const limit = opts.limit || null;
+    let expanded = false;
     function draw() {
         const col = columns.find((c) => c.field && c.field === state.key);
         const data = rows.slice();
@@ -94,10 +104,11 @@ function mountSortableTable(el, columns, rows, state) {
                 return state.dir === "asc" ? r : -r;
             });
         }
+        const visible = limit && !expanded ? data.slice(0, limit) : data;
         const head = columns.map((c) => {
             const sortable = c.field != null;
             const active = sortable && c.field === state.key;
-            const cls = [c.numeric ? "n" : null, sortable ? "th-sort" : null, active ? "is-sorted" : null]
+            const cls = [c.numeric ? "n" : null, sortable ? "th-sort" : null, active ? "is-sorted" : null, c.mobileHide ? "mobile-hide" : null]
                 .filter(Boolean).join(" ");
             const arrow = active
                 ? `<span class="sort-arrow">${state.dir === "asc" ? "▲" : "▼"}</span>`
@@ -108,9 +119,15 @@ function mountSortableTable(el, columns, rows, state) {
                 : "";
             return `<th class="${cls}"${attrs}>${c.label}${arrow}</th>`;
         }).join("");
-        const body = data.map((row, i) =>
+        const body = visible.map((row, i) =>
             `<tr>${columns.map((c) => c.cell(row, i)).join("")}</tr>`).join("");
-        el.innerHTML = `<table class="usage-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+        const table = `<div class="table-scroll"><table class="usage-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+        const more = (limit && data.length > limit)
+            ? `<div class="table-more"><button type="button" class="table-more__btn" data-action="toggle-more">` +
+              (expanded ? "Show less" : `Show ${data.length - limit} more`) +
+              `</button></div>`
+            : "";
+        el.innerHTML = table + more;
 
         el.querySelectorAll("th[data-field]").forEach((th) => {
             const sortHere = () => {
@@ -128,6 +145,9 @@ function mountSortableTable(el, columns, rows, state) {
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sortHere(); }
             });
         });
+
+        const moreBtn = el.querySelector('[data-action="toggle-more"]');
+        if (moreBtn) moreBtn.addEventListener("click", () => { expanded = !expanded; draw(); });
     }
     draw();
 }
@@ -148,14 +168,14 @@ function renderEntityTable(id, rows, nameHeader, showId) {
         },
         { label: "Total", field: "count", type: "number", numeric: true, defaultDir: "desc",
             cell: (r) => `<td class="n">${num(r.count)}</td>` },
-        { label: "👤", field: "count_authed", type: "number", numeric: true, defaultDir: "desc",
-            cell: (r) => `<td class="n dim">${num(r.count_authed)}</td>` },
-        { label: "🕶", field: "count_anon", type: "number", numeric: true, defaultDir: "desc",
-            cell: (r) => `<td class="n dim">${num(r.count_anon)}</td>` },
+        { label: "👤", field: "count_authed", type: "number", numeric: true, defaultDir: "desc", mobileHide: true,
+            cell: (r) => `<td class="n dim mobile-hide">${num(r.count_authed)}</td>` },
+        { label: "🕶", field: "count_anon", type: "number", numeric: true, defaultDir: "desc", mobileHide: true,
+            cell: (r) => `<td class="n dim mobile-hide">${num(r.count_anon)}</td>` },
         { label: "Last queried", field: "lastQueried", type: "date", defaultDir: "desc",
             cell: (r) => `<td class="when">${fmtDate(r.lastQueried)}</td>` },
     ];
-    mountSortableTable(el, columns, rows, { key: "lastQueried", dir: "desc" });
+    mountSortableTable(el, columns, rows, { key: "lastQueried", dir: "desc" }, { limit: 10 });
 }
 
 function renderUsers(users) {
@@ -175,10 +195,10 @@ function renderUsers(users) {
             cell: (u) => `<td class="n">${num(u.loginCount)}</td>` },
         { label: "Last login", field: "lastLogin", type: "date", defaultDir: "desc",
             cell: (u) => `<td class="when">${fmtDate(u.lastLogin)}</td>` },
-        { label: "Registered", field: "registrationDate", type: "date", defaultDir: "desc",
-            cell: (u) => `<td class="when">${fmtDate(u.registrationDate)}</td>` },
+        { label: "Registered", field: "registrationDate", type: "date", defaultDir: "desc", mobileHide: true,
+            cell: (u) => `<td class="when mobile-hide">${fmtDate(u.registrationDate)}</td>` },
     ];
-    mountSortableTable(el, columns, users.top, { key: "lastLogin", dir: "desc" });
+    mountSortableTable(el, columns, users.top, { key: "lastLogin", dir: "desc" }, { limit: 10 });
 }
 
 const FEEDBACK_CATEGORY_LABEL = { bug: "Bug", feature: "Feature", data: "Data", other: "Other" };
@@ -198,13 +218,13 @@ function renderFeedback(rows) {
         { label: "Message", field: "message", type: "string", defaultDir: "asc",
             cell: (r) => `<td class="msg">${escapeHtml(r.message)}</td>` },
         {
-            label: "From", field: "userName", type: "string", defaultDir: "asc",
-            cell: (r) => `<td class="name">${escapeHtml(r.userName || "Anonymous")}</td>`,
+            label: "From", field: "userName", type: "string", defaultDir: "asc", mobileHide: true,
+            cell: (r) => `<td class="name mobile-hide">${escapeHtml(r.userName || "Anonymous")}</td>`,
         },
         { label: "When", field: "createdAt", type: "date", defaultDir: "desc",
             cell: (r) => `<td class="when">${fmtDate(r.createdAt)}</td>` },
     ];
-    mountSortableTable(el, columns, rows, { key: "createdAt", dir: "desc" });
+    mountSortableTable(el, columns, rows, { key: "createdAt", dir: "desc" }, { limit: 10 });
 }
 
 // --- Usage-over-time bar chart (SVG) ---------------------------------------
