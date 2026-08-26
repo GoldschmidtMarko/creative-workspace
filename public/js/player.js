@@ -5,7 +5,7 @@
 // Sections render progressively, each with its own skeleton.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
-import { mountFavoriteStar } from "./util/favorites.js";
+import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -119,6 +119,34 @@ function recordRecentPlayer(sp, pid, name) {
     list.unshift({ token, sp: sp || "", pid: pid || "", name: name || "" });
     try { sessionStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX))); } catch (e) { /* ignore */ }
 }
+// Favorite players — mirrors the "Recently viewed" list/markup but sourced
+// from the shared favorites store (see util/favorites.js), so it updates live
+// as stars are toggled anywhere on the site.
+function renderFavoritePlayers(favorites) {
+    const wrap = $("favorite-players-wrap");
+    if (!wrap) return;
+    const entries = Object.entries((favorites && favorites.player) || {});
+    if (!entries.length) { wrap.classList.add("hidden"); return; }
+    wrap.classList.remove("hidden");
+    $("favorite-players").innerHTML = entries
+        .sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""))
+        .map(([id, f]) => {
+            const qp = new URLSearchParams();
+            if (f.sp_code) qp.set("sp", f.sp_code);
+            if (f.profile_id) qp.set("pid", f.profile_id);
+            if (f.name) qp.set("name", f.name);
+            return `<a class="search-result" href="/html/player.html?${qp.toString()}">
+                <span class="search-result__avatar">${escapeHtml(initials(f.name).toUpperCase())}</span>
+                <span class="search-result__body">
+                    <span class="search-result__name">${escapeHtml(f.name || "Player")}</span>
+                </span>
+                <i data-lucide="chevron-right" class="search-result__chev"></i>
+            </a>`;
+        }).join("");
+    if (window.lucide) lucide.createIcons();
+}
+onFavoritesChange(renderFavoritePlayers);
+
 function renderRecentPlayers() {
     const wrap = $("recent-players-wrap");
     if (!wrap) return;

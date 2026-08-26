@@ -36,27 +36,6 @@
         .fav-group__chev { width: 14px; height: 14px; transition: transform 0.15s ease; }
         .fav-group.is-collapsed .fav-group__chev { transform: rotate(-90deg); }
         .fav-group.is-collapsed .fav-chips { display: none; }
-        .fav-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-        .fav-chip {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            background: var(--card); border: 1px solid var(--border); border-radius: 999px;
-            padding: 0.4rem 0.5rem 0.4rem 0.85rem; box-shadow: var(--shadow-sm);
-        }
-        .fav-chip__link {
-            display: inline-flex; align-items: center; gap: 0.45rem;
-            color: var(--ink); text-decoration: none; font-size: 0.85rem; font-weight: 500;
-            max-width: 260px;
-        }
-        .fav-chip__link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .fav-chip__link:hover { color: var(--accent); }
-        .fav-chip__link svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--ink-faint); }
-        .fav-chip__sub { color: var(--ink-faint); font-weight: 400; }
-        .fav-chip__remove {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 1.3rem; height: 1.3rem; border-radius: 50%; border: none;
-            background: transparent; color: var(--ink-faint); cursor: pointer; font-size: 1rem; line-height: 1;
-        }
-        .fav-chip__remove:hover { background: var(--card-2); color: var(--danger); }
         .favorites-empty {
             text-align: center; color: var(--ink-faint); font-size: 0.88rem;
             border: 1px dashed var(--border); border-radius: var(--radius); padding: 1.5rem;

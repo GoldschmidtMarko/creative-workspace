@@ -2,6 +2,7 @@
 // (tournament.html?id=<GUID>), which holds the disciplines + BAX analysis.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
+import { onFavoritesChange, toggleFavorite } from "./util/favorites.js";
 
 const findTournaments = httpsCallable(functions, "find_tournaments", { timeout: 60000 });
 
@@ -48,6 +49,7 @@ function tournamentHref(t) {
     if (t.start) q.set("start", t.start);
     if (t.end) q.set("end", t.end);
     if (t.city) q.set("city", t.city);
+    if (t.event) q.set("event", t.event);
     return `/html/tournament.html?${q.toString()}`;
 }
 
@@ -60,20 +62,67 @@ function setFilters(collapsed) {
 }
 if (filterToggle) filterToggle.addEventListener("click", () => setFilters(!filterCard.classList.contains("collapsed")));
 
-const tabFilters = document.getElementById("tab-filters");
-const tabUrl = document.getElementById("tab-url");
-const modeFilters = document.getElementById("mode-filters");
-const modeUrl = document.getElementById("mode-url");
-function setMode(isUrl) {
-    tabUrl.classList.toggle("active", isUrl);
-    tabFilters.classList.toggle("active", !isUrl);
-    modeUrl.classList.toggle("hidden", !isUrl);
-    modeFilters.classList.toggle("hidden", isUrl);
+// Three tabs share the filter card: Favorites (the initial view — a quick way
+// back to starred tournaments/disciplines), Search filters, and Direct link.
+const TABS = {
+    favorites: { tab: document.getElementById("tab-favorites"), mode: document.getElementById("mode-favorites") },
+    filters: { tab: document.getElementById("tab-filters"), mode: document.getElementById("mode-filters") },
+    url: { tab: document.getElementById("tab-url"), mode: document.getElementById("mode-url") },
+};
+function setMode(name) {
+    Object.entries(TABS).forEach(([key, { tab, mode }]) => {
+        tab.classList.toggle("active", key === name);
+        mode.classList.toggle("hidden", key !== name);
+    });
     setFilters(false);   // switching modes always opens the card
-    if (isUrl) { const p = document.getElementById("paste-url"); if (p) p.focus(); }
+    if (name === "url") { const p = document.getElementById("paste-url"); if (p) p.focus(); }
 }
-tabFilters.addEventListener("click", () => setMode(false));
-tabUrl.addEventListener("click", () => setMode(true));
+TABS.favorites.tab.addEventListener("click", () => setMode("favorites"));
+TABS.filters.tab.addEventListener("click", () => setMode("filters"));
+TABS.url.tab.addEventListener("click", () => setMode("url"));
+setMode("favorites");
+
+/* ---------------- Favorites tab: starred tournaments + disciplines ------- */
+function renderFavoritesTab(favorites) {
+    const tEntries = Object.entries(favorites.tournament || {})
+        .sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
+    const dEntries = Object.entries(favorites.discipline || {})
+        .sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
+
+    const tGroup = document.getElementById("fav-tournaments-group");
+    tGroup.classList.toggle("hidden", !tEntries.length);
+    document.getElementById("fav-tournaments-list").innerHTML = tEntries.map(([id, f]) => {
+        const href = tournamentHref({ id, name: f.name, start: f.start, end: f.end, city: f.city });
+        return `<span class="fav-chip">
+            <a class="fav-chip__link" href="${escapeHtml(href)}" title="${escapeHtml(f.name || "")}">
+                <i data-lucide="trophy"></i><span>${escapeHtml(f.name || "—")}</span>
+            </a>
+            <button class="fav-chip__remove" type="button" data-type="tournament" data-id="${escapeHtml(id)}" title="Remove from favorites">&times;</button>
+        </span>`;
+    }).join("");
+
+    const dGroup = document.getElementById("fav-disciplines-group");
+    dGroup.classList.toggle("hidden", !dEntries.length);
+    document.getElementById("fav-disciplines-list").innerHTML = dEntries.map(([id, f]) => {
+        const href = tournamentHref({ id: f.tournamentId, event: f.event, name: f.tournamentName });
+        const sub = f.tournamentName ? ` <span class="fav-chip__sub">· ${escapeHtml(f.tournamentName)}</span>` : "";
+        const title = f.tournamentName ? `${f.name} · ${f.tournamentName}` : (f.name || "");
+        return `<span class="fav-chip">
+            <a class="fav-chip__link" href="${escapeHtml(href)}" title="${escapeHtml(title)}">
+                <i data-lucide="medal"></i><span>${escapeHtml(f.name || "—")}${sub}</span>
+            </a>
+            <button class="fav-chip__remove" type="button" data-type="discipline" data-id="${escapeHtml(id)}" title="Remove from favorites">&times;</button>
+        </span>`;
+    }).join("");
+
+    document.getElementById("fav-tab-empty").classList.toggle("hidden", !!(tEntries.length || dEntries.length));
+
+    document.querySelectorAll("#mode-favorites .fav-chip__remove").forEach((btn) => {
+        btn.addEventListener("click", () => toggleFavorite(btn.dataset.type, btn.dataset.id));
+    });
+    if (window.lucide) lucide.createIcons();
+}
+onFavoritesChange(renderFavoritesTab);
 
 function skeletonTournaments(n = 6) {
     return Array.from({ length: n }, () => `
