@@ -7,7 +7,8 @@
 // document.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { functions, db } from "./firebase.js";
+import { GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { functions, db, auth } from "./firebase.js";
 
 const toggleFavoriteFn = httpsCallable(functions, "toggle_favorite", { timeout: 20000 });
 const EMPTY = { tournament: {}, discipline: {}, player: {} };
@@ -53,14 +54,20 @@ document.addEventListener("authchange", (e) => {
 // sp_code+profile_id for a player, tournamentId+event for a discipline) —
 // see favorites.py's META_FIELDS for the allow-list of keys actually kept.
 // The star button itself is visible to everyone (see .star-btn in main.css)
-// — clicking it while signed out prompts Google sign-in instead of writing
-// anything, by simply triggering the same popup the nav's own button uses.
+// — clicking it while signed out prompts the same Google popup the nav
+// button uses, then, once signed in, continues on to actually star the
+// item, rather than leaving the user to click a second time.
 export async function toggleFavorite(type, id, name, meta = {}) {
     if (!id) return false;
     if (!document.documentElement.classList.contains("is-authed")) {
-        const authBtn = document.getElementById("auth-btn");
-        if (authBtn) authBtn.click();
-        return false;
+        try {
+            await signInWithPopup(auth, new GoogleAuthProvider());
+        } catch (err) {
+            if (err?.code !== "auth/popup-closed-by-user" && err?.code !== "auth/cancelled-popup-request") {
+                console.error("Sign-in failed:", err);
+            }
+            return false;
+        }
     }
     const starred = !isFavorite(type, id);
     // Optimistic local update so the star flips instantly; the onSnapshot
