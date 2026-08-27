@@ -280,10 +280,11 @@ header p {
    Shared by the player/tournament identity headers and the discipline bar
    (mounted via public/js/util/favorites.js's mountFavoriteStar). Amber is a
    one-off color here rather than a design token — it only ever means
-   "starred", nowhere else in the UI. Hidden while signed out, since
-   favorites don't exist without an account (see html.is-authed below). */
+   "starred", nowhere else in the UI. Always visible, signed in or not —
+   clicking it while signed out prompts Google sign-in instead of silently
+   doing nothing (see toggleFavorite in util/favorites.js). */
 .star-btn {
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   border: 1px solid var(--ghost-border);
@@ -297,7 +298,6 @@ header p {
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
-html.is-authed .star-btn { display: inline-flex; }
 .star-btn:hover { background: var(--card-2); border-color: var(--border-strong); transform: scale(1.03); }
 .star-btn:active { transform: scale(0.96); }
 .star-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
@@ -337,36 +337,6 @@ html.is-authed .star-btn { display: inline-flex; }
   background: transparent; color: var(--ink-faint); cursor: pointer; font-size: 1rem; line-height: 1;
 }
 .fav-chip__remove:hover { background: var(--card-2); color: var(--danger); }
-
-/* Sign-in-to-unlock gate — a capped-height, blurred preview of gated content
-   with a centered "Sign in with Google" overlay, à la a paywalled article.
-   Purely a client-side visual incentive (see util/authGate.js, which wires
-   .auth-gate__signin to the same popup the top-right nav button uses) — the
-   underlying data still loads normally, this doesn't withhold anything at
-   the API level. Unlocks automatically once html.is-authed is set (the same
-   class auth.js already toggles for the star buttons / favorites section). */
-.auth-gate { position: relative; max-height: 320px; overflow: hidden; border-radius: var(--radius-lg); }
-.auth-gate.auth-gate--tall { max-height: 480px; }
-html.is-authed .auth-gate { max-height: none; overflow: visible; }
-.auth-gate__content { filter: blur(5px); pointer-events: none; user-select: none; }
-html.is-authed .auth-gate__content { filter: none; pointer-events: auto; user-select: auto; }
-.auth-gate::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(180deg, transparent 0%, var(--bg) 94%);
-}
-html.is-authed .auth-gate::after { display: none; }
-.auth-gate__overlay {
-  position: absolute; inset: 0; z-index: 5;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem;
-  text-align: center; padding: 1.5rem;
-}
-html.is-authed .auth-gate__overlay { display: none; }
-.auth-gate__lock {
-  width: 40px; height: 40px; padding: 10px; box-sizing: border-box; border-radius: 50%;
-  background: var(--card); box-shadow: var(--shadow-md); color: var(--ink-dim);
-}
-.auth-gate__msg { color: var(--ink); font-weight: 600; font-size: 0.95rem; max-width: 340px; line-height: 1.4; }
-.auth-gate__signin svg { width: 15px; height: 15px; }
 
 /* Theme toggle ---------------------------------------------------------- */
 

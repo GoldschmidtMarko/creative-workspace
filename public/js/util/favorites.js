@@ -52,8 +52,16 @@ document.addEventListener("authchange", (e) => {
 // Star/unstar one item. `meta` is small extra display/link data (e.g.
 // sp_code+profile_id for a player, tournamentId+event for a discipline) —
 // see favorites.py's META_FIELDS for the allow-list of keys actually kept.
+// The star button itself is visible to everyone (see .star-btn in main.css)
+// — clicking it while signed out prompts Google sign-in instead of writing
+// anything, by simply triggering the same popup the nav's own button uses.
 export async function toggleFavorite(type, id, name, meta = {}) {
     if (!id) return false;
+    if (!document.documentElement.classList.contains("is-authed")) {
+        const authBtn = document.getElementById("auth-btn");
+        if (authBtn) authBtn.click();
+        return false;
+    }
     const starred = !isFavorite(type, id);
     // Optimistic local update so the star flips instantly; the onSnapshot
     // listener reconciles with the server's copy moments later regardless.
