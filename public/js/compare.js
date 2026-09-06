@@ -7,6 +7,7 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
 import { onFavoritesChange } from "./util/favorites.js";
+import { bindSearchForm } from "./util/search-form.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -209,9 +210,8 @@ async function loadPlayerNetwork(p) {
 /* ------------------------------------------------------------------ */
 /* Search                                                             */
 /* ------------------------------------------------------------------ */
-$("cmp-search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const q = $("cmp-search-q").value.trim();
+bindSearchForm("cmp-search-form", "cmp-search-q", (value) => {
+    const q = value.trim();
     if (q.length < 2) return;
     runSearch(q);
 });

@@ -6,6 +6,7 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
 import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
+import { bindSearchForm } from "./util/search-form.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -94,9 +95,8 @@ if (initial.sp || initial.pid) {
     if (initial.q) { $("search-q").value = initial.q; runSearch(initial.q); }
 }
 
-$("search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const q = $("search-q").value.trim();
+bindSearchForm("search-form", "search-q", (value) => {
+    const q = value.trim();
     if (q.length < 2) return;
     history.replaceState(null, "", location.pathname + "?q=" + encodeURIComponent(q));
     runSearch(q);

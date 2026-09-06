@@ -10,6 +10,7 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
 import cytoscape from "https://esm.sh/cytoscape@3.30.2";
+import { bindSearchForm } from "./util/search-form.js";
 
 const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
 const getPlayerNetwork = httpsCallable(functions, "get_player_network", { timeout: 120000 });
@@ -48,9 +49,8 @@ if (initial.sp || initial.pid) {
 }
 
 /* ---------------- search view (same pattern as player.html) -------------- */
-$("search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const q = $("search-q").value.trim();
+bindSearchForm("search-form", "search-q", (value) => {
+    const q = value.trim();
     if (q.length < 2) return;
     runSearch(q);
 });
