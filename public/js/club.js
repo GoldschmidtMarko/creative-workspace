@@ -10,6 +10,7 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
 import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
+import { bindSearchForm } from "./util/search-form.js";
 
 const getClubRoster = httpsCallable(functions, "get_club_roster", { timeout: 60000 });
 const getClubTeams = httpsCallable(functions, "get_club_teams", { timeout: 120000 });
@@ -58,9 +59,8 @@ if (initial.clCode) {
     showSearchView();
 }
 
-$("search-form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const q = $("search-q").value.trim();
+bindSearchForm("search-form", "search-q", (value) => {
+    const q = value.trim();
     if (q.length < 2) return;
     history.replaceState(null, "", location.pathname + "?q=" + encodeURIComponent(q));
     resolveOrSearch(q);
