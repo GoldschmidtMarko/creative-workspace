@@ -1,5 +1,13 @@
 # Testing against the Firestore/functions emulator
 
+**Use `tests/` for the mechanics — don't re-derive them.** Minting a fake
+service account, invoking a callable directly against the emulator, and
+driving the site in a real (Playwright) browser are all already scripted in
+`tests/backend/` and `tests/browser/` — see `tests/README.md`. Only write a
+new throwaway script for something those don't already cover, and consider
+adding it there (as a small, reusable helper, not a one-off) if it's likely
+to come up again.
+
 When testing backend callables against the emulator (fake service-account +
 `FIRESTORE_EMULATOR_HOST`, per the `baxchecker-project-map` memory), avoid
 making many live scraping requests to `https://dbv.turnier.de/` in one

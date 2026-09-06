@@ -70,3 +70,9 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Test scaffolding (see tests/README.md) — generated/local-only
+tests/backend/.fake-service-account.json
+tests/browser/.out/
+__pycache__/
+*.pyc

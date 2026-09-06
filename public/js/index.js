@@ -8,7 +8,7 @@ function escapeHtml(s) {
     ));
 }
 
-const ICON = { tournament: "trophy", discipline: "medal", player: "user-round" };
+const ICON = { tournament: "trophy", discipline: "medal", player: "user-round", club: "shield" };
 
 function linkFor(type, id, f) {
     if (type === "tournament") {
@@ -25,6 +25,9 @@ function linkFor(type, id, f) {
         if (f.profile_id) q.set("pid", f.profile_id);
         if (f.name) q.set("name", f.name);
         return "/html/player.html?" + q.toString();
+    }
+    if (type === "club") {
+        return "/html/club.html?" + new URLSearchParams({ cl_code: id }).toString();
     }
     return "#";
 }
@@ -58,7 +61,7 @@ function renderGroup(type, entries) {
 
 function render(favorites) {
     let total = 0;
-    for (const type of ["tournament", "discipline", "player"]) {
+    for (const type of ["tournament", "discipline", "player", "club"]) {
         const entries = Object.entries(favorites[type] || {})
             .sort((a, b) => (a[1].name || "").localeCompare(b[1].name || ""));
         total += entries.length;

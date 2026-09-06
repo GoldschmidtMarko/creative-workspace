@@ -10,6 +10,7 @@ from app.scraping.tournaments import find_tournaments, get_tournament_discipline
 from app.scraping.leagues import get_player_leagues
 from app.scraping.network import get_player_network
 from app.scraping.player import get_player_bax, get_player_dbv_stats, get_player_upcoming, search_players
+from app.scraping.clubs import get_club_roster, get_club_teams
 from app.platform.accounts import save_user_activity
 from app.platform.admin import get_usage_stats
 from app.platform.favorites import toggle_favorite
@@ -27,6 +28,8 @@ __all__ = [
     "get_player_dbv_stats",
     "get_player_upcoming",
     "search_players",
+    "get_club_roster",
+    "get_club_teams",
     "save_user_activity",
     "get_usage_stats",
     "toggle_favorite",

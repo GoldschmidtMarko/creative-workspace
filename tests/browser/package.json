@@ -1,0 +1,9 @@
+{
+  "name": "baxchecker-browser-tests",
+  "private": true,
+  "type": "module",
+  "description": "Manual Playwright smoke tests for BAX Checker, driven against the local Firebase emulators. See ../README.md.",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

@@ -52,6 +52,7 @@
         <nav class="nav-pill" aria-label="Primary">
             <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
             <a class="nav-pill__link" href="/html/player.html">Player</a>
+            <a class="nav-pill__link" href="/html/club.html">Clubs</a>
             <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
         </nav>
         <div class="site-nav__actions">
@@ -92,7 +93,13 @@
                 </button>
                 <div class="fav-chips" id="fav-list-player"></div>
             </div>
-            <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline or player to see it here.</p>
+            <div class="fav-group hidden" id="fav-group-club">
+                <button class="fav-group__head" type="button" data-fav-toggle="club">
+                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Clubs</span>
+                </button>
+                <div class="fav-chips" id="fav-list-club"></div>
+            </div>
+            <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline, player or club to see it here.</p>
         </section>
 
         <main class="entry-grid">
@@ -105,6 +112,11 @@
                 <div class="entry-card__icon"><i data-lucide="user-round"></i></div>
                 <h2>Players</h2>
                 <p>Every player's rating, history &amp; standing.</p>
+            </a>
+            <a href="/html/club.html" class="entry-card">
+                <div class="entry-card__icon"><i data-lucide="shield"></i></div>
+                <h2>Clubs</h2>
+                <p>Team league rankings over time &amp; season rosters.</p>
             </a>
             <a href="/html/compare.html" class="entry-card">
                 <div class="entry-card__icon"><i data-lucide="git-compare"></i></div>

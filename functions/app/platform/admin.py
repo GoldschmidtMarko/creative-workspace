@@ -1,10 +1,11 @@
 """Admin-only usage dashboard.
 
 `get_usage_stats` returns the analytics written by app.scraping.analytics
-(usage/summary plus the usage_tournaments / usage_disciplines / usage_players
-collections) and a small users overview. It is gated to a fixed allow-list of
-admin emails and reads via the Admin SDK, so the Firestore security rules
-stay fully locked and the client never touches the usage collections directly.
+(usage/summary plus the usage_tournaments / usage_disciplines / usage_players /
+usage_clubs collections) and a small users overview. It is gated to a fixed
+allow-list of admin emails and reads via the Admin SDK, so the Firestore
+security rules stay fully locked and the client never touches the usage
+collections directly.
 """
 
 import os
@@ -162,6 +163,7 @@ def get_usage_stats(req: https_fn.CallableRequest) -> dict:
         "tournaments": _top_entities("usage_tournaments"),
         "disciplines": _top_entities("usage_disciplines"),
         "players": _top_entities("usage_players"),
+        "clubs": _top_entities("usage_clubs"),
         "users": _users_overview(),
         "feedback": _recent_feedback(),
     }
