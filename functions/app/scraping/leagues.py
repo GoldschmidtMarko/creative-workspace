@@ -118,6 +118,13 @@ def _scrape_leagues(profile_id, year=None, force=False):
             # The team for THIS division is the team link that follows this draw.
             team_link = draw.find_next("a", href=re.compile(rf"/league/{lg}/team/", re.I))
             team = team_link.get_text(" ", strip=True) if team_link else None
+            # team_id is this division's OWN team (distinct from any other
+            # division/team sharing this league guid) — needed to fetch that
+            # team's real standing (clubs.py: the per-league "standing"/
+            # "record" below is shared across every division on this page and
+            # is NOT reliable per-team when a league spans several teams).
+            team_id_m = re.search(rf"/league/{lg}/team/(\d+)", team_link["href"], re.I) if team_link else None
+            team_id = team_id_m.group(1) if team_id_m else None
 
             if lg not in by_league:
                 # The record/season/standing are per-league (one aggregate), read
@@ -139,7 +146,8 @@ def _scrape_leagues(profile_id, year=None, force=False):
                 }
                 leagues.append(by_league[lg])
             by_league[lg]["divisions"].append(
-                {"abbr": abbr, "division": division, "tier": tier, "team": team})
+                {"abbr": abbr, "division": division, "tier": tier, "team": team,
+                 "league_guid": lg, "team_id": team_id})
 
         # One "Matches of {name}" link per league card (shared across all of
         # that league's divisions, not per-division) — the Spielübersicht page

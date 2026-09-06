@@ -89,14 +89,21 @@ def _parse_history_and_identity(html):
                 continue
             if not ident["club"]:
                 ident["club"] = verein
+            # "Erfolg" is "wins/TOTAL games", not "wins/losses" — confirmed
+            # against badminton-bax.de's own help text ("5/10 steht für 5
+            # Siege aus 10 Spielen" = "5 wins out of 10 games"). won/lost
+            # aren't rendered anywhere today (only the raw `erfolg` string
+            # is shown), but keep them correct for whoever reads them next.
             wl = re.match(r"(\d+)\s*/\s*(\d+)", erfolg)
+            won = int(wl.group(1)) if wl else None
+            total = int(wl.group(2)) if wl else None
             history[current].append({
                 "season": saison,
                 "club": verein,
                 "niveau": int(niveau) if niveau.isdigit() else None,
                 "erfolg": erfolg,
-                "won": int(wl.group(1)) if wl else None,
-                "lost": int(wl.group(2)) if wl else None,
+                "won": won,
+                "lost": (total - won) if won is not None and total is not None else None,
                 "bax": int(bax) if bax.isdigit() else None,
             })
     return ident, history
@@ -811,6 +818,33 @@ def get_player_upcoming(req: https_fn.CallableRequest) -> dict:
         return {"error": f"Internal Error: {str(e)}"}
 
 
+def _cached_search_players(q):
+    """dbv player search with Firestore caching (player_search_cache) — the
+    plain scrape+cache logic behind the search_players callable, also reused
+    by clubs.py to resolve a roster name to a dbv profile_id."""
+    key = hashlib.md5(q.lower().encode()).hexdigest()
+    if db:
+        try:
+            snap = db.collection("player_search_cache").document(key).get()
+            if snap.exists:
+                data = snap.to_dict()
+                if datetime.now(timezone.utc) < data["expires_at"]:
+                    return data["players"]
+        except Exception:
+            pass
+
+    players = _search_players(q)
+    if db:
+        try:
+            db.collection("player_search_cache").document(key).set({
+                "players": players,
+                "expires_at": datetime.now(timezone.utc) + PLAYER_SEARCH_TTL,
+            })
+        except Exception:
+            pass
+    return players
+
+
 @https_fn.on_call()
 def search_players(req: https_fn.CallableRequest) -> dict:
     """Search dbv.turnier.de for players by name (substring match), returning
@@ -822,26 +856,7 @@ def search_players(req: https_fn.CallableRequest) -> dict:
         if not check_rate_limit(rate_key(req), "search_players", 60, 3600000):
             return {"error": "You're searching too quickly. Please wait a bit."}
 
-        key = hashlib.md5(q.lower().encode()).hexdigest()
-        if db:
-            try:
-                snap = db.collection("player_search_cache").document(key).get()
-                if snap.exists:
-                    data = snap.to_dict()
-                    if datetime.now(timezone.utc) < data["expires_at"]:
-                        return {"players": data["players"], "count": len(data["players"])}
-            except Exception:
-                pass
-
-        players = _search_players(q)
-        if db:
-            try:
-                db.collection("player_search_cache").document(key).set({
-                    "players": players,
-                    "expires_at": datetime.now(timezone.utc) + PLAYER_SEARCH_TTL,
-                })
-            except Exception:
-                pass
+        players = _cached_search_players(q)
         bump_summary(["playerSearches"], req.auth is not None)
         return {"players": players, "count": len(players)}
     except Exception as e:

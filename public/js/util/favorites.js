@@ -11,7 +11,7 @@ import { GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/fir
 import { functions, db, auth } from "./firebase.js";
 
 const toggleFavoriteFn = httpsCallable(functions, "toggle_favorite", { timeout: 20000 });
-const EMPTY = { tournament: {}, discipline: {}, player: {} };
+const EMPTY = { tournament: {}, discipline: {}, player: {}, club: {} };
 
 let favorites = EMPTY;
 let unsubDoc = null;
@@ -45,7 +45,7 @@ document.addEventListener("authchange", (e) => {
     if (!user) { favorites = EMPTY; notify(); return; }
     unsubDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
         const f = (snap.data() || {}).favorites || {};
-        favorites = { tournament: f.tournament || {}, discipline: f.discipline || {}, player: f.player || {} };
+        favorites = { tournament: f.tournament || {}, discipline: f.discipline || {}, player: f.player || {}, club: f.club || {} };
         notify();
     }, (err) => console.warn("favorites listener failed:", err?.message || err));
 });

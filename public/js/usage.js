@@ -29,6 +29,8 @@ const SUMMARY_METRICS = [
     { key: "tournamentQueries", label: "Tournament opens" },
     { key: "disciplineQueries", label: "Discipline queries" },
     { key: "playerQueries", label: "Player lookups" },
+    { key: "clubSearches", label: "Club searches" },
+    { key: "clubQueries", label: "Club lookups" },
 ];
 
 function num(n) {
@@ -305,6 +307,7 @@ function render(data) {
     renderEntityTable("table-tournaments", data.tournaments, "Tournament", true);
     renderEntityTable("table-disciplines", data.disciplines, "Discipline", true);
     renderEntityTable("table-players", data.players, "Player", true);
+    renderEntityTable("table-clubs", data.clubs, "Club", true);
     renderUsers(data.users || { total: 0, top: [] });
     renderFeedback(data.feedback || []);
     show(dashboard);
@@ -317,11 +320,11 @@ function showLoadingSkeleton() {
         <div class="skel skel-block" style="height:1.7rem;margin-top:0.45rem"></div>
         <div class="skel skel-line" style="width:42%;margin-top:0.45rem"></div>
     </div>`;
-    document.getElementById("summary-cards").innerHTML = Array.from({ length: 7 }, card).join("");
+    document.getElementById("summary-cards").innerHTML = Array.from({ length: SUMMARY_METRICS.length }, card).join("");
     document.getElementById("usage-timeline").innerHTML = `<div class="skel skel-block" style="height:200px"></div>`;
     const table = () => `<div style="padding:0.7rem 0.8rem">` +
         Array.from({ length: 6 }, () => `<div class="skel skel-block" style="height:34px;margin-bottom:0.45rem"></div>`).join("") + `</div>`;
-    ["table-tournaments", "table-disciplines", "table-players", "users-table", "table-feedback"].forEach((id) => {
+    ["table-tournaments", "table-disciplines", "table-players", "table-clubs", "users-table", "table-feedback"].forEach((id) => {
         const el = document.getElementById(id); if (el) el.innerHTML = table();
     });
     show(dashboard);

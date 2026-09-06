@@ -14,7 +14,7 @@ from app.core.auth import Err, authenticate_user
 from app.core.firebase_app import db, log_firestore_error
 from app.core.rate_limiting import check_firestore_rate_limit
 
-FAVORITE_TYPES = {"tournament", "discipline", "player"}
+FAVORITE_TYPES = {"tournament", "discipline", "player", "club"}
 MAX_PER_TYPE = 200
 MAX_NAME_LENGTH = 200
 MAX_ID_LENGTH = 200
@@ -25,6 +25,7 @@ META_FIELDS = {
     "tournament": {"start", "end", "city"},
     "discipline": {"tournamentId", "tournamentName", "event"},
     "player": {"sp_code", "profile_id"},
+    "club": set(),   # the id (cl_code) + name are already enough to relink
 }
 
 

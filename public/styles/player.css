@@ -60,6 +60,25 @@
 .identity__name { font-size: clamp(1.3rem, 5vw, 1.6rem); font-weight: 800; color: var(--ink); line-height: 1.15; letter-spacing: -0.02em; }
 .identity__meta { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; color: var(--ink-dim); font-size: 0.9rem; }
 .identity__meta code { font-family: monospace; color: var(--ink-dim); }
+/* The club is the one meta item that actually goes somewhere (into the new
+   Clubs section) — a chip makes that obvious at a glance, instead of
+   reading like inert text next to it (feedback: "highlight the club more
+   ... let the user be able to click on it"). */
+.identity__club-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+}
+.identity__club-chip i { width: 13px; height: 13px; flex-shrink: 0; }
+.identity__club-chip:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); text-decoration: none; }
 .identity__links { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-end; flex-shrink: 0; }
 .identity__dbv { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
 .identity__dbv:hover { text-decoration: underline; }

@@ -431,7 +431,7 @@ function renderIdentity(id) {
     $("p-name").textContent = id.name || "Player";
     if (id.name) document.title = `${id.name} | BAX Checker`;
     const meta = [];
-    if (id.club) meta.push(`<span>${escapeHtml(id.club)}</span>`);
+    if (id.club) meta.push(`<a class="identity__club-chip" href="/html/club.html?q=${encodeURIComponent(id.club)}"><i data-lucide="shield"></i>${escapeHtml(id.club)}</a>`);
     if (id.birth_year) meta.push(`<span>Jg ${id.birth_year}</span>`);
     if (id.sp_code) meta.push(`<code>${escapeHtml(id.sp_code)}</code>`);
     $("p-meta").innerHTML = meta.join("");
