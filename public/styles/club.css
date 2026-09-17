@@ -103,141 +103,79 @@
     height: 100%;
 }
 /* Win rate: green above 50%, red below (won vs lost), reusing the same
-   win/loss ink as the Teams tab's W/D/L (see .club-team-grid__wdl). */
+   win/loss ink as the Teams tab's W/D/L (see .club-team-card__wdl). */
 .club-roster .wr-pos { color: var(--success); }
 .club-roster .wr-neg { color: var(--danger); }
 .club-roster .winrate-bar .wr-pos { background: var(--success); }
 .club-roster .winrate-bar .wr-neg { background: var(--danger); }
 
-/* Teams tab — a team x season grid. Cells stay a flat, neutral background
-   (a per-tier color fade read as noise, not signal — feedback: "dont use
-   the color fade for the leagues"); the tier tag + rank + W/D/L are the
-   only identity/magnitude cues. table-layout:fixed is load-bearing here —
-   auto layout let a full-width <button> inside a <th> report a huge
-   intrinsic width and threw header/body columns out of alignment
-   (confirmed live). Fixed layout sizes columns from the header row alone,
-   so the name column gets an explicit width and the season columns share
-   the rest equally. */
-.club-team-grid-wrap { overflow-x: auto; }
-.club-team-grid {
-    width: 100%;
-    table-layout: fixed;
-    border-collapse: separate;
-    border-spacing: 0 0.4rem;
-    font-size: 0.88rem;
-}
-.club-team-grid th {
-    text-align: center;
-    font-size: 0.72rem;
+/* Teams tab — one season's teams as a compact card grid (feedback: "have
+   the teams with the league and score together in a single button frame
+   ... copy the style of a tournament player pair ... compressed matrix"),
+   picked via #teams-season-select instead of adding more columns
+   (feedback: "dont want ... additional column for league season").
+   Reuses .team-grid/.team-card/.team-card__head/.rank-badge/.league-tag
+   (bax_checker.css) as-is — only the bits those don't already cover live
+   here. */
+#teams-season-select { width: auto; flex: 0 0 auto; }
+.club-team-card { text-decoration: none; cursor: pointer; }
+/* .team-card's shared hover lifts the card with translateY(-3px) — fine on
+   the tournament page, but this grid sits right under the site's sticky
+   header (position:sticky, z-index:50), so whenever a scrolled row's top
+   edge lands close enough to it, that lift tucks the border's top sliver
+   behind the header (bug: "the top edge is not visible when highlighted").
+   The border/shadow change alone already reads clearly as "hovered", so
+   the lift is dropped here rather than raising this card's own z-index —
+   raising it would just let it paint over the header instead, which is
+   worse. */
+.club-team-card:hover { transform: none; }
+.club-team-card__name {
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--ink-faint);
-    padding: 0 0.4rem 0.4rem;
-}
-/* Every column needs an explicit width — an unspecified one in a fixed
-   layout falls back to THAT header cell's own content width (not an equal
-   share of the rest), which is exactly what broke this before: a narrow
-   "Team"/short-season header shrank to fit its own text while its body
-   column held much wider content, throwing head and body out of alignment. */
-.club-team-grid th:first-child, .club-team-grid td:first-child { width: 28%; }
-.club-team-grid th:not(:first-child) { width: 24%; }
-.club-team-grid th:first-child { text-align: left; }
-.club-team-grid td:first-child { padding: 0; }   /* the inner link/span owns its own padding, so a hover fill reaches the cell edge */
-/* The team name is a link straight to dbv (whichever loaded season is most
-   recent for that row) whenever one's available — visibly so, matching the
-   pill hover treatment below (feedback: "make it visible that it is
-   clickable"). */
-.club-team-grid__name {
-    display: block;
-    text-align: left;
-    font-weight: 600;
     color: var(--ink);
-    padding: 0.6rem 0.75rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-decoration: none;
-    border-radius: var(--radius-sm);
+    min-width: 0;
 }
-a.club-team-grid__name:hover {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    text-decoration: underline;
-}
-.club-team-grid__cell {
-    text-align: center;
-    padding: 0.3rem;
-}
-.club-team-grid__pill {
+.club-team-card:hover .club-team-card__name { color: var(--accent); }
+.club-team-card__division {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    width: 100%;
-    padding: 0.45rem 0.5rem;
-    border-radius: var(--radius-sm);
-    background: var(--card-2);
-    border: 1px solid var(--border);
-    cursor: default;
-    text-decoration: none;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--ink-dim);
+    min-width: 0;
 }
-/* A cell backed by a real dbv page is an <a> (see club.js renderTeams) —
-   give it an obvious hover affordance so it doesn't look like inert text. */
-a.club-team-grid__pill { cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
-a.club-team-grid__pill:hover {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, var(--card-2));
+/* The ellipsis belongs on the text span, not the flex row itself — a flex
+   container doesn't truncate its children's text just by being told to. */
+.club-team-card__division span {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.club-team-grid__pill-top { display: inline-flex; align-items: center; gap: 0.35rem; }
-.club-team-grid__pill .league-tag { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); flex-shrink: 0; }
-.club-team-grid__rank { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
-/* Explicit W/D/L, each labeled and colored — the old bare "7-4-3" string
-   didn't say which number was which (feedback: "not clear ... make them
+.club-team-card__division .league-tag { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); flex-shrink: 0; }
+/* Explicit W/D/L, each labeled and colored — a bare "7-4-3" string didn't
+   say which number was which (feedback: "not clear ... make them
    explicit"). Reuses the same win/loss ink already used for W-L records
-   elsewhere (player.css .stat__value .w/.l). */
-.club-team-grid__wdl {
+   elsewhere (player.css .stat__value .w/.l); a border-top separates it
+   from the facts above it, mirroring .team-card__stats. */
+.club-team-card__wdl {
     display: flex;
     align-items: baseline;
     gap: 0.4rem;
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
+    border-top: 1px solid var(--border);
+    padding-top: 0.5rem;
 }
-.club-team-grid__wdl b { font-size: 0.85rem; }
-.club-team-grid__wdl .w { color: var(--success); }
-.club-team-grid__wdl .d { color: var(--ink-faint); }
-.club-team-grid__wdl .l { color: var(--danger); }
-.club-team-grid__wdl span { display: inline-flex; flex-direction: column; align-items: center; gap: 0.05rem; }
-.club-team-grid__wdl-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-faint); }
-.club-team-grid__empty {
-    display: block;
-    text-align: center;
-    color: var(--ink-faint);
-    opacity: 0.5;
-}
-.club-team-grid__load {
-    display: block;
-    width: 100%;
-    background: none;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--ink-dim);
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: none;
-    letter-spacing: normal;
-    padding: 0.4rem 0.3rem;
-    cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease;
-}
-.club-team-grid__load:hover { border-color: var(--accent); color: var(--accent); }
-.club-team-grid__load:disabled { opacity: 0.6; cursor: default; }
-
-@media (max-width: 560px) {
-    .club-team-grid__name { padding: 0.6rem 0.4rem; }
-    .club-team-grid th:first-child, .club-team-grid td:first-child { width: 26%; }
-}
+.club-team-card__wdl b { font-size: 0.85rem; }
+.club-team-card__wdl .w { color: var(--success); }
+.club-team-card__wdl .d { color: var(--ink-faint); }
+.club-team-card__wdl .l { color: var(--danger); }
+.club-team-card__wdl span { display: inline-flex; flex-direction: column; align-items: center; gap: 0.05rem; }
+.club-team-card__wdl-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-faint); }
 
 /* The roster table's 5 columns (Name/Born/W-L/Win rate/BAX) don't fit a
    phone-width column even after the base tightening above — drop the

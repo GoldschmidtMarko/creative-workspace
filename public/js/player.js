@@ -11,6 +11,7 @@ import { bindSearchForm } from "./util/search-form.js";
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
 const getPlayerLeagues = httpsCallable(functions, "get_player_leagues", { timeout: 60000 });
+const getPlayerLeagueGames = httpsCallable(functions, "get_player_league_games", { timeout: 60000 });
 const getPlayerUpcoming = httpsCallable(functions, "get_player_upcoming", { timeout: 60000 });
 const getPlayerNetwork = httpsCallable(functions, "get_player_network", { timeout: 120000 });
 const searchPlayers = httpsCallable(functions, "search_players", { timeout: 60000 });
@@ -83,6 +84,18 @@ const from = {
     e: (params.get("from_e") || "").trim(),
     tn: (params.get("from_tn") || "").trim(),
     pi: (params.get("from_pi") || "").trim(),
+    // Team-encounter context, present when arriving from encounter.html —
+    // powers the "back to match" button. Carries the same team/club
+    // params encounter.html itself needs, so returning to it doesn't lose
+    // ITS OWN "back to team" banner (same "propagate context forward"
+    // fix team.html's own back-to-club banner needed — see team.js).
+    league: (params.get("from_league") || "").trim(),
+    match: (params.get("from_match") || "").trim(),
+    mn: (params.get("from_mn") || "").trim(),
+    team: (params.get("from_team") || "").trim(),
+    teamName: (params.get("from_team_name") || "").trim(),
+    clCode: (params.get("from_cl_code") || "").trim(),
+    clubName: (params.get("from_club_name") || "").trim(),
 };
 const yearEl = $("copyright-year");
 if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -250,6 +263,21 @@ function showProfileView() {
     const ph = $("page-header"); if (ph) ph.classList.add("hidden");   // identity card is the header now
     showProfileSkeleton();
     setupTournamentReturn();
+    setupMatchReturn();
+}
+
+// Reveal the "back to match" button when we arrived from a team
+// encounter's own page (see encounter.js's sideCell).
+function setupMatchReturn() {
+    if (!from.league || !from.match) return;
+    const rb = $("match-return");
+    if (!rb) return;
+    const q = new URLSearchParams({ id: from.league, match: from.match, team: from.team, team_name: from.teamName });
+    if (from.clCode) q.set("cl_code", from.clCode);
+    if (from.clubName) q.set("club_name", from.clubName);
+    rb.href = `/html/encounter.html?${q.toString()}`;
+    $("match-return-name").textContent = from.mn || "Match";
+    rb.classList.remove("hidden");
 }
 
 // Reveal the "back to tournament" button (and the dbv tournament-player link)
@@ -377,6 +405,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
             if (window.lucide) lucide.createIcons();
             loadDbvStats(pid, name);
             loadLeagues(pid, name);
+            loadLeagueGames(pid);
             loadUpcoming(pid);
             loadNetwork(pid, sp, name);
             return;
@@ -402,6 +431,7 @@ async function loadPlayer({ sp = "", pid = "", name = "", vorname = "" }) {
         if (rpid) {
             loadDbvStats(rpid, identity && identity.name);
             loadLeagues(rpid, identity && identity.name);
+            loadLeagueGames(rpid);
             loadUpcoming(rpid);
             loadNetwork(rpid, rsp, identity && identity.name);
         } else {
@@ -1083,6 +1113,77 @@ function renderPlayerLeagues(seasons, profileId) {
             ? `<a class="league-season league-season--link" href="${escapeHtml(url)}" target="_blank" rel="noopener">${inner}</a>`
             : `<div class="league-season">${inner}</div>`;
     }).join("");
+}
+
+/* ------------------------------------------------------------------ */
+/* League games — fast links to this player's own encounter.html      */
+/* pages, across every team they're currently on (see teams.py's       */
+/* get_player_league_games).                                           */
+/* ------------------------------------------------------------------ */
+
+async function loadLeagueGames(pid) {
+    try {
+        const res = await getPlayerLeagueGames({ profile_id: pid });
+        if (res.data.error) throw new Error(res.data.error);
+        renderLeagueGames(res.data.played || [], res.data.upcoming || []);
+    } catch (err) {
+        console.error("league games failed:", err);
+        const msg = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
+        $("league-games-recent-body").innerHTML = msg;
+        $("league-games-upcoming-body").innerHTML = "";
+    }
+}
+
+// dbv's own "Ergebnis" is always "Heim-Gast" (home-away) — same helper as
+// team.js's matchResultClass, ported rather than reinvented.
+function leagueGameResultClass(score, isHome) {
+    const m = /^(\d+)-(\d+)$/.exec(score || "");
+    if (!m) return "";
+    const home = parseInt(m[1], 10), away = parseInt(m[2], 10);
+    const us = isHome ? home : away, them = isHome ? away : home;
+    return us > them ? "match-result--win" : us < them ? "match-result--loss" : "match-result--draw";
+}
+
+function leagueGameRow(m, showTeam) {
+    // "H"/"A" and no year on the date — same narrow-screen fix as
+    // team.html's own Results/Upcoming rows (see team.js's matchRow).
+    const dateLabel = m.date ? new Date(`${m.date}T00:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) : "—";
+    const timeLabel = m.time ? ` ${escapeHtml(m.time)}` : "";
+    const venue = m.is_home ? "H" : "A";
+    const scoreCell = m.played && m.score
+        ? `<span class="${leagueGameResultClass(m.score, m.is_home)}">${escapeHtml(m.score)}</span>`
+        : "—";
+    const teamCell = showTeam ? `<td>${escapeHtml(m.team || "")}</td>` : "";
+    // Same fix as team.html's own Results/Upcoming rows: a dedicated
+    // button, not the date itself, is the link into the encounter.
+    const gamesBtn = m.match_id
+        ? `<a class="btn btn-secondary btn-sm" href="/html/encounter.html?id=${encodeURIComponent(m.league_guid)}&match=${encodeURIComponent(m.match_id)}&team=${encodeURIComponent(m.team_id)}&team_name=${encodeURIComponent(m.team || "")}" title="See this encounter's individual games">Games</a>`
+        : "";
+    return `<tr>
+        <td class="when">${escapeHtml(dateLabel)}${timeLabel}</td>
+        ${teamCell}
+        <td class="is-num">${venue}</td>
+        <td class="name">${escapeHtml(m.opponent || "")}</td>
+        <td class="is-num">${scoreCell}</td>
+        <td class="is-num">${gamesBtn}</td>
+    </tr>`;
+}
+
+function leagueGamesTable(rows, showTeam) {
+    if (!rows.length) return `<div class="pl-empty">None.</div>`;
+    const teamHead = showTeam ? "<th>Team</th>" : "";
+    return `<div class="table-scroll"><table class="pl-table">
+        <thead><tr><th>Date</th>${teamHead}<th class="is-num">H/A</th><th>Opponent</th><th class="is-num">Score</th><th></th></tr></thead>
+        <tbody>${rows.map((m) => leagueGameRow(m, showTeam)).join("")}</tbody>
+    </table></div>`;
+}
+
+function renderLeagueGames(played, upcoming) {
+    // The team column only earns its place once there's more than one
+    // team to tell rows apart by.
+    const showTeam = new Set([...played, ...upcoming].map((m) => m.team_id)).size > 1;
+    $("league-games-recent-body").innerHTML = leagueGamesTable(played, showTeam);
+    $("league-games-upcoming-body").innerHTML = leagueGamesTable(upcoming, showTeam);
 }
 
 /* ------------------------------------------------------------------ */

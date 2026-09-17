@@ -36,6 +36,8 @@ CLUB_SEARCH_TTL = timedelta(hours=12)                    # clubs.py: _search_clu
 CLUB_ROSTER_FALLBACK_TTL = timedelta(days=30)            # clubs.py: _fetch_club_roster (fallback only)
 CLUB_TEAMS_FALLBACK_TTL = timedelta(days=60)             # clubs.py: get_club_teams (fallback only, per season slot)
 TEAM_SEASON_FALLBACK_TTL = timedelta(hours=12)           # teams.py: get_team_season (fallback only)
+TEAM_ENCOUNTER_FALLBACK_TTL = timedelta(hours=12)        # teams.py: get_team_encounter (fallback only)
+PLAYER_LEAGUE_GAMES_FALLBACK_TTL = timedelta(hours=12)   # teams.py: get_player_league_games (fallback only)
 
 # --- in-process memoization (seconds, not Firestore) ----------------------- #
 BAX_DATE_CHECK_SECONDS = 600    # bax.py: _bax_update_date — re-check badminton-bax.de's "(Turniere)" date at most this often

@@ -1,12 +1,11 @@
 // Club Overview page. get_club_roster resolves a free-text club name (or an
 // already-known cl_code) to a season's roster across all three disciplines;
 // get_club_teams derives one season's worth of that club's teams + real
-// league standings by reusing get_player_leagues under the hood (see
-// functions/app/scraping/clubs.py). Only the current season (slot 0) is
-// fetched eagerly, right after the club resolves — its result feeds both
-// the top-of-page stat tiles and the Teams tab's first column. The two
-// prior seasons (slot 1/2) are fetched only when their column is clicked,
-// since each slot costs roughly one dbv request per resolved player.
+// league standings (see functions/app/scraping/clubs.py). Only the current
+// season (slot 0) is fetched eagerly, right after the club resolves — its
+// result feeds both the top-of-page stat tiles and the Teams tab's default
+// view. The two prior seasons (slot 1/2) are fetched on demand, the first
+// time the Teams tab's own season dropdown is switched to them.
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { functions } from "./util/firebase.js";
 import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
@@ -37,6 +36,7 @@ const state = {
     // Teams, per season slot (0 = current, 1/2 = prior): null = not
     // requested yet, {loading:true}, {season, teams}, or {error}.
     teamsSlots: [null, null, null],
+    activeTeamsSlot: 0,   // which slot the Teams tab's own season dropdown shows
     rosterSort: { key: "bax", dir: "desc" },
 };
 
@@ -84,6 +84,8 @@ function showClubView() {
     $("roster-body").innerHTML = skelRows(4);
     $("teams-body").innerHTML = `<div class="skeleton"><span class="spinner"></span> Resolving players' league history… this can take a moment.</div>`;
     state.teamsSlots = [null, null, null];
+    state.activeTeamsSlot = 0;
+    renderTeamsSeasonSelect();
 }
 
 function showError(msg) {
@@ -209,19 +211,23 @@ function applyRoster(data) {
     renderRoster();
     if (isNewClub) {
         state.teamsSlots = [null, null, null];
+        state.activeTeamsSlot = 0;
         renderClubStats();
-        loadTeamsSlot(0);   // current season only — the other two load on click
+        renderTeamsSeasonSelect();
+        loadTeamsSlot(0);   // current season only — 1/2 load when the dropdown switches to them
     } else {
         renderClubStats();
     }
 }
 
 /* One season's teams (slot 0 = current, fetched eagerly; 1/2 = prior,
-   fetched only when their Teams-tab column is clicked). Slot 0 also feeds
-   the top-of-page stat tiles. */
+   fetched only the first time the Teams tab's own season dropdown switches
+   to them — see its change handler below). Slot 0 also feeds the
+   top-of-page stat tiles. */
 async function loadTeamsSlot(slot) {
     state.teamsSlots[slot] = { loading: true };
     if (slot === 0) renderClubStats();
+    renderTeamsSeasonSelect();
     renderTeams();
     try {
         const res = await getClubTeams({ cl_code: state.club.cl_code, slot });
@@ -233,6 +239,7 @@ async function loadTeamsSlot(slot) {
         state.teamsSlots[slot] = { error: err.message };
     }
     if (slot === 0) renderClubStats();
+    renderTeamsSeasonSelect();
     renderTeams();
 }
 
@@ -407,15 +414,37 @@ document.querySelectorAll("#roster-disc [data-cat]").forEach((btn) => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Teams tab — a team x season heatmap (see loadTeams for the fetch).  */
+/* Teams tab — one season's teams as a compact card grid, picked via its   */
+/* own dropdown (see loadTeamsSlot for the fetch).                         */
 /* ------------------------------------------------------------------ */
 
-function slotColumnLabel(slot) {
+/* Not state.seasons[slot] (the roster's own badminton-bax season labels)
+   — dbv's own season for a slot can genuinely differ from what
+   badminton-bax currently calls current (confirmed live: dbv already had
+   real "2026-27" standings while badminton-bax's roster still called
+   "2025/26" current), so a roster-derived preview here would risk showing
+   the wrong label right up until this slot's own fetch resolves it. */
+function teamsSlotLabel(slot) {
     const data = state.teamsSlots[slot];
     if (data && data.season) return data.season;
-    if (state.seasons[slot]) return state.seasons[slot];   // roster-derived preview, before this slot's own fetch resolves it
-    return slot === 0 ? "Current" : `${slot} season${slot > 1 ? "s" : ""} back`;
+    return slot === 0 ? "Current season" : `${slot} season${slot > 1 ? "s" : ""} back`;
 }
+
+function renderTeamsSeasonSelect() {
+    const sel = $("teams-season-select");
+    if (!sel) return;
+    sel.innerHTML = [0, 1, 2].map((slot) =>
+        `<option value="${slot}" ${slot === state.activeTeamsSlot ? "selected" : ""}>${escapeHtml(teamsSlotLabel(slot))}</option>`).join("");
+}
+$("teams-season-select").addEventListener("change", (e) => {
+    const slot = parseInt(e.target.value, 10);
+    state.activeTeamsSlot = slot;
+    if (state.teamsSlots[slot] === null) {
+        loadTeamsSlot(slot);   // sets state + re-renders itself once it resolves
+    } else {
+        renderTeams();
+    }
+});
 
 /* The squad label after a team's own club-name prefix — "4" from "SV
    Bergfried Leverkusen 4", "J2" from "SV Bergfried Lev. J2" — mirrors
@@ -427,10 +456,16 @@ function slotColumnLabel(slot) {
    "SV Bergfried Lev. J2" sorted ahead of "SV Bergfried Leverkusen 4"
    purely because "." < "e", even though J2 has no real claim to coming
    first). Token-matched the same way _belongs_to_club matches it
-   server-side, so either spelling direction is recognized. */
+   server-side, so either spelling direction is recognized. clubName is
+   also re-spaced after a non-trailing period first (a period not already
+   followed by whitespace gets one inserted) — badminton-bax.de doesn't
+   always space a leading ordinal the way dbv does (confirmed live: "1.
+   CfB Köln" is stored there as "1.CfB Köln", merging "1." and "CfB" into
+   one token and misaligning every position after it against dbv's own
+   3-word spelling). */
 function squadSuffix(teamName, clubName) {
     if (!teamName || !clubName) return teamName || "";
-    const clubTokens = clubName.trim().split(/\s+/).map((t) => t.replace(/\.$/, "").toLowerCase());
+    const clubTokens = clubName.trim().replace(/\.(?!\s|$)/g, ". ").split(/\s+/).map((t) => t.replace(/\.$/, "").toLowerCase());
     const teamTokens = teamName.trim().split(/\s+/);
     if (teamTokens.length <= clubTokens.length) return teamName;
     for (let i = 0; i < clubTokens.length; i++) {
@@ -487,140 +522,67 @@ function renderTeamsRecord(t) {
     const w = t.won != null ? t.won : 0;
     const d = t.drawn != null ? t.drawn : 0;
     const l = t.lost != null ? t.lost : 0;
-    const html = `<span class="club-team-grid__wdl">
-        <span><b class="w">${w}</b><span class="club-team-grid__wdl-label">W</span></span>
-        <span><b class="d">${d}</b><span class="club-team-grid__wdl-label">D</span></span>
-        <span><b class="l">${l}</b><span class="club-team-grid__wdl-label">L</span></span>
+    const html = `<span class="club-team-card__wdl">
+        <span><b class="w">${w}</b><span class="club-team-card__wdl-label">W</span></span>
+        <span><b class="d">${d}</b><span class="club-team-card__wdl-label">D</span></span>
+        <span><b class="l">${l}</b><span class="club-team-card__wdl-label">L</span></span>
     </span>`;
     return { html, plain: `${w}W ${d}D ${l}L` };
 }
 
+// One team, one card — name + rank up top (like a tournament team-card's
+// head), division/league tag and W/D/L below (feedback: "have the teams
+// with the league and score be together in a single button frame").
+// Reuses .team-card/.team-grid/.rank-badge/.league-tag as-is (feedback:
+// "copy the style of a tournament player pair") rather than a new table.
+function teamCardHtml(t) {
+    const href = teamPageUrl(t);
+    const tag = t.abbr ? `<span class="league-tag">${escapeHtml(t.abbr)}</span>` : "";
+    const record = renderTeamsRecord(t);
+    const rank = t.standing ? "#" + escapeHtml(t.standing) : "—";
+    const title = [t.division, record ? record.plain : null, href ? "See this team's season" : null]
+        .filter(Boolean).join(" · ");
+    const tagName = href ? "a" : "div";
+    const attrs = href ? ` href="${escapeHtml(href)}"` : "";
+    return `<${tagName} class="team-card club-team-card"${attrs} title="${escapeHtml(title)}">
+        <div class="team-card__head">
+            <span class="club-team-card__name">${escapeHtml(t.team)}</span>
+            <span class="rank-badge">${rank}</span>
+        </div>
+        ${t.division ? `<div class="club-team-card__division">${tag}<span>${escapeHtml(t.division)}</span></div>` : ""}
+        ${record ? record.html : ""}
+    </${tagName}>`;
+}
+
 function renderTeams() {
     const el = $("teams-body");
-    const slot0 = state.teamsSlots[0];
-    const anyLoaded = state.teamsSlots.some((s) => s && s.teams);
-    if ((!slot0 || slot0.loading) && !anyLoaded) {
+    const data = state.teamsSlots[state.activeTeamsSlot];
+    if (!data || data.loading) {
         el.innerHTML = `<div class="skeleton"><span class="spinner"></span> Resolving players' league history… this can take a moment.</div>`;
         return;
     }
-    if (!anyLoaded) {
-        el.innerHTML = slot0 && slot0.error
-            ? `<div class="pl-empty">Could not load team history: ${escapeHtml(slot0.error)}</div>`
-            : '<div class="pl-empty">No league team data found for this club’s current roster.</div>';
+    if (data.error) {
+        el.innerHTML = `<div class="pl-empty">Could not load team history: ${escapeHtml(data.error)}
+            <button type="button" class="btn btn-secondary btn-sm" id="teams-retry" style="margin-left:0.5rem;">Retry</button></div>`;
+        const retry = $("teams-retry");
+        if (retry) retry.addEventListener("click", () => loadTeamsSlot(state.activeTeamsSlot));
         return;
     }
-
-    // Column order left(current, slot 0) -> right(oldest, slot 2) — the
-    // current season sits right next to the team name; older seasons expand
-    // rightward as they're added (feedback: "have the newest league more
-    // right" meant *leftmost*, immediately after the team column). Only
-    // ever-activated slots become columns — an inactive prior season is a
-    // small "+ Add previous season" button below the table, not a big empty
-    // placeholder column (feedback: "the other leagues ... not too visible").
-    const columns = [0, 1, 2].filter((slot) => state.teamsSlots[slot] !== null);
-
-    const byTeam = new Map();   // dedupe key -> { name, bySlot: { [slot]: teamRow } }
-    columns.forEach((slot) => {
-        const data = state.teamsSlots[slot];
-        (data && data.teams ? data.teams : []).forEach((t) => {
-            // Team name is the natural key for lining up the same team
-            // across seasons, but a club can field the same squad number in
-            // more than one competition at once — league + cup — with the
-            // exact same name (confirmed live). When that collides within a
-            // single slot, disambiguate by URL instead of letting the
-            // second entry silently clobber the first in the map.
-            let key = t.team;
-            if (byTeam.has(key) && byTeam.get(key).bySlot[slot]) {
-                key = `${t.team}__${t.url || t.abbr || slot}`;
-            }
-            if (!byTeam.has(key)) byTeam.set(key, { name: t.team, bySlot: {} });
-            byTeam.get(key).bySlot[slot] = t;
-        });
-    });
+    if (!data.teams || !data.teams.length) {
+        el.innerHTML = '<div class="pl-empty">No league team data found for this club’s current roster.</div>';
+        return;
+    }
 
     // Squad number/label order (1, 2, 3 ... then J1, J2, M1 ...), not league
     // tier — a club's own squad numbering doesn't track tier one-for-one (a
     // lower-numbered squad can sit in a lower tier than a youth/mixed squad
-    // in a given season), so tier-first grouping read as "still off";
-    // bestTier is now only the tiebreaker for two divisions sharing a
-    // squad label (a cup alongside the regular league).
-    const rows = Array.from(byTeam.values()).map(({ name, bySlot }) => {
-        const bestTier = Math.min(99, ...Object.values(bySlot).map((t) => (t.tier != null ? t.tier : 99)));
-        return { name, bySlot, bestTier };
-    }).sort((a, b) => compareSquadNames(a.name, b.name, state.club.name) || a.bestTier - b.bestTier);
+    // in a given season), so tier-first grouping read as "still off". Tier
+    // is only the tiebreaker for two divisions sharing a squad label (a cup
+    // alongside the regular league).
+    const teams = data.teams.slice().sort((a, b) =>
+        compareSquadNames(a.team, b.team, state.club.name) || (a.tier ?? 99) - (b.tier ?? 99));
 
-    // Season columns split whatever's left after the (fixed-width) team
-    // column, so 1 or 2 activated seasons don't leave a stray, near-empty
-    // stretch of table before the next "+ Add" button.
-    const seasonColWidth = (72 / columns.length).toFixed(2);
-    const headCells = columns.map((slot) => {
-        const data = state.teamsSlots[slot];   // never null — columns already filters those out
-        const label = escapeHtml(slotColumnLabel(slot));
-        const style = ` style="width:${seasonColWidth}%"`;
-        if (data.loading) return `<th${style}>${label}<br><span class="spinner" style="width:0.8em;height:0.8em;"></span></th>`;
-        if (data.error) return `<th${style}><button type="button" class="club-team-grid__load" data-slot="${slot}" title="${escapeHtml(data.error)}">Retry ${label}</button></th>`;
-        return `<th${style}>${label}</th>`;
-    }).join("");
-
-    const bodyRows = rows.map((r) => {
-        const cells = columns.map((slot) => {
-            const data = state.teamsSlots[slot];
-            const t = r.bySlot[slot];
-            if (t) {
-                const tag = t.abbr ? `<span class="league-tag">${escapeHtml(t.abbr)}</span>` : "";
-                const record = renderTeamsRecord(t);
-                const href = teamPageUrl(t);
-                const title = [t.division, record ? record.plain : null, href ? "See this team's season" : null]
-                    .filter(Boolean).join(" · ");
-                const pillTag = href ? "a" : "span";
-                const pillAttrs = href ? ` href="${escapeHtml(href)}"` : "";
-                return `<td class="club-team-grid__cell">
-                    <${pillTag} class="club-team-grid__pill" title="${escapeHtml(title)}"${pillAttrs}>
-                        <span class="club-team-grid__pill-top">${tag}<span class="club-team-grid__rank">${t.standing ? "#" + escapeHtml(t.standing) : "—"}</span></span>
-                        ${record ? record.html : ""}
-                    </${pillTag}>
-                </td>`;
-            }
-            // Not (yet) loaded for this slot vs. genuinely absent that season.
-            return (data && data.teams)
-                ? `<td class="club-team-grid__cell"><span class="club-team-grid__empty">–</span></td>`
-                : `<td class="club-team-grid__cell"><span class="club-team-grid__empty">·</span></td>`;
-        }).join("");
-        // Team name links to whichever loaded season is most recent for
-        // this row (columns is current-first) — a team's own page is
-        // inherently season-scoped, so there's no single URL that covers
-        // every season.
-        const anyTeam = columns.map((slot) => r.bySlot[slot]).find((t) => t && teamPageUrl(t));
-        const nameInner = escapeHtml(r.name);
-        const nameCell = anyTeam
-            ? `<a class="club-team-grid__name" href="${escapeHtml(teamPageUrl(anyTeam))}" title="${escapeHtml(r.name)} — see this team's season">${nameInner}</a>`
-            : `<span class="club-team-grid__name" title="${escapeHtml(r.name)}">${nameInner}</span>`;
-        return `<tr><td>${nameCell}</td>${cells}</tr>`;
-    }).join("");
-
-    // The next not-yet-activated slot (if any) gets one small, deliberately
-    // low-key button rather than a whole extra placeholder column (feedback:
-    // "the other leagues ... not too visible ... just add a small button").
-    const nextSlot = [1, 2].find((slot) => state.teamsSlots[slot] === null);
-
-    el.innerHTML = `
-        <div class="club-team-grid-wrap">
-            <table class="club-team-grid">
-                <thead><tr><th>Team</th>${headCells}</tr></thead>
-                <tbody>${bodyRows}</tbody>
-            </table>
-        </div>
-        ${nextSlot !== undefined ? `
-        <button type="button" class="btn btn-ghost btn-sm club-team-grid__add" data-slot="${nextSlot}">
-            <i data-lucide="plus" style="width:14px;height:14px;"></i> Add previous season
-        </button>` : ""}`;
-
-    el.querySelectorAll(".club-team-grid__load, .club-team-grid__add").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const slot = parseInt(btn.getAttribute("data-slot"), 10);
-            loadTeamsSlot(slot);
-        });
-    });
+    el.innerHTML = `<div class="team-grid">${teams.map(teamCardHtml).join("")}</div>`;
     if (window.lucide) lucide.createIcons();
 }
 

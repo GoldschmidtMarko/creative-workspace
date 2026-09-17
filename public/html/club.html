@@ -91,11 +91,21 @@
                 </div>
 
                 <nav class="subnav" id="subnav" aria-label="Club sections">
-                    <button class="subnav__tab is-active" type="button" data-tab="roster">Roster</button>
-                    <button class="subnav__tab" type="button" data-tab="teams">Teams</button>
+                    <button class="subnav__tab is-active" type="button" data-tab="teams">Teams</button>
+                    <button class="subnav__tab" type="button" data-tab="roster">Roster</button>
                 </nav>
 
-                <div class="tab-panel is-active" data-panel="roster">
+                <div class="tab-panel is-active" data-panel="teams">
+                    <div class="pcard">
+                        <div class="pcard__head">
+                            <h2>Teams</h2>
+                            <select id="teams-season-select" class="field"></select>
+                        </div>
+                        <div id="teams-body" class="player-leagues"><div class="skeleton">Not loaded yet…</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="roster">
                     <div class="pcard">
                         <div class="pcard__head">
                             <h2>Roster</h2>
@@ -109,16 +119,6 @@
                             </div>
                         </div>
                         <div id="roster-body"><div class="skeleton"><span class="spinner"></span> Loading…</div></div>
-                    </div>
-                </div>
-
-                <div class="tab-panel" data-panel="teams">
-                    <div class="pcard">
-                        <div class="pcard__head">
-                            <h2>Teams</h2>
-                            <span class="hint">league ranking, current season + 2 prior</span>
-                        </div>
-                        <div id="teams-body" class="player-leagues"><div class="skeleton">Not loaded yet…</div></div>
                     </div>
                 </div>
             </section>

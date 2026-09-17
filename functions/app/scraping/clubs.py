@@ -331,6 +331,18 @@ def _resolve_roster_profile_ids(full_names, club_name):
     return resolved
 
 
+def _club_name_tokens(club_name):
+    """club_name's own words, lowercased — a period not already followed by
+    whitespace gets one inserted first, because badminton-bax.de doesn't
+    always space a leading ordinal the way dbv does (confirmed live: "1.
+    CfB Köln" (cl_code 01-0033) — dbv's own divisions spell it with a space
+    after "1.", but badminton-bax's roster page stores it as "1.CfB Köln"
+    with none, merging "1." and "CfB" into a single token and misaligning
+    every token position after it against dbv's own 3-word spelling)."""
+    spaced = re.sub(r"\.(?!\s|$)", ". ", club_name)
+    return [t.rstrip(".").lower() for t in spaced.strip().split()]
+
+
 def _belongs_to_club(team_name, club_name):
     """A team's name starts with the club's own name (dbv's convention is
     "<Club Name> <squad number>", e.g. "BV Aachen 2") — the cheap, reliable
@@ -350,10 +362,11 @@ def _belongs_to_club(team_name, club_name):
     the abbreviated form and silently dropped every "Leverkusen"-spelled
     team — token-prefix matching (each club-name word is a PREFIX of the
     corresponding team-name word, e.g. "lev" of "leverkusen") recognizes
-    both spellings, in either direction of abbreviation."""
+    both spellings, in either direction of abbreviation. club_name is
+    additionally re-spaced first — see _club_name_tokens."""
     if not team_name or not club_name:
         return False
-    club_tokens = [t.rstrip(".").lower() for t in club_name.strip().split()]
+    club_tokens = _club_name_tokens(club_name)
     team_tokens = [t.lower() for t in team_name.strip().split()]
     if len(team_tokens) < len(club_tokens):
         return False
@@ -374,7 +387,7 @@ def _squad_suffix(team_name, club_name):
     already passed _belongs_to_club."""
     if not team_name or not club_name:
         return team_name or ""
-    club_tokens = [t.rstrip(".").lower() for t in club_name.strip().split()]
+    club_tokens = _club_name_tokens(club_name)
     team_tokens = team_name.strip().split()
     if len(team_tokens) <= len(club_tokens):
         return team_name
@@ -429,32 +442,38 @@ def _find_club_anchor(resolved, club_name, slot):
     could otherwise anchor on a lagging player and make the whole club look
     a season behind one that's already live on dbv. 1/2 = that many seasons
     back, taken from each candidate's own `years` tabs — the 1st/2nd
-    DISTINCT season different from their own current (a dbv year tab can
-    just alias the current season: confirmed live, on 2026-09-06 a
-    player's years[0] was "2026" and returned identical data to the
-    unseasoned "current" fetch) — stops at the first hit, since there's no
-    single "freshest" notion for a season that's already in the past."""
-    if slot == 0:
-        hits = []
-        for _name, profile_id in resolved[:_ANCHOR_TRY_LIMIT]:
-            try:
-                current, _years = _scrape_leagues(profile_id)
-            except Exception as e:
-                print(f"club teams: league fetch error for {profile_id}: {e}")
-                continue
-            hit = _team_of_club(current, club_name)
-            if hit:
-                hits.append(hit)
-        return max(hits, key=lambda h: h[2] or "") if hits else None
+    DISTINCT season OLDER than the slot-0 season (a dbv year tab can just
+    alias the current season: confirmed live, on 2026-09-06 a player's
+    years[0] was "2026" and returned identical data to the unseasoned
+    "current" fetch) — stops at the first hit, since there's no single
+    "freshest" notion for a season that's already in the past.
 
+    Deliberately the SLOT-0 season, not each candidate's own individual
+    "current" — a candidate whose own current pointer is still lagging
+    (see above) would otherwise treat their own stale season as "already
+    shown" and skip straight past the real in-between season (confirmed
+    live: current=2026-27, "1 season back" landed on 2024-25 instead of
+    2025-26, because the tried candidate's own current was still 2025-26,
+    so THAT got excluded instead of 2026-27)."""
+    candidates = []
+    current_hits = []
     for _name, profile_id in resolved[:_ANCHOR_TRY_LIMIT]:
         try:
             current, years = _scrape_leagues(profile_id)
         except Exception as e:
             print(f"club teams: league fetch error for {profile_id}: {e}")
             continue
-        current_season = next((lg.get("season") for lg in current if lg.get("season")), None)
-        seen = {current_season} if current_season else set()
+        candidates.append((profile_id, current, years))
+        hit = _team_of_club(current, club_name)
+        if hit:
+            current_hits.append(hit)
+
+    if slot == 0:
+        return max(current_hits, key=lambda h: h[2] or "") if current_hits else None
+
+    slot0_season = max((h[2] for h in current_hits if h[2]), default=None)
+    for profile_id, _current, years in candidates:
+        seen = {slot0_season} if slot0_season else set()
         distinct_prior = []
         for y in years or []:
             try:
