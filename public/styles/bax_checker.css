@@ -126,6 +126,16 @@
 }
 .tm__name.player-link:hover { text-decoration: underline; }
 
+/* Plain W/L/D score coloring — shared by team.js's Results/Upcoming rows
+   and player.js's League games tab (team.html and player.html both load
+   this file; team.css, which used to hold these, is neither's shared
+   stylesheet). Not used for encounter.html's own winner highlighting —
+   see team.css's .encounter-winner for why a background tint is needed
+   there instead of a text-color-only cue. */
+.match-result--win { color: var(--success); font-weight: 600; }
+.match-result--loss { color: var(--danger); font-weight: 600; }
+.match-result--draw { color: var(--ink-dim); font-weight: 600; }
+
 /* Round league tag (highest league) */
 .league-tag {
     display: inline-flex;

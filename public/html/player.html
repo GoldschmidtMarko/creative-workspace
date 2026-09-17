@@ -92,6 +92,16 @@
                     <span class="tournament-return__badge"><i data-lucide="trophy"></i></span>
                 </a>
 
+                <!-- Contextual "back to match" (only when arriving from a team encounter) -->
+                <a id="match-return" class="tournament-return hidden" href="#">
+                    <span class="tournament-return__arrow"><i data-lucide="arrow-left"></i></span>
+                    <span class="tournament-return__body">
+                        <span class="tournament-return__eyebrow">Back to match</span>
+                        <span class="tournament-return__name" id="match-return-name">Match</span>
+                    </span>
+                    <span class="tournament-return__badge"><i data-lucide="swords"></i></span>
+                </a>
+
                 <!-- Identity header (always visible) -->
                 <div class="pcard" id="identity-card">
                     <div class="identity">
@@ -120,8 +130,9 @@
 
                 <!-- Section sub-navigation (sticky) -->
                 <nav class="subnav" id="subnav" aria-label="Player sections">
-                    <button class="subnav__tab subnav__tab--upcoming is-active" type="button" data-tab="upcoming"><i data-lucide="sparkles"></i>Upcoming</button>
+                    <button class="subnav__tab subnav__tab--league-games is-active" type="button" data-tab="league-games">League games</button>
                     <button class="subnav__tab subnav__tab--network" type="button" data-tab="network"><i data-lucide="users"></i>Matchups</button>
+                    <button class="subnav__tab" type="button" data-tab="upcoming">Upcoming</button>
                     <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
                     <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
                     <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
@@ -131,12 +142,14 @@
                 </nav>
 
                 <!-- Panels -->
-                <div class="tab-panel is-active" data-panel="upcoming">
-                    <div class="pcard pcard--upcoming">
-                        <div class="pcard__head">
-                            <h2><i data-lucide="sparkles" class="pcard__spark"></i> Upcoming tournaments</h2>
-                        </div>
-                        <div id="upcoming-body"><div class="skeleton">…</div></div>
+                <div class="tab-panel is-active" data-panel="league-games">
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Recent</h2></div>
+                        <div id="league-games-recent-body"><div class="skeleton">…</div></div>
+                    </div>
+                    <div class="pcard">
+                        <div class="pcard__head"><h2>Upcoming</h2></div>
+                        <div id="league-games-upcoming-body"></div>
                     </div>
                 </div>
 
@@ -156,6 +169,15 @@
                                 <div id="network-opponents"><div class="skeleton">…</div></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" data-panel="upcoming">
+                    <div class="pcard pcard--upcoming">
+                        <div class="pcard__head">
+                            <h2><i data-lucide="sparkles" class="pcard__spark"></i> Upcoming tournaments</h2>
+                        </div>
+                        <div id="upcoming-body"><div class="skeleton">…</div></div>
                     </div>
                 </div>
 

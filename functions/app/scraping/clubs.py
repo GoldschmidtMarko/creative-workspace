@@ -8,21 +8,32 @@ club name resolves uniquely, or a "Bitte auswählen!" list of candidate
 clubs (each carrying a durable `cl_code`) when it doesn't. See
 _parse_club_page for the exact markup this depends on.
 
-dbv.turnier.de has no equivalent "club -> its teams" listing (its own
+dbv.turnier.de has no NAME-based "find this club" search (its own
 `/find/club` is a *tournament-organizer* search, not a participant-club
-one), so "this club's teams + league ranking" is derived instead: resolve
-each rostered player to their dbv profile_id (reusing player.py's
-name-based resolution machinery), reuse leagues._scrape_leagues to find
-which teams they're on, then fetch each of THOSE teams' real standing
-directly (see _fetch_team_standing) — a player's own "PL n"/record from
-_scrape_leagues is a per-LEAGUE aggregate (shared across every division on
-their /leagues page, see leagues.py), not per-team, so it can't be trusted
-as this team's rank once a league spans more than one team.
+one) — but it does have a club-SCOPED team list once you already know its
+internal identity: sport/clubteams.aspx?id=<league_guid>&cid=<dbv club id>
+lists exactly that club's own teams for one season (name, division, no
+name-matching or misresolution risk, since every row already IS that
+club's own team), and sport/clubstandings.aspx (same id/cid) gives every
+one of those teams' real standing on the same page. See
+_fetch_club_teams_page / _fetch_club_standings_page.
+
+The one thing still needed to get IN is a "door": one real (league_guid,
+team_id) belonging to this club, which only a resolved roster player's own
+/leagues page can provide (reusing player.py's name-based resolution
+machinery + leagues._scrape_leagues — see _find_club_anchor). Unlike the
+per-player aggregation this used to do, only ONE resolved player needs to
+land on a genuine team of this club; once in, the rest of the roster is
+irrelevant — a lagging or misresolved player elsewhere on the roster can
+no longer leak a stray/defunct team into the result (confirmed live: SV
+Bergfried Lev., cl_code 01-0163 — the old approach dragged in a defunct
+"SV Bergfried Lev. 7" Kreisklasse team from one inactive rostered player's
+own stale 2024-25 /leagues page; the real 2026-27 clubteams.aspx list has
+no such team at all).
 """
 
 import re
 import hashlib
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
@@ -32,16 +43,16 @@ from firebase_functions import https_fn
 from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.core.auth import rate_key
 from app.scraping.bax import _bax_update_date
-from app.core.cache_config import (
-    CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL, TEAM_STANDING_TTL)
+from app.core.cache_config import CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL
 from app.core.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
 from app.core.firebase_app import db
-from app.scraping.leagues import _leagues_update_date, _scrape_leagues
+from app.scraping.leagues import _league_tier, _leagues_update_date, _scrape_leagues
 from app.scraping.player import _cached_search_players, _index_lookup
 from app.core.rate_limiting import check_rate_limit
 
 BAX_VEREIN_URL = "https://www.badminton-bax.de/index.php/bax-portal/verein"
 _DISCIPLINE_CODES = {"Einzel": "e", "Doppel": "d", "Mixed": "x"}
+_ANCHOR_TRY_LIMIT = 5  # resolved roster players to try before giving up on finding a real team of this club
 
 
 # --------------------------------------------------------------------------- #
@@ -320,6 +331,18 @@ def _resolve_roster_profile_ids(full_names, club_name):
     return resolved
 
 
+def _club_name_tokens(club_name):
+    """club_name's own words, lowercased — a period not already followed by
+    whitespace gets one inserted first, because badminton-bax.de doesn't
+    always space a leading ordinal the way dbv does (confirmed live: "1.
+    CfB Köln" (cl_code 01-0033) — dbv's own divisions spell it with a space
+    after "1.", but badminton-bax's roster page stores it as "1.CfB Köln"
+    with none, merging "1." and "CfB" into a single token and misaligning
+    every token position after it against dbv's own 3-word spelling)."""
+    spaced = re.sub(r"\.(?!\s|$)", ". ", club_name)
+    return [t.rstrip(".").lower() for t in spaced.strip().split()]
+
+
 def _belongs_to_club(team_name, club_name):
     """A team's name starts with the club's own name (dbv's convention is
     "<Club Name> <squad number>", e.g. "BV Aachen 2") — the cheap, reliable
@@ -339,10 +362,11 @@ def _belongs_to_club(team_name, club_name):
     the abbreviated form and silently dropped every "Leverkusen"-spelled
     team — token-prefix matching (each club-name word is a PREFIX of the
     corresponding team-name word, e.g. "lev" of "leverkusen") recognizes
-    both spellings, in either direction of abbreviation."""
+    both spellings, in either direction of abbreviation. club_name is
+    additionally re-spaced first — see _club_name_tokens."""
     if not team_name or not club_name:
         return False
-    club_tokens = [t.rstrip(".").lower() for t in club_name.strip().split()]
+    club_tokens = _club_name_tokens(club_name)
     team_tokens = [t.lower() for t in team_name.strip().split()]
     if len(team_tokens) < len(club_tokens):
         return False
@@ -350,95 +374,106 @@ def _belongs_to_club(team_name, club_name):
                for club_tok, team_tok in zip(club_tokens, team_tokens))
 
 
-def _parse_team_standing(html, team_id):
-    """The real standings-table row for one team, from its own
-    sport/league/team page (table.teamstandings — the full division
-    ranking): {standing (rank string), won, drawn, lost} at the MATCH level
-    (GEW/REM/VER), matched by this team's own numeric id in its row's link
-    rather than by name (avoids any name-formatting mismatch)."""
-    soup = BeautifulSoup(html, "html.parser")
-    table = soup.find("table", class_="teamstandings")
-    if not table:
-        return None
-    needle = re.compile(rf"[?&]team={team_id}(?:&|$)")
-    for tr in table.find_all("tr"):
-        if not tr.find("a", href=needle):
-            continue
-        cells = tr.find_all("td")
-        if len(cells) < 9:
-            continue
-        rank = cells[0].get_text(strip=True)
-        gew = cells[6].get_text(strip=True)
-        rem = cells[7].get_text(strip=True)
-        ver = cells[8].get_text(strip=True)
-        return {
-            "standing": rank or None,
-            "won": int(gew) if gew.isdigit() else None,
-            "drawn": int(rem) if rem.isdigit() else None,
-            "lost": int(ver) if ver.isdigit() else None,
-        }
+def _squad_suffix(team_name, club_name):
+    """The squad label after a team's own club-name prefix — "4" from "SV
+    Bergfried Leverkusen 4", "J2" from "SV Bergfried Lev. J2" — for ordering
+    squads by that label instead of by the team's full name. Sorting on the
+    full name instead puts a team ahead or behind its siblings based on
+    which of the club's own spellings ITS OWN division happened to use (see
+    _belongs_to_club: "SV Bergfried Lev. J2" sorts before "SV Bergfried
+    Leverkusen 4" purely because "." < "e", even though J2 has no real
+    claim to coming first). Falls back to the full name if the club-name
+    prefix can't be matched, which shouldn't happen for anything that's
+    already passed _belongs_to_club."""
+    if not team_name or not club_name:
+        return team_name or ""
+    club_tokens = _club_name_tokens(club_name)
+    team_tokens = team_name.strip().split()
+    if len(team_tokens) <= len(club_tokens):
+        return team_name
+    for club_tok, team_tok in zip(club_tokens, team_tokens):
+        tt = team_tok.rstrip(".").lower()
+        if not (tt.startswith(club_tok) or club_tok.startswith(tt)):
+            return team_name
+    return " ".join(team_tokens[len(club_tokens):])
+
+
+def _squad_sort_key(suffix):
+    """Order a squad suffix (see _squad_suffix) numbered squads first, in
+    numeric order ("1", "2", "4" ...), then lettered squads grouped by
+    their own letter and numbered within it ("J1", "J2", "M1", "S1" ...),
+    so a club's plain-numbered team doesn't get sorted after a youth/mixed
+    squad just because its team name happened to sort alphabetically
+    earlier."""
+    m = re.match(r"^(\d+)$", suffix or "")
+    if m:
+        return (0, int(m.group(1)), "")
+    m = re.match(r"^([A-Za-z]+)\s*(\d+)$", suffix or "")
+    if m:
+        return (1, m.group(1).upper(), int(m.group(2)))
+    return (2, suffix or "", 0)
+
+
+def _team_of_club(leagues_list, club_name):
+    """The first division in a /leagues response that's genuinely this
+    club's own team (see _belongs_to_club) — used only to find a real
+    (league_guid, team_id) to anchor off of (see _find_club_anchor), not to
+    source any display data itself. Returns (league_guid, team_id, season)
+    or None."""
+    for lg in leagues_list or []:
+        for div in lg.get("divisions", []) or []:
+            team = div.get("team")
+            if team and div.get("team_id") and div.get("league_guid") and _belongs_to_club(team, club_name):
+                return div["league_guid"], div["team_id"], lg.get("season")
     return None
 
 
-def _fetch_team_standing(league_guid, team_id):
-    cache_key = f"{league_guid}_{team_id}"
-    if db:
-        try:
-            snap = db.collection("team_standing_cache").document(cache_key).get()
-            if snap.exists:
-                data = snap.to_dict()
-                if datetime.now(timezone.utc) < data["expires_at"]:
-                    return data.get("standing")
-        except Exception:
-            pass
+def _find_club_anchor(resolved, club_name, slot):
+    """One (league_guid, team_id, season) anchor into dbv's own club-scoped
+    pages (see module docstring), from a handful of resolved roster
+    players whose own /leagues page actually names a team of this club.
 
-    standing = None
-    try:
-        resp = _get(f"{BASE}/league/{league_guid}/team/{team_id}", cookies=COOKIES)
-        resp.raise_for_status()
-        standing = _parse_team_standing(resp.text, team_id)
-    except Exception as e:
-        print(f"team standing fetch error ({league_guid}/{team_id}): {e}")
+    `slot`: 0 = current season — every candidate's own "current" pointer
+    can point at a DIFFERENT real season (confirmed live: mid-transition, a
+    rostered player who hasn't played yet this season still reads last
+    season as their own "current" while another player's own squad has
+    already started the new one), so all tried candidates are checked and
+    the FRESHEST season among their hits wins — stopping at the first hit
+    could otherwise anchor on a lagging player and make the whole club look
+    a season behind one that's already live on dbv. 1/2 = that many seasons
+    back, taken from each candidate's own `years` tabs — the 1st/2nd
+    DISTINCT season OLDER than the slot-0 season (a dbv year tab can just
+    alias the current season: confirmed live, on 2026-09-06 a player's
+    years[0] was "2026" and returned identical data to the unseasoned
+    "current" fetch) — stops at the first hit, since there's no single
+    "freshest" notion for a season that's already in the past.
 
-    if db:
-        try:
-            db.collection("team_standing_cache").document(cache_key).set({
-                "standing": standing,
-                "expires_at": datetime.now(timezone.utc) + TEAM_STANDING_TTL,
-            })
-        except Exception:
-            pass
-    return standing
-
-
-def _club_teams_for_slot(club_name, full_names, slot):
-    """One season's worth of this club's teams with real standings.
-    `slot`: 0 = current season, 1/2 = that many seasons back — resolved per
-    player from their OWN `years` list (from the free, cached current-season
-    fetch every slot needs anyway), not a guessed calendar year. A player
-    with fewer prior seasons than `slot` simply contributes nothing for it.
-    Returns (season_label, [{team, division, tier, abbr, standing, won,
-    drawn, lost}]), sorted by tier (best league first)."""
-    resolved = _resolve_roster_profile_ids(full_names, club_name)
-
-    def _season_of(leagues_list):
-        return next((lg.get("season") for lg in leagues_list if lg.get("season")), None)
-
-    def _fetch_one(profile_id):
+    Deliberately the SLOT-0 season, not each candidate's own individual
+    "current" — a candidate whose own current pointer is still lagging
+    (see above) would otherwise treat their own stale season as "already
+    shown" and skip straight past the real in-between season (confirmed
+    live: current=2026-27, "1 season back" landed on 2024-25 instead of
+    2025-26, because the tried candidate's own current was still 2025-26,
+    so THAT got excluded instead of 2026-27)."""
+    candidates = []
+    current_hits = []
+    for _name, profile_id in resolved[:_ANCHOR_TRY_LIMIT]:
         try:
             current, years = _scrape_leagues(profile_id)
         except Exception as e:
             print(f"club teams: league fetch error for {profile_id}: {e}")
-            return []
-        if slot == 0:
-            return current
-        # dbv's own /leagues year-tab list for a player can include a tab
-        # that's just an alias for the current season (confirmed live: on
-        # 2026-09-06, years[0] was "2026" and returned identical data to the
-        # unseasoned "current" fetch) — so "1/2 seasons back" means the
-        # 1st/2nd DISTINCT season label found, not literally years[0]/[1].
-        current_season = _season_of(current)
-        seen = {current_season} if current_season else set()
+            continue
+        candidates.append((profile_id, current, years))
+        hit = _team_of_club(current, club_name)
+        if hit:
+            current_hits.append(hit)
+
+    if slot == 0:
+        return max(current_hits, key=lambda h: h[2] or "") if current_hits else None
+
+    slot0_season = max((h[2] for h in current_hits if h[2]), default=None)
+    for profile_id, _current, years in candidates:
+        seen = {slot0_season} if slot0_season else set()
         distinct_prior = []
         for y in years or []:
             try:
@@ -446,7 +481,7 @@ def _club_teams_for_slot(club_name, full_names, slot):
             except Exception as e:
                 print(f"club teams: league fetch error for {profile_id}/{y}: {e}")
                 continue
-            past_season = _season_of(past)
+            past_season = next((lg.get("season") for lg in past if lg.get("season")), None)
             if past_season in seen:
                 continue
             seen.add(past_season)
@@ -454,65 +489,173 @@ def _club_teams_for_slot(club_name, full_names, slot):
             if len(distinct_prior) >= 2:   # slot is only ever 1 or 2 here
                 break
         idx = slot - 1
-        return distinct_prior[idx] if idx < len(distinct_prior) else []
+        if idx < len(distinct_prior):
+            hit = _team_of_club(distinct_prior[idx], club_name)
+            if hit:
+                return hit
+    return None
 
-    all_leagues_lists = []
-    if resolved:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futs = [pool.submit(_fetch_one, pid) for _name, pid in resolved]
-            for f in as_completed(futs):
-                all_leagues_lists.append(f.result())
 
-    season_votes = Counter()
-    # Keyed by (league_guid, team_id) — the same identity _fetch_team_standing
-    # itself caches by — NOT the team name string. A club can genuinely field
-    # the same squad number in more than one competition at once (confirmed
-    # live: SV Bergfried Lev.'s "4" and "J2" each turned up under a second,
-    # distinct league_guid/team_id — a cup alongside the regular league), so
-    # two divisions can legitimately share a display name; conversely, league
-    # admins spell the same club inconsistently between divisions (see
-    # _belongs_to_club), so two divisions can also legitimately show
-    # DIFFERENT names for what a name-keyed dict would wrongly treat as the
-    # same row (or, worse, silently collapse two real teams that happen to
-    # render identical text into one).
-    by_team = {}
-    for leagues_list in all_leagues_lists:
-        for lg in leagues_list or []:
-            if lg.get("season"):
-                season_votes[lg["season"]] += 1
-            for div in lg.get("divisions", []) or []:
-                team = div.get("team")
-                # A real team link is required (drops a stray individual-event
-                # pseudo-league — see leagues.py); the name must actually be
-                # this club's own (drops a misresolved player's unrelated team).
-                if not team or not div.get("team_id") or not div.get("league_guid"):
-                    continue
-                if not _belongs_to_club(team, club_name):
-                    continue
-                by_team.setdefault((div["league_guid"], div["team_id"]), div)
+def _fetch_club_dbv_id(league_guid, team_id):
+    """dbv's own internal club id (the "cid"/"club" query param on its
+    club-scoped pages — clubteams.aspx, clubstandings.aspx, club.aspx,
+    etc.), read off any one real team of this club's own team page. dbv has
+    no name-based club lookup (see module docstring), so this is the only
+    way in: once we have ANY real team of this club, its own page links
+    back to the club's "Allgemein" page carrying this id."""
+    try:
+        resp = _get(f"{BASE}/league/{league_guid}/team/{team_id}", cookies=COOKIES)
+        resp.raise_for_status()
+        m = re.search(r"club\.aspx\?id=[0-9A-Fa-f-]+(?:&amp;|&)club=(\d+)", resp.text)
+        return m.group(1) if m else None
+    except Exception as e:
+        print(f"club dbv-id fetch error ({league_guid}/{team_id}): {e}")
+        return None
 
-    season_label = season_votes.most_common(1)[0][0] if season_votes else None
 
-    def _with_standing(div):
-        standing = _fetch_team_standing(div["league_guid"], div["team_id"]) or {}
-        return {
-            "team": div.get("team"), "division": div.get("division"),
-            "tier": div.get("tier"), "abbr": div.get("abbr"),
-            "standing": standing.get("standing"),
-            "won": standing.get("won"), "drawn": standing.get("drawn"), "lost": standing.get("lost"),
-            # The same page _fetch_team_standing itself reads — lets the
-            # frontend link each cell straight to dbv's own team/standings page.
-            "url": f"{BASE}/league/{div['league_guid']}/team/{div['team_id']}",
-        }
+def _parse_club_teams_page(html):
+    """dbv's own club-scoped team list (sport/clubteams.aspx?id=<league_guid>
+    &cid=<dbv club id>) — the authoritative list of exactly this club's own
+    teams for one season, straight from dbv (see module docstring for why
+    this replaced resolving individual roster players). Returns
+    [{team, team_id, division, tier, abbr}]."""
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table", class_="clubteams")
+    if not table:
+        return []
+    out = []
+    for tr in (table.find("tbody") or table).find_all("tr"):
+        cells = tr.find_all("td")
+        if len(cells) < 2:
+            continue
+        team_link = cells[0].find("a")
+        if not team_link:
+            continue
+        m = re.search(r"[?&]team=(\d+)", team_link.get("href") or "")
+        if not m:
+            continue
+        division_link = cells[1].find("a")
+        division_text = division_link.get_text(" ", strip=True) if division_link else cells[1].get_text(" ", strip=True)
+        # Strips a leading "(<n>) " group/pool code, same as leagues.py's
+        # own division parsing (see its "(007)" group-code note).
+        division = re.sub(r"^.*\(\d+\)\s*", "", division_text).strip()
+        abbr, tier = _league_tier(division)
+        out.append({
+            "team": team_link.get_text(" ", strip=True), "team_id": m.group(1),
+            "division": division, "tier": tier, "abbr": abbr,
+        })
+    return out
+
+
+def _fetch_club_teams_page(league_guid, cid):
+    try:
+        resp = _get(f"{BASE}/sport/clubteams.aspx", params={"id": league_guid, "cid": cid}, cookies=COOKIES)
+        resp.raise_for_status()
+        return _parse_club_teams_page(resp.text)
+    except Exception as e:
+        print(f"club teams page fetch error ({league_guid}/{cid}): {e}")
+        return []
+
+
+def _parse_club_standings_page(html, team_ids):
+    """Every one of THIS club's own rows across every division's table on
+    dbv's own club standings page (sport/clubstandings.aspx?id=<league_guid>
+    &cid=<dbv club id>) — one table per division, each listing every
+    competing club in it, matched down to just this club's own rows by
+    team_id (from _fetch_club_teams_page) rather than by name. Same row
+    shape (rank/GEW/REM/VER) as a single team's own standings page — just
+    every one of this club's divisions on one page instead of one fetch
+    per team. Returns {team_id: {standing, won, drawn, lost}}."""
+    soup = BeautifulSoup(html, "html.parser")
+    needle = re.compile(r"[?&]team=(\d+)")
+    out = {}
+    for table in soup.find_all("table", class_="ruler"):
+        for tr in table.find_all("tr"):
+            a = tr.find("a", href=needle)
+            if not a:
+                continue
+            team_id = needle.search(a["href"]).group(1)
+            if team_id not in team_ids:
+                continue
+            cells = tr.find_all("td")
+            if len(cells) < 9:
+                continue
+            rank = cells[0].get_text(strip=True)
+            gew = cells[6].get_text(strip=True)
+            rem = cells[7].get_text(strip=True)
+            ver = cells[8].get_text(strip=True)
+            out[team_id] = {
+                "standing": rank or None,
+                "won": int(gew) if gew.isdigit() else None,
+                "drawn": int(rem) if rem.isdigit() else None,
+                "lost": int(ver) if ver.isdigit() else None,
+            }
+    return out
+
+
+def _fetch_club_standings_page(league_guid, cid, team_ids):
+    try:
+        resp = _get(f"{BASE}/sport/clubstandings.aspx", params={"id": league_guid, "cid": cid}, cookies=COOKIES)
+        resp.raise_for_status()
+        return _parse_club_standings_page(resp.text, team_ids)
+    except Exception as e:
+        print(f"club standings page fetch error ({league_guid}/{cid}): {e}")
+        return {}
+
+
+def _club_teams_for_slot(club_name, full_names, slot):
+    """One season's worth of this club's teams with real standings, read
+    straight from dbv's own club-scoped pages (see module docstring) rather
+    than assembled from individual roster players. `slot`: 0 = current
+    season, 1/2 = that many seasons back (see _find_club_anchor). Returns
+    (season_label, [{team, division, tier, abbr, standing, won, drawn,
+    lost, url}]), sorted by tier then squad (see _squad_sort_key)."""
+    resolved = _resolve_roster_profile_ids(full_names, club_name)
+    anchor = _find_club_anchor(resolved, club_name, slot)
+    if not anchor:
+        return None, []
+    league_guid, team_id, season = anchor
+
+    cid = _fetch_club_dbv_id(league_guid, team_id)
+    if not cid:
+        return season, []
+
+    club_teams = _fetch_club_teams_page(league_guid, cid)
+    if not club_teams:
+        return season, []
+    team_ids = {t["team_id"] for t in club_teams}
+    standings = _fetch_club_standings_page(league_guid, cid, team_ids)
 
     teams = []
-    if by_team:
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futs = [pool.submit(_with_standing, div) for div in by_team.values()]
-            for f in as_completed(futs):
-                teams.append(f.result())
-    teams.sort(key=lambda t: t.get("tier") if t.get("tier") is not None else 99)
-    return season_label, teams
+    for t in club_teams:
+        st = standings.get(t["team_id"]) or {}
+        teams.append({
+            "team": t["team"], "division": t["division"], "tier": t["tier"], "abbr": t["abbr"],
+            "standing": st.get("standing"), "won": st.get("won"), "drawn": st.get("drawn"), "lost": st.get("lost"),
+            # league_guid/team_id let the frontend link straight to this
+            # app's own team.html (see teams.py) without parsing them back
+            # out of `url`; `url` itself still lets it also offer a direct
+            # link to dbv's own team page.
+            "league_guid": league_guid, "team_id": t["team_id"],
+            "url": f"{BASE}/league/{league_guid}/team/{t['team_id']}",
+        })
+
+    # Squad number/label order (1, 2, 3 ... then J1, J2, M1 ...), not league
+    # tier — a club's own squad numbering doesn't track tier one-for-one (a
+    # lower-numbered squad can land in a lower tier than a youth/mixed squad
+    # in a given season, confirmed live: SV Bergfried Lev., cl_code
+    # 01-0163 — squad "4" sits in Bezirksklasse this season while J1/J2 sit
+    # a tier higher in Bezirksliga; feedback: sorting by tier first put "4"
+    # well after J1/J2, which read as "still off" since a club roster is
+    # naturally read in its own squad order, not by which is winning more).
+    # Tier is still the tiebreaker for two divisions sharing a suffix (a
+    # cup alongside the regular league — see _squad_suffix's own note).
+    teams.sort(key=lambda t: (
+        _squad_sort_key(_squad_suffix(t.get("team"), club_name)),
+        t.get("tier") if t.get("tier") is not None else 99,
+        int(t["standing"]) if t.get("standing") and t["standing"].isdigit() else 99,
+    ))
+    return season, teams
 
 
 def _count_active_players(categories):

@@ -1,0 +1,40 @@
+/* Team season page — only what player.css / bax_checker.css don't already
+   cover (identity card, tournament-return banner, pl-table, pl-empty/skeleton
+   are all reused as-is). */
+
+.team-standings tbody tr.is-us {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    font-weight: 600;
+}
+.team-standings tbody tr.is-us td { color: var(--ink); }
+
+/* .match-result--win/--loss/--draw (plain W/L/D score coloring, used by
+   both team.js's Results/Upcoming rows and player.js's League games tab)
+   live in bax_checker.css instead — both team.html and player.html
+   already load that, and neither loads this file.
+
+   Winner highlighting on encounter.html (the per-game side cell, and the
+   overall winner in the header) — NOT .match-result--win/--color-only,
+   because every player name in that table is already accent-colored via
+   .pl-table a, and --success/--accent happen to share the exact same hex
+   in light mode (both #0f766e) — so a text-color-only cue was invisible
+   there (feedback: "not fully great to see who won ... dark mode looks
+   good, but not white mode" — dark mode's --success (green) and --accent
+   (purple) DO differ, which is why only that theme worked). A background
+   tint doesn't depend on that coincidence, so it stays visible in both;
+   the color+weight change is kept too since it still helps wherever the
+   two tokens actually differ. */
+.encounter-winner {
+    background: color-mix(in srgb, var(--success) 16%, transparent);
+    border-radius: var(--radius-sm);
+}
+td.encounter-winner .tm__name, td.encounter-winner .tm__val {
+    color: var(--success);
+    font-weight: 700;
+}
+span.encounter-winner {
+    display: inline-block;
+    padding: 0.1rem 0.6rem;
+    color: var(--success);
+    font-weight: 700;
+}
