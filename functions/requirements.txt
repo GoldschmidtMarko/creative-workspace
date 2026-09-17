@@ -7,6 +7,7 @@ google-cloud-firestore>=2.29.0
 # "400 Invalid database id %28default%29" (googleapis/google-cloud-python#18207).
 # Pin below the regression until upstream ships a fix.
 google-api-core<2.35.0
+google-cloud-functions>=1.19.0
 requests
 beautifulsoup4
 pandas
