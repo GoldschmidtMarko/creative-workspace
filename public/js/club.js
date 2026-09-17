@@ -417,6 +417,67 @@ function slotColumnLabel(slot) {
     return slot === 0 ? "Current" : `${slot} season${slot > 1 ? "s" : ""} back`;
 }
 
+/* The squad label after a team's own club-name prefix — "4" from "SV
+   Bergfried Leverkusen 4", "J2" from "SV Bergfried Lev. J2" — mirrors
+   clubs.py's _squad_suffix. Ordering rows by the full team name instead
+   puts a team ahead of or behind its siblings based on which of the
+   club's own spellings ITS OWN division happened to use (confirmed live
+   for SV Bergfried Lev., cl_code 01-0163: some divisions spell it "SV
+   Bergfried Leverkusen", others abbreviate to "SV Bergfried Lev.", so
+   "SV Bergfried Lev. J2" sorted ahead of "SV Bergfried Leverkusen 4"
+   purely because "." < "e", even though J2 has no real claim to coming
+   first). Token-matched the same way _belongs_to_club matches it
+   server-side, so either spelling direction is recognized. */
+function squadSuffix(teamName, clubName) {
+    if (!teamName || !clubName) return teamName || "";
+    const clubTokens = clubName.trim().split(/\s+/).map((t) => t.replace(/\.$/, "").toLowerCase());
+    const teamTokens = teamName.trim().split(/\s+/);
+    if (teamTokens.length <= clubTokens.length) return teamName;
+    for (let i = 0; i < clubTokens.length; i++) {
+        const teamTok = teamTokens[i].replace(/\.$/, "").toLowerCase();
+        const clubTok = clubTokens[i];
+        if (!(teamTok.startsWith(clubTok) || clubTok.startsWith(teamTok))) return teamName;
+    }
+    return teamTokens.slice(clubTokens.length).join(" ");
+}
+
+/* Order a squad suffix (see squadSuffix) numbered squads first, in numeric
+   order ("1", "2", "4" ...), then lettered squads grouped by their own
+   letter and numbered within it ("J1", "J2", "M1", "S1" ...), so a club's
+   plain-numbered team doesn't sort after a youth/mixed squad just because
+   its team name happened to sort alphabetically earlier. */
+function squadSortKey(suffix) {
+    const numMatch = /^(\d+)$/.exec(suffix || "");
+    if (numMatch) return [0, parseInt(numMatch[1], 10), ""];
+    const letterMatch = /^([A-Za-z]+)\s*(\d+)$/.exec(suffix || "");
+    if (letterMatch) return [1, letterMatch[1].toUpperCase(), parseInt(letterMatch[2], 10)];
+    return [2, suffix || "", 0];
+}
+function compareSquadNames(a, b, clubName) {
+    const ka = squadSortKey(squadSuffix(a, clubName));
+    const kb = squadSortKey(squadSuffix(b, clubName));
+    for (let i = 0; i < ka.length; i++) {
+        if (ka[i] < kb[i]) return -1;
+        if (ka[i] > kb[i]) return 1;
+    }
+    return 0;
+}
+
+/* This app's own team-season page (see team.js), not dbv.turnier.de — a
+   team cell only has league_guid/team_id once get_club_teams has actually
+   returned them (older cached rows, or a row with no real standings data,
+   might not), so this returns null rather than falling back to the
+   external `url` the way the pill/name links used to. */
+function teamPageUrl(t) {
+    if (!t || !t.league_guid || !t.team_id) return null;
+    const q = new URLSearchParams({ id: t.league_guid, team: t.team_id, name: t.team || "" });
+    if (state.club) {
+        if (state.club.cl_code) q.set("cl_code", state.club.cl_code);
+        if (state.club.name) q.set("club_name", state.club.name);
+    }
+    return `/html/team.html?${q.toString()}`;
+}
+
 /* Explicit, labeled W/D/L — a bare "7-4-3" doesn't say which number is
    which (feedback: "not clear from the numbers what win loss and draw
    are"). Returns {html, plain} — plain is a short string for the title
@@ -477,10 +538,16 @@ function renderTeams() {
         });
     });
 
+    // Squad number/label order (1, 2, 3 ... then J1, J2, M1 ...), not league
+    // tier — a club's own squad numbering doesn't track tier one-for-one (a
+    // lower-numbered squad can sit in a lower tier than a youth/mixed squad
+    // in a given season), so tier-first grouping read as "still off";
+    // bestTier is now only the tiebreaker for two divisions sharing a
+    // squad label (a cup alongside the regular league).
     const rows = Array.from(byTeam.values()).map(({ name, bySlot }) => {
         const bestTier = Math.min(99, ...Object.values(bySlot).map((t) => (t.tier != null ? t.tier : 99)));
         return { name, bySlot, bestTier };
-    }).sort((a, b) => a.bestTier - b.bestTier || a.name.localeCompare(b.name));
+    }).sort((a, b) => compareSquadNames(a.name, b.name, state.club.name) || a.bestTier - b.bestTier);
 
     // Season columns split whatever's left after the (fixed-width) team
     // column, so 1 or 2 activated seasons don't leave a stray, near-empty
@@ -502,10 +569,11 @@ function renderTeams() {
             if (t) {
                 const tag = t.abbr ? `<span class="league-tag">${escapeHtml(t.abbr)}</span>` : "";
                 const record = renderTeamsRecord(t);
-                const title = [t.division, record ? record.plain : null, t.url ? "Open on dbv.turnier.de" : null]
+                const href = teamPageUrl(t);
+                const title = [t.division, record ? record.plain : null, href ? "See this team's season" : null]
                     .filter(Boolean).join(" · ");
-                const pillTag = t.url ? "a" : "span";
-                const pillAttrs = t.url ? ` href="${escapeHtml(t.url)}" target="_blank" rel="noopener"` : "";
+                const pillTag = href ? "a" : "span";
+                const pillAttrs = href ? ` href="${escapeHtml(href)}"` : "";
                 return `<td class="club-team-grid__cell">
                     <${pillTag} class="club-team-grid__pill" title="${escapeHtml(title)}"${pillAttrs}>
                         <span class="club-team-grid__pill-top">${tag}<span class="club-team-grid__rank">${t.standing ? "#" + escapeHtml(t.standing) : "—"}</span></span>
@@ -519,12 +587,13 @@ function renderTeams() {
                 : `<td class="club-team-grid__cell"><span class="club-team-grid__empty">·</span></td>`;
         }).join("");
         // Team name links to whichever loaded season is most recent for
-        // this row (columns is current-first) — a team page is inherently
-        // season-scoped, so there's no single URL that covers every season.
-        const anyTeam = columns.map((slot) => r.bySlot[slot]).find((t) => t && t.url);
+        // this row (columns is current-first) — a team's own page is
+        // inherently season-scoped, so there's no single URL that covers
+        // every season.
+        const anyTeam = columns.map((slot) => r.bySlot[slot]).find((t) => t && teamPageUrl(t));
         const nameInner = escapeHtml(r.name);
         const nameCell = anyTeam
-            ? `<a class="club-team-grid__name" href="${escapeHtml(anyTeam.url)}" target="_blank" rel="noopener" title="${escapeHtml(r.name)} — open on dbv.turnier.de">${nameInner}</a>`
+            ? `<a class="club-team-grid__name" href="${escapeHtml(teamPageUrl(anyTeam))}" title="${escapeHtml(r.name)} — see this team's season">${nameInner}</a>`
             : `<span class="club-team-grid__name" title="${escapeHtml(r.name)}">${nameInner}</span>`;
         return `<tr><td>${nameCell}</td>${cells}</tr>`;
     }).join("");

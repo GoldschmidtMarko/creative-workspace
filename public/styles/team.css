@@ -1,0 +1,13 @@
+/* Team season page — only what player.css / bax_checker.css don't already
+   cover (identity card, tournament-return banner, pl-table, pl-empty/skeleton
+   are all reused as-is). */
+
+.team-standings tbody tr.is-us {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    font-weight: 600;
+}
+.team-standings tbody tr.is-us td { color: var(--ink); }
+
+.match-result--win { color: var(--success); font-weight: 600; }
+.match-result--loss { color: var(--danger); font-weight: 600; }
+.match-result--draw { color: var(--ink-dim); font-weight: 600; }
