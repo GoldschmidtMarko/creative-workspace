@@ -13,6 +13,7 @@ from app.scraping.player import get_player_bax, get_player_dbv_stats, get_player
 from app.scraping.clubs import get_club_roster, get_club_teams
 from app.platform.accounts import save_user_activity
 from app.platform.admin import get_usage_stats
+from app.platform.budget import budget_guard, restore_function_capacity
 from app.platform.favorites import toggle_favorite
 from app.platform.feedback import submit_feedback
 from app.platform.health import ping
@@ -32,6 +33,8 @@ __all__ = [
     "get_club_teams",
     "save_user_activity",
     "get_usage_stats",
+    "budget_guard",
+    "restore_function_capacity",
     "toggle_favorite",
     "submit_feedback",
     "ping",
