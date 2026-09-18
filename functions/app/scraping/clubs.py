@@ -43,10 +43,12 @@ from firebase_functions import https_fn
 from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.core.auth import rate_key
 from app.scraping.bax import _bax_update_date
-from app.core.cache_config import CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL, CLUB_TEAMS_SCHEMA
+from app.core.cache_config import (
+    CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL, CLUB_TEAMS_SCHEMA, CURRENT_SEASON_MAX_AGE,
+)
 from app.core.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
 from app.core.firebase_app import db
-from app.scraping.leagues import _league_tier, _leagues_update_date, _scrape_leagues
+from app.scraping.leagues import _league_tier, _leagues_update_date, _ligen_cache_fresh, _scrape_leagues
 from app.scraping.player import _cached_search_players, _index_lookup
 from app.core.rate_limiting import check_rate_limit
 
@@ -760,14 +762,7 @@ def get_club_teams(req: https_fn.CallableRequest) -> dict:
                 snap = db.collection("club_teams_cache").document(cache_key).get()
                 if snap.exists:
                     data = snap.to_dict()
-                    if data.get("schema") != CLUB_TEAMS_SCHEMA:
-                        fresh = False
-                    elif site_date:
-                        fresh = data.get("ligen_date") == site_date
-                    else:
-                        exp = data.get("expires_at")
-                        fresh = exp is not None and datetime.now(timezone.utc) < exp
-                    if fresh:
+                    if data.get("schema") == CLUB_TEAMS_SCHEMA and _ligen_cache_fresh(snap, site_date, CURRENT_SEASON_MAX_AGE):
                         return {"season": data.get("season"), "slot": slot, "teams": data["teams"]}
             except Exception:
                 pass

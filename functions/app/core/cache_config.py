@@ -38,7 +38,14 @@ CLUB_TEAMS_FALLBACK_TTL = timedelta(days=60)             # clubs.py: get_club_te
 # Not a TTL: bump when get_club_teams' cached rows change shape or meaning. A row stamped with any other
 # value counts as stale even while the "(Ligen)" date still matches (that date can go months unchanged, so
 # without this, rows written by older code would be served as "fresh" indefinitely).
-CLUB_TEAMS_SCHEMA = 2                                    # clubs.py: get_club_teams — 2 = league_guid/team_id per team, club-scoped dbv pages
+CLUB_TEAMS_SCHEMA = 3                                    # clubs.py: get_club_teams — 2 = league_guid/team_id per team, club-scoped dbv pages; 3 = flush rows built from pre-rollover "current" pages
+
+# Max age of any cache doc built from dbv's *current-season* pages, on top of its "(Ligen)"-date validity.
+# dbv flips "current" to the new season on its own schedule, while badminton-bax.de's "(Ligen)" date can sit
+# unchanged for months (15.05.2026 all summer) — so a doc written before the rollover would otherwise keep
+# showing last season as current. Applies to: leagues.py _scrape_leagues (un-seasoned "current" page only),
+# clubs.py get_club_teams, teams.py get_player_league_games.
+CURRENT_SEASON_MAX_AGE = timedelta(hours=24)
 TEAM_SEASON_FALLBACK_TTL = timedelta(hours=12)           # teams.py: get_team_season (fallback only)
 TEAM_ENCOUNTER_FALLBACK_TTL = timedelta(hours=12)        # teams.py: get_team_encounter (fallback only)
 PLAYER_LEAGUE_GAMES_FALLBACK_TTL = timedelta(hours=12)   # teams.py: get_player_league_games (fallback only)

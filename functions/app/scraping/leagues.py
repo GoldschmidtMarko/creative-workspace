@@ -11,7 +11,9 @@ from firebase_functions import https_fn
 
 from app.scraping.analytics import bump_entity, bump_summary
 from app.core.auth import rate_key
-from app.core.cache_config import LEAGUE_PLAYER_PAGE_TTL, LIGEN_DATE_CHECK_SECONDS, PLAYER_LEAGUES_FALLBACK_TTL
+from app.core.cache_config import (
+    CURRENT_SEASON_MAX_AGE, LEAGUE_PLAYER_PAGE_TTL, LIGEN_DATE_CHECK_SECONDS, PLAYER_LEAGUES_FALLBACK_TTL,
+)
 from app.core.common import BASE, COOKIES, _get
 from app.core.firebase_app import db
 from app.core.rate_limiting import check_rate_limit
@@ -71,6 +73,23 @@ def _leagues_update_date():
             return _LIGEN_DATE["date"]
 
 
+def _ligen_cache_fresh(snap, site_date, max_age=None):
+    """Freshness rule shared by the caches that are valid while the "(Ligen)"
+    date is unchanged (falling back to the stored `expires_at` if that date
+    can't be read). `max_age` additionally bounds how old the doc itself may
+    be, judged by its own write time — for docs built from dbv's
+    current-season pages, whose content changes on dbv's schedule (e.g. the
+    season rollover) rather than the "(Ligen)" date's (see CURRENT_SEASON_MAX_AGE)."""
+    data = snap.to_dict()
+    now = datetime.now(timezone.utc)
+    if max_age is not None and (snap.update_time is None or now - snap.update_time > max_age):
+        return False
+    if site_date:
+        return data.get("ligen_date") == site_date
+    exp = data.get("expires_at")
+    return exp is not None and now < exp
+
+
 def _scrape_leagues(profile_id, year=None, force=False):
     """Scrape a player's leagues for one season, grouped by league. Returns
     (leagues, available_years). Each league carries one shared record/season
@@ -84,17 +103,13 @@ def _scrape_leagues(profile_id, year=None, force=False):
     if db and not force:
         try:
             cache = db.collection("player_leagues_cache").document(cache_key).get()
-            if cache.exists:
+            # Valid until the site's "(Ligen)" date changes; if that date
+            # can't be read, fall back to the stored TTL. The no-year "current"
+            # page also has an age bound — dbv rolls it over to the new season
+            # on its own schedule, which the "(Ligen)" date lags by months.
+            if cache.exists and _ligen_cache_fresh(cache, site_date, CURRENT_SEASON_MAX_AGE if year is None else None):
                 data = cache.to_dict()
-                # Valid until the site's "(Ligen)" date changes; if that date
-                # can't be read, fall back to the stored TTL.
-                if site_date:
-                    fresh = data.get("ligen_date") == site_date
-                else:
-                    exp = data.get("expires_at")
-                    fresh = exp is not None and datetime.now(timezone.utc) < exp
-                if fresh:
-                    return data["leagues"], data.get("years", [])
+                return data["leagues"], data.get("years", [])
         except Exception:
             pass
 
