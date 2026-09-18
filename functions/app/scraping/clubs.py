@@ -43,7 +43,7 @@ from firebase_functions import https_fn
 from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.core.auth import rate_key
 from app.scraping.bax import _bax_update_date
-from app.core.cache_config import CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL
+from app.core.cache_config import CLUB_ROSTER_FALLBACK_TTL, CLUB_SEARCH_TTL, CLUB_TEAMS_FALLBACK_TTL, CLUB_TEAMS_SCHEMA
 from app.core.common import BASE, COOKIES, HEADERS, MAX_WORKERS, _get
 from app.core.firebase_app import db
 from app.scraping.leagues import _league_tier, _leagues_update_date, _scrape_leagues
@@ -760,7 +760,9 @@ def get_club_teams(req: https_fn.CallableRequest) -> dict:
                 snap = db.collection("club_teams_cache").document(cache_key).get()
                 if snap.exists:
                     data = snap.to_dict()
-                    if site_date:
+                    if data.get("schema") != CLUB_TEAMS_SCHEMA:
+                        fresh = False
+                    elif site_date:
                         fresh = data.get("ligen_date") == site_date
                     else:
                         exp = data.get("expires_at")
@@ -781,7 +783,7 @@ def get_club_teams(req: https_fn.CallableRequest) -> dict:
         if db:
             try:
                 db.collection("club_teams_cache").document(cache_key).set({
-                    "season": season_label, "teams": teams, "ligen_date": site_date,
+                    "season": season_label, "teams": teams, "ligen_date": site_date, "schema": CLUB_TEAMS_SCHEMA,
                     "expires_at": datetime.now(timezone.utc) + CLUB_TEAMS_FALLBACK_TTL,
                 })
             except Exception:
