@@ -36,12 +36,12 @@ from firebase_functions import https_fn
 
 from app.core.auth import rate_key
 from app.core.cache_config import (
-    PLAYER_LEAGUE_GAMES_FALLBACK_TTL, TEAM_ENCOUNTER_FALLBACK_TTL, TEAM_SEASON_FALLBACK_TTL)
+    CURRENT_SEASON_MAX_AGE, PLAYER_LEAGUE_GAMES_FALLBACK_TTL, TEAM_ENCOUNTER_FALLBACK_TTL, TEAM_SEASON_FALLBACK_TTL)
 from app.core.common import BASE, COOKIES, MAX_WORKERS, _get
 from app.core.firebase_app import db
 from app.scraping.analytics import bump_summary, name_key, upsert_player_index
 from app.scraping.bax import get_bax_values
-from app.scraping.leagues import _league_tier, _leagues_update_date, _scrape_leagues
+from app.scraping.leagues import _league_tier, _leagues_update_date, _ligen_cache_fresh, _scrape_leagues
 from app.scraping.player import _cached_search_players, _index_lookup
 from app.core.rate_limiting import check_rate_limit
 
@@ -530,15 +530,8 @@ def get_player_league_games(req: https_fn.CallableRequest) -> dict:
         if db:
             try:
                 snap = db.collection("player_league_games_cache").document(profile_id).get()
-                if snap.exists:
-                    data = snap.to_dict()
-                    if site_date:
-                        fresh = data.get("ligen_date") == site_date
-                    else:
-                        exp = data.get("expires_at")
-                        fresh = exp is not None and datetime.now(timezone.utc) < exp
-                    if fresh:
-                        return data["result"]
+                if snap.exists and _ligen_cache_fresh(snap, site_date, CURRENT_SEASON_MAX_AGE):
+                    return snap.to_dict()["result"]
             except Exception:
                 pass
 
