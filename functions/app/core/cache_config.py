@@ -35,6 +35,10 @@ PLAYER_BAX_FALLBACK_TTL = timedelta(days=30)             # player.py: get_player
 CLUB_SEARCH_TTL = timedelta(hours=12)                    # clubs.py: _search_club
 CLUB_ROSTER_FALLBACK_TTL = timedelta(days=30)            # clubs.py: _fetch_club_roster (fallback only)
 CLUB_TEAMS_FALLBACK_TTL = timedelta(days=60)             # clubs.py: get_club_teams (fallback only, per season slot)
+# Not a TTL: bump when get_club_teams' cached rows change shape or meaning. A row stamped with any other
+# value counts as stale even while the "(Ligen)" date still matches (that date can go months unchanged, so
+# without this, rows written by older code would be served as "fresh" indefinitely).
+CLUB_TEAMS_SCHEMA = 2                                    # clubs.py: get_club_teams — 2 = league_guid/team_id per team, club-scoped dbv pages
 TEAM_SEASON_FALLBACK_TTL = timedelta(hours=12)           # teams.py: get_team_season (fallback only)
 TEAM_ENCOUNTER_FALLBACK_TTL = timedelta(hours=12)        # teams.py: get_team_encounter (fallback only)
 PLAYER_LEAGUE_GAMES_FALLBACK_TTL = timedelta(hours=12)   # teams.py: get_player_league_games (fallback only)

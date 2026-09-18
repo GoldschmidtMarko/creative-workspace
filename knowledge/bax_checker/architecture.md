@@ -176,7 +176,7 @@ only the fallback used when that date can't be read):
 | `player_network` | profile_id | 24 h | `PLAYER_NETWORK_TTL` |
 | `club_search_cache` | md5(query) | 12 h | `CLUB_SEARCH_TTL` |
 | `club_roster_cache` | `{cl_code}_{season or 'current'}` | valid while `= "(Turniere)"` date; 30 d fallback | `CLUB_ROSTER_FALLBACK_TTL` |
-| `club_teams_cache` | `{cl_code}_{slot}` | valid while `= "(Ligen)"` date; 60 d fallback | `CLUB_TEAMS_FALLBACK_TTL` |
+| `club_teams_cache` | `{cl_code}_{slot}` | valid while `= "(Ligen)"` date and `schema` matches; 60 d fallback | `CLUB_TEAMS_FALLBACK_TTL`, `CLUB_TEAMS_SCHEMA` |
 | `team_standing_cache` | `{league_guid}_{team_id}` | 12 h | `TEAM_STANDING_TTL` |
 
 `_bax_update_date()` / `_leagues_update_date()` read the front page, memoized
