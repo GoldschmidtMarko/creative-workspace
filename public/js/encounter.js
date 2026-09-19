@@ -81,10 +81,9 @@ function disciplineTitle(code) {
 }
 
 // meta.score is always "home-away" (see teams.py) — which side actually
-// won the overall encounter, for highlighting in the header (feedback:
-// "highlight the winning pair for the encounter" — the per-GAME winner
-// was already bolded per row; this is the same treatment one level up,
-// for whichever team won the encounter as a whole).
+// won the overall encounter, so the header can bold the winning team and
+// mute the losing one (same treatment as each game row — see team.css's
+// .encounter-won/.encounter-loser for why not a background tint).
 function encounterWinner(score) {
     const m = /^(\d+)-(\d+)$/.exec(score || "");
     if (!m) return null;
@@ -98,8 +97,8 @@ function render(data) {
     const plainName = meta.home_team && meta.away_team ? `${meta.home_team} – ${meta.away_team}` : "Encounter";
     matchLabel = plainName;
     if (meta.home_team && meta.away_team) {
-        const homeCls = winner === "home" ? "encounter-winner" : "";
-        const awayCls = winner === "away" ? "encounter-winner" : "";
+        const homeCls = sideState(winner === "home" ? true : winner === "away" ? false : null);
+        const awayCls = sideState(winner === "away" ? true : winner === "home" ? false : null);
         $("en-name").innerHTML = `<span class="${homeCls}">${escapeHtml(meta.home_team)}</span> – <span class="${awayCls}">${escapeHtml(meta.away_team)}</span>`;
     } else {
         $("en-name").textContent = plainName;
@@ -139,7 +138,7 @@ function playerLinkUrl(sp, name) {
 // .tm/.tm__lead/.tm__name/.tm__val — the same "name + number" row the
 // tournament team-cards already use) — unresolved (no sp_code) just shows
 // the name, no badge, rather than a misleading "0".
-function sideCell(players, won) {
+function sideCell(players, state) {
     const rows = (players || []).map((p) => {
         const nameInner = p.sp_code
             ? `<a class="tm__name player-link" href="${escapeHtml(playerLinkUrl(p.sp_code, p.name))}">${escapeHtml(p.name)}</a>`
@@ -147,16 +146,61 @@ function sideCell(players, won) {
         const bax = p.bax != null ? `<span class="tm__val">${escapeHtml(p.bax)}</span>` : "";
         return `<div class="tm"><span class="tm__lead">${nameInner}</span>${bax}</div>`;
     }).join("");
-    return `<td class="${won ? "encounter-winner" : ""}">${rows}</td>`;
+    return `<td class="${state}">${rows}</td>`;
+}
+
+// won: true/false/null (draw or unknown) -> the CSS class for that side —
+// see team.css's .encounter-won/.encounter-loser.
+function sideState(won) {
+    return won === true ? "encounter-won" : won === false ? "encounter-loser" : "";
+}
+
+// Pair/player strength = the SUM of that side's BAX for this game's
+// discipline (same "summed per group" convention as the tournament
+// team-cards). A side only counts when EVERY player on it has a real BAX —
+// null is unresolved, and 0 is bax.py's "no rating found" default, so
+// summing around a gap would understate that side and fake a big lead.
+function sideStrength(players) {
+    if (!players || !players.length) return null;
+    let sum = 0;
+    for (const p of players) {
+        const v = Number(p.bax);
+        if (p.bax == null || !(v > 0)) return null;
+        sum += v;
+    }
+    return sum;
+}
+
+// Arrow in the score column pointing at the side with the higher summed
+// BAX (left = home, right = away) + by how much. Nothing when either side
+// is unrated; a plain "=" on an exact tie.
+function baxEdge(g) {
+    const home = sideStrength(g.home), away = sideStrength(g.away);
+    if (home == null || away == null) return "";
+    const diff = Math.round(Math.abs(home - away));
+    if (diff === 0) return `<div class="bax-edge bax-edge--even" title="Equal BAX">=</div>`;
+    const homeStronger = home > away;
+    const who = homeStronger ? "Home" : "Away";
+    const icon = `<i data-lucide="arrow-${homeStronger ? "left" : "right"}"></i>`;
+    const val = `<span class="bax-edge__val">${diff}</span>`;
+    return `<div class="bax-edge bax-edge--${homeStronger ? "home" : "away"}" title="${who} is ${diff} BAX stronger">${homeStronger ? icon + val : val + icon}</div>`;
 }
 
 function gameRow(g) {
+    const homeWon = typeof g.home_won === "boolean" ? g.home_won : null;   // null = draw / unknown
+    const awayWon = homeWon === null ? null : !homeWon;
     return `<tr>
         <td class="name" title="${escapeHtml(disciplineTitle(g.discipline))}">${escapeHtml(g.discipline)}</td>
-        ${sideCell(g.home, g.home_won === true)}
-        <td class="is-num when">${escapeHtml(g.score || "—")}</td>
-        ${sideCell(g.away, g.home_won === false)}
+        ${sideCell(g.home, sideState(homeWon))}
+        <td class="is-num when encounter-mid"><div>${escapeHtml(g.score || "—")}</div>${baxEdge(g)}</td>
+        ${sideCell(g.away, sideState(awayWon))}
     </tr>`;
+}
+
+// "Home"/"Away" on the left, "BAX" on the right — sits right over each
+// side's own BAX numbers (the .tm rows put the number at the cell's right edge).
+function sideHead(label) {
+    return `<div class="enc-th"><span>${label}</span><span title="Each player's own BAX for that game's discipline">BAX</span></div>`;
 }
 
 function renderGames(games) {
@@ -165,8 +209,8 @@ function renderGames(games) {
         body.innerHTML = `<div class="pl-empty">No games found.</div>`;
         return;
     }
-    body.innerHTML = `<div class="table-scroll"><table class="pl-table">
-        <thead><tr><th>Game</th><th>Home</th><th class="is-num">Score</th><th>Away</th></tr></thead>
+    body.innerHTML = `<div class="table-scroll"><table class="pl-table enc-table">
+        <thead><tr><th>Game</th><th>${sideHead("Home")}</th><th class="is-num encounter-mid">Score</th><th>${sideHead("Away")}</th></tr></thead>
         <tbody>${games.map(gameRow).join("")}</tbody>
     </table></div>`;
 }

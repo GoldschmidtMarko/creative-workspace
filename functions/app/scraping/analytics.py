@@ -10,6 +10,9 @@ Firestore layout:
   usage_tournaments/{tournamentId} {count, count_authed, count_anon, name, lastQueried}
   usage_disciplines/{tid__event}   same shape (one discipline of a tournament)
   usage_players/{profileId}        same shape (a player looked up)
+  usage_clubs/{clCode}             same shape (a club looked up)
+  usage_teams/{leagueGuid_teamId}  same shape (a team's season page; name = "team · division")
+  usage_encounters/{leagueGuid_matchId}  same shape (one league encounter; name = "home – away · date")
 """
 
 import re

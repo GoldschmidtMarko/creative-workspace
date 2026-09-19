@@ -23,14 +23,13 @@
             <span>BAX Checker</span>
         </a>
         <nav class="nav-pill" aria-label="Primary">
-            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournament</a>
             <a class="nav-pill__link" href="/html/player.html">Player</a>
-            <a class="nav-pill__link is-active" aria-current="page" href="/html/club.html">Clubs</a>
-            <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
+            <a class="nav-pill__link is-active" aria-current="page" href="/html/club.html">Club</a>
         </nav>
         <div class="site-nav__actions">
             <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
-                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+                <span>Usage</span>
             </a>
             <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
             <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle light / dark">
@@ -44,12 +43,10 @@
         <main class="player-main">
             <!-- Contextual "back to team" (only when arriving from one) -->
             <a id="team-return" class="tournament-return hidden" href="#">
-                <span class="tournament-return__arrow"><i data-lucide="arrow-left"></i></span>
                 <span class="tournament-return__body">
                     <span class="tournament-return__eyebrow">Back to team</span>
                     <span class="tournament-return__name" id="team-return-name">Team</span>
                 </span>
-                <span class="tournament-return__badge"><i data-lucide="swords"></i></span>
             </a>
 
             <div class="pcard" id="identity-card">
@@ -60,7 +57,7 @@
                     </div>
                     <div class="identity__links">
                         <a class="identity__dbv hidden" id="en-dbv" target="_blank" rel="noopener">
-                            <i data-lucide="external-link" style="width:15px;height:15px;"></i> dbv.turnier.de
+                            dbv.turnier.de
                         </a>
                     </div>
                 </div>
@@ -71,10 +68,9 @@
             </div>
 
             <div id="en-view" class="hidden">
-                <div class="pcard">
+                <div class="pcard pcard--games">
                     <div class="pcard__head">
                         <h2>Games</h2>
-                        <span class="hint">each player's own BAX for that game's discipline</span>
                     </div>
                     <div id="games-body"></div>
                 </div>

@@ -7,6 +7,7 @@ import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { functions } from "./util/firebase.js";
 import { mountFavoriteStar, onFavoritesChange } from "./util/favorites.js";
 import { bindSearchForm } from "./util/search-form.js";
+import { enhanceScrollTabs } from "./util/scrollTabs.js";
 
 const getPlayerBax = httpsCallable(functions, "get_player_bax", { timeout: 120000 });
 const getPlayerDbvStats = httpsCallable(functions, "get_player_dbv_stats", { timeout: 120000 });
@@ -316,9 +317,11 @@ function showError(msg) {
 /* Sub-navigation: switch which section panel is visible (no scrolling). */
 const _tabs = document.querySelectorAll(".subnav__tab");
 const _panels = document.querySelectorAll(".tab-panel");
+const subnavScroll = enhanceScrollTabs($("subnav-wrap"));
 function activateTab(name) {
     if (!Array.from(_tabs).some((t) => t.getAttribute("data-tab") === name)) return;
     _tabs.forEach((t) => t.classList.toggle("is-active", t.getAttribute("data-tab") === name));
+    subnavScroll.reveal(document.querySelector(".subnav__tab.is-active"));
     _panels.forEach((p) => p.classList.toggle("is-active", p.getAttribute("data-panel") === name));
 }
 _tabs.forEach((t) => t.addEventListener("click", () => {
@@ -461,7 +464,7 @@ function renderIdentity(id) {
     $("p-name").textContent = id.name || "Player";
     if (id.name) document.title = `${id.name} | BAX Checker`;
     const meta = [];
-    if (id.club) meta.push(`<a class="identity__club-chip" href="/html/club.html?q=${encodeURIComponent(id.club)}"><i data-lucide="shield"></i>${escapeHtml(id.club)}</a>`);
+    if (id.club) meta.push(`<a class="identity__club-chip" href="/html/club.html?q=${encodeURIComponent(id.club)}">${escapeHtml(id.club)}</a>`);
     if (id.birth_year) meta.push(`<span>Jg ${id.birth_year}</span>`);
     if (id.sp_code) meta.push(`<code>${escapeHtml(id.sp_code)}</code>`);
     $("p-meta").innerHTML = meta.join("");
@@ -489,14 +492,22 @@ function renderIdentity(id) {
     }
 }
 
+// "a · b" as two parts with a hideable separator — on a phone the parts
+// stack on their own lines (see .stat__part in player.css).
+function statParts(...parts) {
+    return parts.filter(Boolean).map((t) => `<span class="stat__part">${t}</span>`).join('<span class="stat__sep"> · </span>');
+}
+
 function renderBaxTiles(history) {
     const cls = { Einzel: "stat--einzel", Doppel: "stat--doppel", Mixed: "stat--mixed" };
     $("p-bax-tiles").innerHTML = CATS.map((c) => {
         const cur = (history[c] || [])[0];
         const val = cur && cur.bax != null ? cur.bax : "–";
-        const sub = cur ? `${escapeHtml(cur.season)}${cur.erfolg ? " · " + escapeHtml(cur.erfolg) : ""}` : "no data";
+        // Season and its "won/played" split are separate parts so a phone can
+        // stack them deliberately (player.css) instead of wrapping mid-item.
+        const sub = cur ? statParts(escapeHtml(cur.season), cur.erfolg ? escapeHtml(cur.erfolg) : "") : "no data";
         return `<div class="stat ${cls[c]}">
-            <div class="stat__label">${DISC_LABEL[c]} BAX</div>
+            <div class="stat__label">${DISC_LABEL[c]}<span class="stat__unit"> BAX</span></div>
             <div class="stat__value">${val}</div>
             <div class="stat__sub">${sub}</div>
         </div>`;
@@ -782,7 +793,7 @@ function renderWinLoss(wl) {
         const statTile = (label, rec) => rec ? `<div class="stat stat--wl">
             <div class="stat__label">${label}</div>
             <div class="stat__value"><span class="w">${rec.won}</span><span class="sep">–</span><span class="l">${rec.lost}</span></div>
-            <div class="stat__sub">${pct(rec)}% won · ${num(rec.total)} matches</div>
+            <div class="stat__sub">${statParts(`${pct(rec)}% won`, `${num(rec.total)} matches`)}</div>
         </div>` : "";
         stats.innerHTML = (t.career || t.year) ? statTile("Career W–L", t.career) + statTile("Season W–L", t.year) : "";
     }
@@ -1153,26 +1164,31 @@ function leagueGameRow(m, showTeam) {
     const scoreCell = m.played && m.score
         ? `<span class="${leagueGameResultClass(m.score, m.is_home)}">${escapeHtml(m.score)}</span>`
         : "—";
-    const teamCell = showTeam ? `<td>${escapeHtml(m.team || "")}</td>` : "";
+    const teamCell = showTeam ? `<td class="lg-team">${escapeHtml(m.team || "")}</td>` : "";
     // Same fix as team.html's own Results/Upcoming rows: a dedicated
     // button, not the date itself, is the link into the encounter.
     const gamesBtn = m.match_id
         ? `<a class="btn btn-secondary btn-sm" href="/html/encounter.html?id=${encodeURIComponent(m.league_guid)}&match=${encodeURIComponent(m.match_id)}&team=${encodeURIComponent(m.team_id)}&team_name=${encodeURIComponent(m.team || "")}" title="See this encounter's individual games">Games</a>`
         : "";
+    // Classed cells + both spellings of the venue: on desktop this is a
+    // plain table ("H"/"A" under a H/A header), on a phone player.css turns
+    // each row into a two-line card (opponent + score / date · venue · team
+    // + Games button) — where there's no header, so the venue is spelled out.
+    const venueWord = m.is_home ? "Home" : "Away";
     return `<tr>
-        <td class="when">${escapeHtml(dateLabel)}${timeLabel}</td>
+        <td class="when lg-when">${escapeHtml(dateLabel)}${timeLabel}</td>
         ${teamCell}
-        <td class="is-num">${venue}</td>
-        <td class="name">${escapeHtml(m.opponent || "")}</td>
-        <td class="is-num">${scoreCell}</td>
-        <td class="is-num">${gamesBtn}</td>
+        <td class="is-num lg-ha" title="${venueWord}"><span class="lg-ha__short">${venue}</span><span class="lg-ha__long">${venueWord}</span></td>
+        <td class="name lg-opp">${escapeHtml(m.opponent || "")}</td>
+        <td class="is-num lg-score${m.played && m.score ? "" : " lg-score--none"}">${scoreCell}</td>
+        <td class="is-num lg-games">${gamesBtn}</td>
     </tr>`;
 }
 
 function leagueGamesTable(rows, showTeam) {
     if (!rows.length) return `<div class="pl-empty">None.</div>`;
     const teamHead = showTeam ? "<th>Team</th>" : "";
-    return `<div class="table-scroll"><table class="pl-table">
+    return `<div class="table-scroll"><table class="pl-table lg-table">
         <thead><tr><th>Date</th>${teamHead}<th class="is-num">H/A</th><th>Opponent</th><th class="is-num">Score</th><th></th></tr></thead>
         <tbody>${rows.map((m) => leagueGameRow(m, showTeam)).join("")}</tbody>
     </table></div>`;

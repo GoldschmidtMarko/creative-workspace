@@ -95,7 +95,7 @@ function renderFavoritesTab(favorites) {
         const href = tournamentHref({ id, name: f.name, start: f.start, end: f.end, city: f.city });
         return `<span class="fav-chip">
             <a class="fav-chip__link" href="${escapeHtml(href)}" title="${escapeHtml(f.name || "")}">
-                <i data-lucide="trophy"></i><span>${escapeHtml(f.name || "—")}</span>
+                <span>${escapeHtml(f.name || "—")}</span>
             </a>
             <button class="fav-chip__remove" type="button" data-type="tournament" data-id="${escapeHtml(id)}" title="Remove from favorites">&times;</button>
         </span>`;
@@ -109,7 +109,7 @@ function renderFavoritesTab(favorites) {
         const title = f.tournamentName ? `${f.name} · ${f.tournamentName}` : (f.name || "");
         return `<span class="fav-chip">
             <a class="fav-chip__link" href="${escapeHtml(href)}" title="${escapeHtml(title)}">
-                <i data-lucide="medal"></i><span>${escapeHtml(f.name || "—")}${sub}</span>
+                <span>${escapeHtml(f.name || "—")}${sub}</span>
             </a>
             <button class="fav-chip__remove" type="button" data-type="discipline" data-id="${escapeHtml(id)}" title="Remove from favorites">&times;</button>
         </span>`;

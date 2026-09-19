@@ -95,7 +95,10 @@ export function mountFavoriteStar(container, { type, id, name, meta = {}, label,
 
     const labelHtml = label ? `<span class="star-btn__label"></span>` : "";
     const cls = iconOnly ? "star-btn star-btn--icon" : "star-btn";
-    container.innerHTML = `<button type="button" class="${cls}"><i data-lucide="star"></i>${labelHtml}</button>`;
+    // A labelled button ("Star" / "Starred") is text only — the icon stays for
+    // the icon-only variant, where it IS the button.
+    const iconHtml = label ? "" : `<i data-lucide="star"></i>`;
+    container.innerHTML = `<button type="button" class="${cls}">${iconHtml}${labelHtml}</button>`;
     const btn = container.querySelector(".star-btn");
     const labelEl = label ? btn.querySelector(".star-btn__label") : null;
 
