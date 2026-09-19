@@ -31,6 +31,10 @@ const SUMMARY_METRICS = [
     { key: "playerQueries", label: "Player lookups" },
     { key: "clubSearches", label: "Club searches" },
     { key: "clubQueries", label: "Club lookups" },
+    { key: "clubTeamQueries", label: "Club team lists" },
+    { key: "teamSeasonQueries", label: "Team page views" },
+    { key: "teamEncounterQueries", label: "Encounter views" },
+    { key: "playerLeagueGamesQueries", label: "Player league-games tabs" },
 ];
 
 function num(n) {
@@ -154,7 +158,7 @@ function mountSortableTable(el, columns, rows, state, opts = {}) {
     draw();
 }
 
-// One ranked table of entities (tournaments / disciplines / players).
+// One ranked table of entities (tournaments / disciplines / players / clubs / teams / encounters).
 function renderEntityTable(id, rows, nameHeader, showId) {
     const el = document.getElementById(id);
     if (!rows || !rows.length) {
@@ -308,6 +312,8 @@ function render(data) {
     renderEntityTable("table-disciplines", data.disciplines, "Discipline", true);
     renderEntityTable("table-players", data.players, "Player", true);
     renderEntityTable("table-clubs", data.clubs, "Club", true);
+    renderEntityTable("table-teams", data.teams, "Team", true);
+    renderEntityTable("table-encounters", data.encounters, "Encounter", true);
     renderUsers(data.users || { total: 0, top: [] });
     renderFeedback(data.feedback || []);
     show(dashboard);
@@ -324,7 +330,7 @@ function showLoadingSkeleton() {
     document.getElementById("usage-timeline").innerHTML = `<div class="skel skel-block" style="height:200px"></div>`;
     const table = () => `<div style="padding:0.7rem 0.8rem">` +
         Array.from({ length: 6 }, () => `<div class="skel skel-block" style="height:34px;margin-bottom:0.45rem"></div>`).join("") + `</div>`;
-    ["table-tournaments", "table-disciplines", "table-players", "table-clubs", "users-table", "table-feedback"].forEach((id) => {
+    ["table-tournaments", "table-disciplines", "table-players", "table-clubs", "table-teams", "table-encounters", "users-table", "table-feedback"].forEach((id) => {
         const el = document.getElementById(id); if (el) el.innerHTML = table();
     });
     show(dashboard);

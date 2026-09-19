@@ -39,7 +39,7 @@ from app.core.cache_config import (
     CURRENT_SEASON_MAX_AGE, PLAYER_LEAGUE_GAMES_FALLBACK_TTL, TEAM_ENCOUNTER_FALLBACK_TTL, TEAM_SEASON_FALLBACK_TTL)
 from app.core.common import BASE, COOKIES, MAX_WORKERS, _get
 from app.core.firebase_app import db
-from app.scraping.analytics import bump_summary, name_key, upsert_player_index
+from app.scraping.analytics import bump_entity, bump_summary, name_key, upsert_player_index
 from app.scraping.bax import get_bax_values
 from app.scraping.leagues import _league_tier, _leagues_update_date, _ligen_cache_fresh, _scrape_leagues
 from app.scraping.player import _cached_search_players, _index_lookup
@@ -171,6 +171,36 @@ def _fetch_team_matches_page(league_guid, team_id):
         return []
 
 
+def _track_team_view(cache_key, result, authed):
+    """Count one team-page view — called on the cache-hit path too, not just
+    after a fresh scrape (a cached team is the common case, and counting only
+    misses badly undercounted). Also feeds the dashboard's "most viewed
+    teams" table (usage_teams); best-effort, never affects the response."""
+    try:
+        bump_summary(["teamSeasonQueries"], authed)
+        team = (result or {}).get("team") or {}
+        name = team.get("name")
+        if name and team.get("division"):
+            name = f"{name} · {team['division']}"   # a bare "BV Aachen 2" repeats every season
+        bump_entity("usage_teams", cache_key, authed, name=name)
+    except Exception as e:
+        print(f"team view tracking error: {e}")
+
+
+def _track_encounter_view(cache_key, result, authed):
+    """Same as _track_team_view, for one encounter (usage_encounters). The
+    date disambiguates the two legs of the same pairing."""
+    try:
+        bump_summary(["teamEncounterQueries"], authed)
+        meta = (result or {}).get("meta") or {}
+        name = f"{meta['home_team']} – {meta['away_team']}" if meta.get("home_team") and meta.get("away_team") else None
+        if name and meta.get("date"):
+            name = f"{name} · {meta['date']}"
+        bump_entity("usage_encounters", cache_key, authed, name=name)
+    except Exception as e:
+        print(f"encounter view tracking error: {e}")
+
+
 @https_fn.on_call()
 def get_team_season(req: https_fn.CallableRequest) -> dict:
     """One team's season: its division's full current standings (every
@@ -188,6 +218,7 @@ def get_team_season(req: https_fn.CallableRequest) -> dict:
             return {"error": "You're looking up teams too quickly. Please wait a bit."}
 
         cache_key = f"{league_guid}_{team_id}"
+        authed = req.auth is not None
         site_date = _leagues_update_date()
         if db:
             try:
@@ -200,6 +231,7 @@ def get_team_season(req: https_fn.CallableRequest) -> dict:
                         exp = data.get("expires_at")
                         fresh = exp is not None and datetime.now(timezone.utc) < exp
                     if fresh:
+                        _track_team_view(cache_key, data["result"], authed)
                         return data["result"]
             except Exception:
                 pass
@@ -243,7 +275,7 @@ def get_team_season(req: https_fn.CallableRequest) -> dict:
             except Exception:
                 pass
 
-        bump_summary(["teamSeasonQueries"], req.auth is not None)
+        _track_team_view(cache_key, result, authed)
         return result
     except Exception as e:
         import traceback
@@ -444,6 +476,7 @@ def get_team_encounter(req: https_fn.CallableRequest) -> dict:
             return {"error": "You're looking up matches too quickly. Please wait a bit."}
 
         cache_key = f"{league_guid}_{match_id}"
+        authed = req.auth is not None
         site_date = _leagues_update_date()
         if db:
             try:
@@ -456,6 +489,7 @@ def get_team_encounter(req: https_fn.CallableRequest) -> dict:
                         exp = data.get("expires_at")
                         fresh = exp is not None and datetime.now(timezone.utc) < exp
                     if fresh:
+                        _track_encounter_view(cache_key, data["result"], authed)
                         return data["result"]
             except Exception:
                 pass
@@ -495,7 +529,7 @@ def get_team_encounter(req: https_fn.CallableRequest) -> dict:
             except Exception:
                 pass
 
-        bump_summary(["teamEncounterQueries"], req.auth is not None)
+        _track_encounter_view(cache_key, result, authed)
         return result
     except Exception as e:
         import traceback
@@ -525,6 +559,10 @@ def get_player_league_games(req: https_fn.CallableRequest) -> dict:
 
         if not check_rate_limit(rate_key(req), "get_player_league_games", 60, 3600000):
             return {"error": "You're looking up players too quickly. Please wait a bit."}
+
+        # Counted up front: the cache-hit and "no teams" paths below return
+        # early and used to slip past a count at the end.
+        bump_summary(["playerLeagueGamesQueries"], req.auth is not None)
 
         site_date = _leagues_update_date()
         if db:
@@ -584,7 +622,6 @@ def get_player_league_games(req: https_fn.CallableRequest) -> dict:
             except Exception:
                 pass
 
-        bump_summary(["playerLeagueGamesQueries"], req.auth is not None)
         return result
     except Exception as e:
         import traceback

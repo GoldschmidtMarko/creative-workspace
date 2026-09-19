@@ -329,7 +329,6 @@ header p {
 }
 .fav-chip__link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fav-chip__link:hover { color: var(--accent); }
-.fav-chip__link svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--ink-faint); }
 .fav-chip__sub { color: var(--ink-faint); font-weight: 400; }
 .fav-chip__remove {
   display: inline-flex; align-items: center; justify-content: center;
@@ -606,7 +605,6 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   align-items: center;
   gap: 0.5rem;
 }
-.site-nav__actions .btn svg { width: 15px; height: 15px; }
 .site-nav .icon-btn { width: 2.1rem; height: 2.1rem; box-shadow: none; }
 
 /* Page body sits directly under the sticky nav — compact tool-page headers
@@ -616,11 +614,25 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
 .site-nav + .container > header h1 { font-size: 1.75rem; margin-bottom: 0.2rem; }
 .site-nav + .container > header p { font-size: 0.98rem; }
 
+/* Phones: brand + actions on row 1, the four page links as a full-width
+   segmented bar on row 2. One row can't hold logo + 4 links + Sign in +
+   theme toggle (~500px of content) — the pill overflowed the viewport, so
+   the whole page could be panned sideways and Sign in / the theme toggle
+   sat off-screen. Two rows are too tall to pin, so the bar scrolls away
+   here (pinned things underneath, e.g. player.css's .subnav, use top:0). */
 @media (max-width: 640px) {
-  .site-nav { grid-template-columns: auto 1fr auto; gap: 0.5rem; padding: 0 0.7rem; }
-  .site-nav__brand span { display: none; }        /* logo-only on small screens */
-  .nav-pill__link { padding: 0.34rem 0.7rem; font-size: 0.85rem; }
-  .site-nav__actions .btn span { display: none; } /* icon-only action buttons */
+  .site-nav {
+    position: relative;
+    height: auto;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "brand actions" "links links";
+    gap: 0.4rem 0.5rem;
+    padding: 0.4rem 0.7rem 0.55rem;
+  }
+  .site-nav__brand { grid-area: brand; }
+  .site-nav__actions { grid-area: actions; }
+  .nav-pill { grid-area: links; justify-self: stretch; }
+  .nav-pill__link { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.25rem; font-size: 0.82rem; }
 }
 
 /* ======================================================================
@@ -706,20 +718,6 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   box-shadow: var(--shadow-lg);
 }
 .entry-card:hover::after { color: var(--accent); transform: translate(4px, -2px); }
-.entry-card__icon {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.4rem;
-  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
-}
-.entry-card:hover .entry-card__icon { background: var(--accent); color: var(--accent-ink); transform: scale(1.05); }
-.entry-card__icon i { width: 26px; height: 26px; }
 .entry-card h2 { font-size: 1.25rem; font-weight: 700; color: var(--ink); margin: 0; }
 .entry-card p { color: var(--ink-dim); font-size: 0.92rem; line-height: 1.5; margin: 0; }
 
@@ -738,7 +736,7 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
 .hero-features i { width: 16px; height: 16px; color: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) {
-  .entry-card, .entry-card::after, .entry-card__icon, .nav-pill__link { transition: none; }
+  .entry-card, .entry-card::after, .nav-pill__link { transition: none; }
 }
 
 /* ======================================================================

@@ -77,11 +77,11 @@
     text-decoration: none;
     transition: background-color 0.15s ease;
 }
-.identity__club-chip i { width: 13px; height: 13px; flex-shrink: 0; }
 .identity__club-chip:hover { background: color-mix(in srgb, var(--accent) 24%, transparent); text-decoration: none; }
 .identity__links { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-end; flex-shrink: 0; }
 .identity__dbv { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--accent); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
 .identity__dbv:hover { text-decoration: underline; }
+.lbl-short { display: none; }
 @media (max-width: 560px) { .identity__links { align-items: flex-start; } }
 
 /* Header stats: BAX values on the left, the win/loss record pushed to the right
@@ -91,11 +91,50 @@
 .identity-stats .stat { min-width: 102px; }
 .identity-stats #p-wl-tiles { margin-left: auto; }
 @media (max-width: 560px) {
-    #identity-card { padding: 0.85rem 0.95rem; }
+    #identity-card { padding: 0.85rem 0.85rem; }
     .identity-stats { gap: 0.45rem; margin-top: 0.7rem; }
     .identity-stats .stat-grid { flex: 1 1 100%; gap: 0.45rem; }
     .identity-stats #p-wl-tiles { margin-left: 0; }
     .identity-stats .stat { flex: 1; min-width: 0; }   /* 3 BAX across, then 2 W-L across */
+
+    /* The three actions (Star / Compare / DBV profile) used to stack one per
+       line — as one row of matching pills they take a third of the height. */
+    .identity { gap: 0.6rem; }
+    .identity > div:first-child { flex: 1 1 100%; }
+    .identity__links { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+    .identity__links .star-btn, .identity__links .btn-sm, .identity__links .identity__dbv {
+        min-height: 2rem;
+        padding: 0 0.6rem;   /* trimmed so all three still fit one row at 360px */
+        border-radius: 999px;
+        font-size: 0.8125rem;
+        line-height: 1;
+    }
+    .identity__links .btn-sm { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .identity__links .identity__dbv { border: 1px solid var(--border-strong); background: var(--card); }
+    .identity__links .identity__dbv:hover { text-decoration: none; background: var(--card-2); }
+    .lbl-long { display: none; }
+    .lbl-short { display: inline; }
+
+    /* Tiles: the "BAX" unit moves to a caption above the row (a "SINGLES
+       BAX" label wrapped to two lines at 3-across), and each sub-line's
+       parts stack instead of wrapping mid-item ("2025/26 · / 0/4"). */
+    .identity-stats #p-bax-tiles:not(:empty)::before {
+        content: "Current BAX";
+        flex: 1 0 100%;
+        color: var(--ink-faint);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .identity-stats .stat__unit { display: none; }
+    .identity-stats #p-bax-tiles .stat__sep { display: none; }
+    .identity-stats #p-bax-tiles .stat__part { display: block; }
+}
+@media (max-width: 400px) {
+    .identity-stats .stat__value { font-size: 1.2rem; white-space: nowrap; }   /* "105–173" must not break at 320px */
+    .identity-stats #p-wl-tiles .stat__sep { display: none; }
+    .identity-stats #p-wl-tiles .stat__part { display: block; }
 }
 
 /* Stat tiles (shared look with the usage dashboard) */
@@ -157,21 +196,6 @@
     border-color: var(--accent);
 }
 .tournament-return:hover::before { transform: translateX(120%); }
-.tournament-return__arrow {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--accent-ink);
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.18s ease;
-}
-.tournament-return:hover .tournament-return__arrow { transform: translateX(-3px); }
-.tournament-return__arrow i { width: 18px; height: 18px; }
 .tournament-return__body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .tournament-return__eyebrow {
     font-size: 0.68rem; font-weight: 800; letter-spacing: 0.07em;
@@ -181,10 +205,8 @@
     font-size: 0.98rem; font-weight: 700; color: var(--ink);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tournament-return__badge { flex-shrink: 0; color: var(--accent); opacity: 0.6; display: inline-flex; }
-.tournament-return__badge i { width: 22px; height: 22px; }
 @media (prefers-reduced-motion: reduce) {
-    .tournament-return, .tournament-return::before, .tournament-return__arrow { transition: none; }
+    .tournament-return, .tournament-return::before { transition: none; }
 }
 
 /* Sticky section sub-navigation (tabs) */
@@ -226,6 +248,60 @@
     color: var(--accent);
     background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
+/* player.html wraps its .subnav in .subnav-wrap so the scroll arrows can
+   float over the scrolling bar (see util/scrollTabs.js for why they can't
+   live inside it). The wrapper takes over everything that made the bar
+   sticky/frosted; the bar inside is then just the scroller. */
+.subnav-wrap {
+    position: sticky;
+    top: 56px;
+    z-index: 30;
+    margin: 0.25rem 0 1.1rem;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: saturate(160%) blur(8px);
+    -webkit-backdrop-filter: saturate(160%) blur(8px);
+    border-bottom: 1px solid var(--border);
+}
+.subnav-wrap > .subnav {
+    position: static;
+    margin: 0;
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 0;
+}
+.subnav-arrow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 2.75rem;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+.subnav-arrow--left  { left: 0;  justify-content: flex-start; padding-left: 0.15rem;  background: linear-gradient(to left,  transparent, var(--bg) 55%); }
+.subnav-arrow--right { right: 0; justify-content: flex-end;   padding-right: 0.15rem; background: linear-gradient(to right, transparent, var(--bg) 55%); }
+.subnav-arrow.is-hidden { opacity: 0; pointer-events: none; }
+.subnav-arrow__chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-sm);
+    color: var(--accent);
+}
+.subnav-arrow:hover .subnav-arrow__chip { background: var(--card-2); }
+.subnav-arrow svg { width: 14px; height: 14px; }
+@media (prefers-reduced-motion: reduce) { .subnav-arrow { transition: none; } }
+
 /* League games and Matchups are the novel feature tabs — give them their
    own accent (amber), distinct from the teal used by every other active
    tab. Upcoming lost this when League games took over its old "first
@@ -241,12 +317,17 @@
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--disc-waiting) 45%, transparent);
 }
 
+/* main.css stops pinning the site nav on phones (it's two rows there), so
+   the pinned tab bar sits at the very top instead of under a 56px bar. */
+@media (max-width: 640px) {
+    .subnav, .subnav-wrap { top: 0; }
+}
+
 /* Highlighted Upcoming panel card */
 .pcard--upcoming {
     border-color: color-mix(in srgb, var(--disc-waiting) 40%, var(--border));
     background: linear-gradient(180deg, color-mix(in srgb, var(--disc-waiting) 7%, var(--card)), var(--card) 55%);
 }
-.pcard__spark { width: 18px; height: 18px; color: var(--disc-waiting); vertical-align: -3px; margin-right: 0.15rem; }
 
 .tab-panel { display: none; }
 .tab-panel.is-active { display: block; animation: tabfade 0.18s ease; }
@@ -424,6 +505,41 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
        white-space/overflow/text-overflow rules this needs, just no
        width to actually apply them against until now). */
     .pl-table .tm__name { max-width: 23vw; }
+}
+
+/* player.html's League games tab (player.js's leagueGamesTable). Six columns
+   (date, team, H/A, opponent, score, Games button) can't fit a phone —
+   Score and the button were pushed off-screen — so under 480px each row
+   becomes a two-line card instead: opponent + score + Games button on top,
+   then date · venue · team across the card's FULL width (the team name is
+   what tells "BV Aachen 2" from "BV Aachen 3" apart, so it must not be
+   squeezed by the button's column). Scoped to .lg-table so team.html's and
+   encounter.html's .pl-table tables are untouched. */
+.lg-ha__long { display: none; }
+@media (max-width: 480px) {
+    .pl-table.lg-table, .pl-table.lg-table thead, .pl-table.lg-table tbody { display: block; }
+    .pl-table.lg-table thead { display: none; }
+    .pl-table.lg-table tbody tr {
+        display: grid;
+        grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+        align-items: center;
+        row-gap: 0.25rem;
+        padding: 0.6rem 0.1rem;
+    }
+    .pl-table.lg-table td { padding: 0; }
+    /* Line 1 */
+    .pl-table.lg-table td.lg-opp { grid-area: 1 / 1 / 2 / 4; white-space: normal; font-size: 0.9rem; font-weight: 600; padding-right: 0.5rem; }
+    .pl-table.lg-table td.lg-score { grid-area: 1 / 4 / 2 / 5; font-size: 0.9rem; font-weight: 700; text-align: right; }
+    .pl-table.lg-table td.lg-score--none { display: none; }
+    .pl-table.lg-table td.lg-games { grid-area: 1 / 5 / 2 / 6; text-align: right; padding-left: 0.6rem; }
+    /* Line 2 — team spans the empty score/button tracks so it gets the rest */
+    .pl-table.lg-table td.lg-when { grid-area: 2 / 1 / 3 / 2; white-space: nowrap; font-size: 0.76rem; }
+    .pl-table.lg-table td.lg-ha, .pl-table.lg-table td.lg-team { font-size: 0.76rem; color: var(--ink-dim); text-align: left; }
+    .pl-table.lg-table td.lg-ha { grid-area: 2 / 2 / 3 / 3; }
+    .pl-table.lg-table td.lg-team { grid-area: 2 / 3 / 3 / 6; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-table.lg-table td.lg-ha::before, .pl-table.lg-table td.lg-team::before { content: "·"; margin: 0 0.4rem; }
+    .lg-ha__short { display: none; }
+    .lg-ha__long { display: inline; }
 }
 
 /* Network tab — teammates / opponents side by side */

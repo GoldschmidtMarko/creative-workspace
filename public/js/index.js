@@ -8,7 +8,6 @@ function escapeHtml(s) {
     ));
 }
 
-const ICON = { tournament: "trophy", discipline: "medal", player: "user-round", club: "shield" };
 
 function linkFor(type, id, f) {
     if (type === "tournament") {
@@ -48,7 +47,6 @@ function renderGroup(type, entries) {
         const { main, sub } = labelFor(type, f);
         return `<span class="fav-chip">
             <a class="fav-chip__link" href="${escapeHtml(linkFor(type, id, f))}" title="${escapeHtml(sub ? `${main} · ${sub}` : main)}">
-                <i data-lucide="${ICON[type]}"></i>
                 <span>${escapeHtml(main)}${sub ? ` <span class="fav-chip__sub">· ${escapeHtml(sub)}</span>` : ""}</span>
             </a>
             <button class="fav-chip__remove" type="button" data-type="${type}" data-id="${escapeHtml(id)}" title="Remove from favorites">&times;</button>

@@ -13,28 +13,111 @@
    live in bax_checker.css instead — both team.html and player.html
    already load that, and neither loads this file.
 
-   Winner highlighting on encounter.html (the per-game side cell, and the
-   overall winner in the header) — NOT .match-result--win/--color-only,
-   because every player name in that table is already accent-colored via
-   .pl-table a, and --success/--accent happen to share the exact same hex
-   in light mode (both #0f766e) — so a text-color-only cue was invisible
-   there (feedback: "not fully great to see who won ... dark mode looks
-   good, but not white mode" — dark mode's --success (green) and --accent
-   (purple) DO differ, which is why only that theme worked). A background
-   tint doesn't depend on that coincidence, so it stays visible in both;
-   the color+weight change is kept too since it still helps wherever the
-   two tokens actually differ. */
-.encounter-winner {
-    background: color-mix(in srgb, var(--success) 16%, transparent);
-    border-radius: var(--radius-sm);
+   Winner cue on encounter.html: the winner is set in bold and the LOSER is
+   muted, rather than tinting the winner's cell (feedback: the tinted
+   cells/header pill were too heavy — but a colour-only difference was too
+   faint on a phone in light mode, hence the weight change too). Every
+   player name in that table is accent-colored via .pl-table a, so colour
+   alone can't carry it: --success and --accent are the same #0f766e in
+   light mode, which is also why the winner isn't recoloured with
+   --success. A draw (neither side flagged) styles nothing. Applies to a
+   game's side cell and to the two team names in the header. */
+.encounter-won .tm__name, .encounter-won .tm__name.player-link { font-weight: 700; }
+.encounter-won .tm__val { color: var(--ink); font-weight: 700; }
+.encounter-loser .tm__name, .encounter-loser .tm__name.player-link {
+    color: var(--ink-dim);
+    font-weight: 400;
 }
-td.encounter-winner .tm__name, td.encounter-winner .tm__val {
-    color: var(--success);
-    font-weight: 700;
+.encounter-loser .tm__val { color: var(--ink-faint); font-weight: 500; }
+span.encounter-loser { color: var(--ink-dim); font-weight: 500; }
+
+/* Score column on encounter.html: set scores with the BAX-edge arrow
+   underneath — the arrow points at the side (home = left, away = right)
+   whose players' summed BAX is higher, with the gap as its number. Accent
+   tint rather than a neutral grey chip: --card-2 on the white light-mode
+   card was nearly invisible. */
+.pl-table .encounter-mid { text-align: center; }
+.enc-th { display: flex; justify-content: space-between; gap: 0.75rem; }
+.bax-edge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-top: 0.25rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--ink);
+    font-size: 0.74rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
 }
-span.encounter-winner {
-    display: inline-block;
-    padding: 0.1rem 0.6rem;
-    color: var(--success);
-    font-weight: 700;
+.bax-edge svg { width: 12px; height: 12px; color: var(--accent); stroke-width: 2.75; }
+.bax-edge--even { padding: 0.1rem 0.65rem; }
+
+/* On a phone the score column can't grow (player.css's max-width:480px
+   block works hard to keep this table from scrolling sideways), so the pill
+   loses its border/padding but keeps its tint — arrow + number must fit in
+   ~41px, incl. a 3-digit gap. */
+@media (max-width: 480px) {
+    .bax-edge { padding: 0 0.22rem; border: 0; gap: 0.08rem; font-size: 0.7rem; }
+    .bax-edge svg { width: 10px; height: 10px; }
+    .bax-edge--even { padding: 0 0.3rem; }
+    .encounter-won .tm__name, .encounter-won .tm__name.player-link { font-weight: 600; }
+}
+
+/* encounter.html's games table on a phone. Four table columns can't fit
+   here (feedback, Android: score wrapped into a stack of numbers at its
+   hyphens, names cut to "Christian …"), so each game becomes a small card
+   instead: label + set scores + BAX-edge arrow on top, then home | away as
+   two equal halves below. Home stays LEFT and away RIGHT, so the arrow's
+   left/right still means home/away. Scoped to .enc-table — team.html's and
+   player.html's .pl-table tables keep the plain table. */
+@media (max-width: 480px) {
+    .pl-table.enc-table, .pl-table.enc-table tbody, .pl-table.enc-table thead { display: block; }
+    .pl-table.enc-table thead tr, .pl-table.enc-table tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    /* Header keeps just "Home | Away" over the two halves */
+    .pl-table.enc-table thead th:nth-child(odd) { display: none; }
+    /* Same side padding as the halves below so "BAX" stays over the numbers */
+    .pl-table.enc-table thead th { padding: 0.4rem 0.3rem; }
+    .pl-table.enc-table thead th:nth-child(4) { padding-left: 0.5rem; border-left: 1px solid transparent; }
+
+    .pl-table.enc-table tbody tr {
+        grid-template-areas: "mid mid" "home away";
+        position: relative;
+        padding: 0.5rem 0 0.55rem;
+    }
+    .pl-table.enc-table td:nth-child(2) { grid-area: home; }
+    .pl-table.enc-table td:nth-child(3) { grid-area: mid; }
+    .pl-table.enc-table td:nth-child(4) { grid-area: away; border-left: 1px solid var(--border); padding-left: 0.6rem; }
+    .pl-table.enc-table td:nth-child(2), .pl-table.enc-table td:nth-child(4) { padding-top: 0.15rem; padding-bottom: 0.15rem; min-width: 0; }
+
+    /* Game label pinned top-left of the card; the score line's symmetric
+       side padding keeps it from ever running into the label. */
+    .pl-table.enc-table td.name {
+        position: absolute; left: 0.35rem; top: 0.5rem;
+        padding: 0; font-size: 0.76rem; font-weight: 700; color: var(--ink-dim);
+    }
+    .pl-table.enc-table td.encounter-mid {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 0.15rem 0.5rem; padding: 0 2.6rem 0.4rem;
+    }
+    .pl-table.enc-table td.encounter-mid > div:first-child { white-space: nowrap; }
+    .pl-table.enc-table .bax-edge { margin-top: 0; }
+
+    /* Name left, BAX right again (the generic phone rule stacks them), and
+       a long name wraps onto a second line rather than being cut off. */
+    .pl-table.enc-table .tm { flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 0.3rem; padding: 0.1rem 0; font-size: 0.8rem; }
+    .pl-table.enc-table .tm__lead { flex: 1 1 auto; min-width: 0; align-items: flex-start; }
+    .pl-table.enc-table .tm__name { max-width: none; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; }
+    .pl-table.enc-table .tm__val { font-size: 0.74rem; padding-top: 0.05rem; }
+    /* Side padding is spent on the names: every 8px here is ~1 more
+       character before a name has to wrap. */
+    .pcard--games { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .pl-table.enc-table td:nth-child(2), .pl-table.enc-table td:nth-child(4) { padding-left: 0.3rem; padding-right: 0.3rem; }
+    .pl-table.enc-table td:nth-child(4) { padding-left: 0.5rem; }
 }

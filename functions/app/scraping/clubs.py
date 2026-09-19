@@ -755,6 +755,9 @@ def get_club_teams(req: https_fn.CallableRequest) -> dict:
         if not check_rate_limit(rate_key(req), "get_club_teams", 40, 3600000):
             return {"error": "You're looking up clubs too quickly. Please wait a bit."}
 
+        # Counted up front so cached loads count too (they return early below).
+        bump_summary(["clubTeamQueries"], req.auth is not None)
+
         cache_key = f"{cl_code}_{slot}"
         site_date = _leagues_update_date()
         if db and not force:
@@ -784,7 +787,6 @@ def get_club_teams(req: https_fn.CallableRequest) -> dict:
             except Exception:
                 pass
 
-        bump_summary(["clubTeamQueries"], req.auth is not None)
         return {"season": season_label, "slot": slot, "teams": teams}
     except Exception as e:
         import traceback

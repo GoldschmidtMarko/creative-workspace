@@ -23,14 +23,13 @@
             <span>BAX Checker</span>
         </a>
         <nav class="nav-pill" aria-label="Primary">
-            <a class="nav-pill__link" href="/html/tournaments.html">Tournaments</a>
+            <a class="nav-pill__link" href="/html/tournaments.html">Tournament</a>
             <a class="nav-pill__link is-active" aria-current="page" href="/html/player.html">Player</a>
-            <a class="nav-pill__link" href="/html/club.html">Clubs</a>
-            <a class="nav-pill__link" href="/html/compare.html">Comparison</a>
+            <a class="nav-pill__link" href="/html/club.html">Club</a>
         </nav>
         <div class="site-nav__actions">
             <a id="usage-link" href="/html/components/bax_checker/usage.html" class="btn btn-secondary btn-sm hidden" title="Usage dashboard">
-                <i data-lucide="bar-chart-3" style="width:15px;height:15px;"></i><span>Usage</span>
+                <span>Usage</span>
             </a>
             <button id="auth-btn" class="btn btn-secondary btn-sm" type="button" title="Sign in with Google">Sign in</button>
             <button id="theme-toggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light / dark">
@@ -60,7 +59,6 @@
                         <div class="search-row">
                             <input type="search" id="search-q" class="field" placeholder="Search by name…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                             <button type="button" class="run-btn-premium" style="justify-content:center;">
-                                <i data-lucide="search" style="width:18px;height:18px;"></i>
                                 <span>Search</span>
                             </button>
                         </div>
@@ -84,22 +82,18 @@
             <section id="profile-view" class="hidden">
                 <!-- Contextual "back to tournament" (only when arriving from one) -->
                 <a id="tournament-return" class="tournament-return hidden" href="#">
-                    <span class="tournament-return__arrow"><i data-lucide="arrow-left"></i></span>
                     <span class="tournament-return__body">
                         <span class="tournament-return__eyebrow">Back to tournament</span>
                         <span class="tournament-return__name" id="tournament-return-name">Tournament</span>
                     </span>
-                    <span class="tournament-return__badge"><i data-lucide="trophy"></i></span>
                 </a>
 
                 <!-- Contextual "back to match" (only when arriving from a team encounter) -->
                 <a id="match-return" class="tournament-return hidden" href="#">
-                    <span class="tournament-return__arrow"><i data-lucide="arrow-left"></i></span>
                     <span class="tournament-return__body">
                         <span class="tournament-return__eyebrow">Back to match</span>
                         <span class="tournament-return__name" id="match-return-name">Match</span>
                     </span>
-                    <span class="tournament-return__badge"><i data-lucide="swords"></i></span>
                 </a>
 
                 <!-- Identity header (always visible) -->
@@ -112,13 +106,13 @@
                         <div class="identity__links">
                             <span id="p-star"></span>
                             <button class="btn btn-secondary btn-sm hidden" id="p-add-compare" type="button" title="Add this player to a comparison">
-                                <i data-lucide="users" style="width:15px;height:15px;"></i> Add to comparison
+                                <span class="lbl-long">Add to comparison</span><span class="lbl-short">Compare</span>
                             </button>
                             <a class="identity__dbv hidden" id="p-dbv" target="_blank" rel="noopener">
-                                <i data-lucide="external-link" style="width:15px;height:15px;"></i> DBV profile
+                                DBV profile
                             </a>
                             <a class="identity__dbv hidden" id="p-dbv-tournament" target="_blank" rel="noopener">
-                                <i data-lucide="external-link" style="width:15px;height:15px;"></i> In this tournament
+                                In this tournament
                             </a>
                         </div>
                     </div>
@@ -128,18 +122,24 @@
                     </div>
                 </div>
 
-                <!-- Section sub-navigation (sticky) -->
-                <nav class="subnav" id="subnav" aria-label="Player sections">
-                    <button class="subnav__tab subnav__tab--league-games is-active" type="button" data-tab="league-games">League games</button>
-                    <button class="subnav__tab subnav__tab--network" type="button" data-tab="network"><i data-lucide="users"></i>Matchups</button>
-                    <button class="subnav__tab" type="button" data-tab="upcoming">Upcoming</button>
-                    <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
-                    <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
-                    <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
-                    <button class="subnav__tab" type="button" data-tab="tournaments">Tournaments</button>
-                    <button class="subnav__tab" type="button" data-tab="titles">Titles</button>
-                    <button class="subnav__tab" type="button" data-tab="standing">Standing</button>
-                </nav>
+                <!-- Section sub-navigation (sticky). The arrows are only shown while
+                     there are tabs scrolled out of view on that side — see
+                     util/scrollTabs.js. -->
+                <div class="subnav-wrap" id="subnav-wrap">
+                    <button class="subnav-arrow subnav-arrow--left is-hidden" type="button" tabindex="-1" aria-label="Scroll tabs left"><span class="subnav-arrow__chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></span></button>
+                    <nav class="subnav" id="subnav" aria-label="Player sections">
+                        <button class="subnav__tab subnav__tab--league-games is-active" type="button" data-tab="league-games">League games</button>
+                        <button class="subnav__tab subnav__tab--network" type="button" data-tab="network">Matchups</button>
+                        <button class="subnav__tab" type="button" data-tab="upcoming">Upcoming</button>
+                        <button class="subnav__tab" type="button" data-tab="history">BAX history</button>
+                        <button class="subnav__tab" type="button" data-tab="leagues">Leagues</button>
+                        <button class="subnav__tab" type="button" data-tab="winloss">Win / Loss</button>
+                        <button class="subnav__tab" type="button" data-tab="tournaments">Tournaments</button>
+                        <button class="subnav__tab" type="button" data-tab="titles">Titles</button>
+                        <button class="subnav__tab" type="button" data-tab="standing">Standing</button>
+                    </nav>
+                    <button class="subnav-arrow subnav-arrow--right is-hidden" type="button" tabindex="-1" aria-label="Scroll tabs right"><span class="subnav-arrow__chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span></button>
+                </div>
 
                 <!-- Panels -->
                 <div class="tab-panel is-active" data-panel="league-games">
@@ -175,7 +175,7 @@
                 <div class="tab-panel" data-panel="upcoming">
                     <div class="pcard pcard--upcoming">
                         <div class="pcard__head">
-                            <h2><i data-lucide="sparkles" class="pcard__spark"></i> Upcoming tournaments</h2>
+                            <h2>Upcoming tournaments</h2>
                         </div>
                         <div id="upcoming-body"><div class="skeleton">…</div></div>
                     </div>

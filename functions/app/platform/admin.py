@@ -164,6 +164,8 @@ def get_usage_stats(req: https_fn.CallableRequest) -> dict:
         "disciplines": _top_entities("usage_disciplines"),
         "players": _top_entities("usage_players"),
         "clubs": _top_entities("usage_clubs"),
+        "teams": _top_entities("usage_teams"),
+        "encounters": _top_entities("usage_encounters"),
         "users": _users_overview(),
         "feedback": _recent_feedback(),
     }
