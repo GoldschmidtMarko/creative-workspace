@@ -922,6 +922,36 @@ a.tm__name:hover { text-decoration: underline; }
 .disc-chip.is-active .disc-chip__select { color: var(--accent-ink); }
 .disc-chip:active .disc-chip__select { transform: translateY(1px); }
 
+/* Folded state (a discipline is active): only the active chip stays visible,
+   next to the toggle that unfolds the rest. The toggle has no purpose before a
+   discipline is picked, so it stays hidden until then. */
+.discipline-bar.is-collapsed .disc-chip:not(.is-active) { display: none; }
+.discipline-bar:not(.has-active) .disc-toggle { display: none; }
+.disc-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.disc-toggle:hover { background: var(--card-2); border-color: var(--border-strong); }
+.disc-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.disc-toggle__chevron {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+}
+.disc-toggle[aria-expanded="true"] .disc-toggle__chevron { transform: translateY(2px) rotate(225deg); }
+
 .disc-chip__star { display: inline-flex; align-items: center; }
 .disc-chip__star .star-btn--icon {
     border: none;
@@ -1033,8 +1063,22 @@ a.tm__name:hover { text-decoration: underline; }
     }
     #view-controls .view-switch { width: 100%; }
     #view-controls .view-btn { flex: 1; text-align: center; }
-    #view-controls > div:last-child { justify-content: space-between; }
-    #discipline-filter { flex: 1; }
+    /* Type filter + Update Live share one row instead of stacking on three:
+       the "Discipline:" label is dropped (the select carries an aria-label)
+       and the select leads, taking whatever width the button leaves. */
+    #view-controls .view-actions { flex-wrap: nowrap; }
+    .view-actions__label { display: none; }
+    #discipline-filter { flex: 1 1 0; min-width: 0; order: -1; }
+
+    /* Header: tighter gaps so the discipline bar starts higher up the screen */
+    .t-header { gap: 0.6rem; margin-bottom: 0.9rem; }
+    .t-meta { margin-top: 0.3rem; }
+
+    /* Results-tab cards carry only a rank badge + names, so put the badge
+       beside the names rather than on a row of its own. */
+    .team-card--result { flex-direction: row; align-items: center; gap: 0.75rem; }
+    .team-card--result .team-card__head { flex: 0 0 3.7rem; justify-content: center; padding-bottom: 0; border-bottom: none; }
+    .team-card--result .team-card__members { flex: 1; min-width: 0; }
 
     /* Category bar stacks */
     .category-bar {
