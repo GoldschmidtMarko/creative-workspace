@@ -151,10 +151,15 @@ function renderDisciplineBar() {
             <button class="disc-chip__select" type="button">${escapeHtml(d.name)}</button>
             <span class="disc-chip__star" data-event="${escapeHtml(d.event)}"></span>
         </div>`
-    ).join("");
+    ).join("") +
+        `<button class="disc-toggle" type="button" aria-expanded="true">
+            <span class="disc-toggle__label">Hide</span><span class="disc-toggle__chevron" aria-hidden="true"></span>
+        </button>`;
     disciplineBar.querySelectorAll(".disc-chip__select").forEach((btn, i) => {
         btn.addEventListener("click", () => selectDiscipline(disciplines[i]));
     });
+    disciplineBar.querySelector(".disc-toggle").addEventListener("click", () =>
+        setDisciplineBarOpen(disciplineBar.classList.contains("is-collapsed")));
     disciplineBar.querySelectorAll(".disc-chip__star").forEach((el, i) => {
         const d = disciplines[i];
         mountFavoriteStar(el, {
@@ -164,9 +169,21 @@ function renderDisciplineBar() {
         });
     });
 }
+// With up to ~20 disciplines the chip list wraps to many rows on a phone and
+// pushes the results off-screen. Once one is picked the bar folds down to just
+// that chip (star included) plus a toggle; the toggle unfolds it again.
+function setDisciplineBarOpen(open) {
+    disciplineBar.classList.toggle("is-collapsed", !open);
+    const toggle = disciplineBar.querySelector(".disc-toggle");
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.querySelector(".disc-toggle__label").textContent = open ? "Hide" : "Change";
+}
 function markActiveChip(event) {
     disciplineBar.querySelectorAll(".disc-chip").forEach((b) =>
         b.classList.toggle("is-active", b.getAttribute("data-event") === event));
+    disciplineBar.classList.add("has-active");
+    setDisciplineBarOpen(false);
 }
 
 function selectDiscipline(d) {
@@ -335,7 +352,7 @@ function renderWinners() {
         // means a podium finish, so parse rather than match the exact string.
         const place = parseInt(row.rank, 10);
         const podiumCls = place >= 1 && place <= 3 ? ` team-card--rank-${place}` : "";
-        card.className = "team-card" + podiumCls;
+        card.className = "team-card team-card--result" + podiumCls;
         const membersHtml = row.players.map((p) => {
             const seed = p.seed ? `<span class="tm__val">#${escapeHtml(p.seed)}</span>` : "";
             const matched = byName.get(normName(p.name));
