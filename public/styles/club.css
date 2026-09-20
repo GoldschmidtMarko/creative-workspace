@@ -25,6 +25,28 @@
     -webkit-box-orient: vertical;
 }
 
+/* Phone: the header used to take most of the first screen — Star wrapped
+   onto its own line and the three tiles stacked one per row (each with a
+   74px floor). Here the Star button sits beside the name and the tiles go
+   three across, like player.html's identity card (which player.css's
+   ≤560px block already tightens; only what differs for the club lives
+   here). Labels shrink via .lbl-long/.lbl-short, the season drops onto its
+   own line under the label instead of trailing it, and the best-rank
+   tile's league sub-line is hidden — the Teams tab right below already
+   shows every team's league. */
+@media (max-width: 560px) {
+    #identity-card .identity { flex-wrap: nowrap; align-items: center; }
+    #identity-card .identity > div:first-child { flex: 1 1 auto; min-width: 0; }
+    #identity-card .identity__links { flex: 0 0 auto; }
+
+    #c-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.45rem; margin-top: 0.7rem; }
+    #c-stats .stat { min-height: 0; padding: 0.45rem 0.55rem; }
+    #c-stats .stat__value { font-size: 1.2rem; white-space: nowrap; }
+    #c-stats .stat__sub { display: none; }
+    .stat__dot { display: none; }
+    .stat__season { display: block; color: var(--ink-faint); }
+}
+
 /* Roster — split into gender groups, side by side on wide screens, one
    below the other on narrow ones (auto-fit handles both via minmax). */
 .roster-groups {
@@ -118,7 +140,64 @@
    (bax_checker.css) as-is — only the bits those don't already cover live
    here. */
 #teams-season-select { width: auto; flex: 0 0 auto; }
-.club-team-card { text-decoration: none; cursor: pointer; }
+.club-team-card {
+    text-decoration: none;
+    cursor: pointer;
+    /* Clips the full-bleed "View team" footer to the card's rounded corners. */
+    overflow: hidden;
+}
+.club-team-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.club-team-card:active { border-color: var(--accent-hover); }
+/* No team page to open (no league_guid/team_id yet) — drop the hover
+   highlight so it doesn't read as clickable next to the cards that are. */
+.club-team-card--static { cursor: default; }
+.club-team-card--static:hover { border-color: var(--border); box-shadow: var(--shadow-sm); }
+
+/* One line above the grid saying the cards are clickable and what's behind
+   them — the footer on each card shows *which* are, this says *why*. */
+.teams-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 0.85rem;
+    font-size: 0.85rem;
+    color: var(--ink-dim);
+}
+.teams-hint svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }
+
+/* "View team →" footer — a full-bleed, accent-tinted strip pinned to the
+   bottom of every linked card so it reads as a button, not a static
+   info tile. Always visible (not hover-only) since touch screens have no
+   hover; on hover/focus it fills solid and the arrow slides forward.
+   Negative margins cancel .team-card's padding to run edge to edge;
+   margin-top:auto keeps the strips aligned across a row of cards whose
+   contents differ in height. */
+.club-team-card__cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: auto -0.95rem -0.85rem;
+    padding: 0.55rem 0.95rem;
+    border-top: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.club-team-card__cta svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.15s ease;
+}
+.club-team-card:hover .club-team-card__cta,
+.club-team-card:focus-visible .club-team-card__cta {
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+.club-team-card:hover .club-team-card__cta svg,
+.club-team-card:focus-visible .club-team-card__cta svg { transform: translateX(3px); }
 /* .team-card's shared hover lifts the card with translateY(-3px) — fine on
    the tournament page, but this grid sits right under the site's sticky
    header (position:sticky, z-index:50), so whenever a scrolled row's top

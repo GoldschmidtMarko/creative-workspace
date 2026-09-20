@@ -259,6 +259,11 @@ function renderSeasonSelect() {
         `<option value="${escapeHtml(s)}" ${s === state.season ? "selected" : ""}>${escapeHtml(s)}</option>`).join("");
 }
 
+/* " · 2026-27" after a tile label. Wrapped so the phone layout can drop the
+   dot and put the season on its own line (see club.css). */
+const seasonTag = (season) =>
+    `<span class="stat__season"><span class="stat__dot"> &middot; </span>${escapeHtml(season || "")}</span>`;
+
 /* Top-of-page KPIs — deliberately all scoped to the CURRENT season only
    (active players from the roster call; team count + best rank from
    get_club_teams's slot 0), even once a prior season gets loaded in the
@@ -268,7 +273,7 @@ function renderClubStats() {
     const box = $("c-stats");
     const activeTile = `
         <div class="stat">
-            <div class="stat__label">Active Players</div>
+            <div class="stat__label"><span class="lbl-long">Active Players</span><span class="lbl-short">Players</span></div>
             <div class="stat__value">${state.activePlayers != null ? state.activePlayers : "—"}</div>
         </div>`;
 
@@ -287,11 +292,11 @@ function renderClubStats() {
     )[0];
     box.innerHTML = activeTile + `
         <div class="stat">
-            <div class="stat__label">Teams &middot; ${escapeHtml(slot0.season || "")}</div>
+            <div class="stat__label">Teams${seasonTag(slot0.season)}</div>
             <div class="stat__value">${slot0.teams.length}</div>
         </div>
         <div class="stat">
-            <div class="stat__label">Best rank &middot; ${escapeHtml(slot0.season || "")}</div>
+            <div class="stat__label">Best rank${seasonTag(slot0.season)}</div>
             <div class="stat__value">${best && best.standing ? "#" + escapeHtml(best.standing) : "—"}</div>
             <div class="stat__sub" title="${best ? escapeHtml(best.division || "") : ""}">${best ? escapeHtml([best.abbr, best.division].filter(Boolean).join(" · ")) : ""}</div>
         </div>`;
@@ -543,14 +548,21 @@ function teamCardHtml(t) {
     const title = [t.division, record ? record.plain : null, href ? "See this team's season" : null]
         .filter(Boolean).join(" · ");
     const tagName = href ? "a" : "div";
-    const attrs = href ? ` href="${escapeHtml(href)}"` : "";
-    return `<${tagName} class="team-card club-team-card"${attrs} title="${escapeHtml(title)}">
+    const attrs = href ? ` href="${escapeHtml(href)}"` : ` aria-disabled="true"`;
+    // Only a card that actually leads somewhere gets the "View team" footer
+    // — a static card (no league_guid/team_id yet) stays visibly inert
+    // rather than promising a click that does nothing.
+    const cta = href
+        ? `<span class="club-team-card__cta">View team <i data-lucide="arrow-right"></i></span>`
+        : "";
+    return `<${tagName} class="team-card club-team-card${href ? "" : " club-team-card--static"}"${attrs} title="${escapeHtml(title)}">
         <div class="team-card__head">
             <span class="club-team-card__name">${escapeHtml(t.team)}</span>
             <span class="rank-badge">${rank}</span>
         </div>
         ${t.division ? `<div class="club-team-card__division">${tag}<span>${escapeHtml(t.division)}</span></div>` : ""}
         ${record ? record.html : ""}
+        ${cta}
     </${tagName}>`;
 }
 
@@ -582,7 +594,12 @@ function renderTeams() {
     const teams = data.teams.slice().sort((a, b) =>
         compareSquadNames(a.team, b.team, state.club.name) || (a.tier ?? 99) - (b.tier ?? 99));
 
-    el.innerHTML = `<div class="team-grid">${teams.map(teamCardHtml).join("")}</div>`;
+    // Says up front that the cards are clickable and what's behind them —
+    // only when at least one card actually links (see teamPageUrl).
+    const hint = teams.some((t) => teamPageUrl(t))
+        ? `<p class="teams-hint"><i data-lucide="mouse-pointer-click"></i> Select a team to see its standings, results and upcoming matches.</p>`
+        : "";
+    el.innerHTML = `${hint}<div class="team-grid">${teams.map(teamCardHtml).join("")}</div>`;
     if (window.lucide) lucide.createIcons();
 }
 
