@@ -56,7 +56,7 @@ function renderPanel(panel) {
     )).join("")}</div>`;
 
     const fieldHtml = tab.placeholder
-        ? `<input class="jumpto__field" type="search" placeholder="${tab.placeholder}" data-jumpto-input>`
+        ? `<input class="jumpto__field" type="search" placeholder="${tab.placeholder}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-jumpto-input>`
         : "";
 
     const rowsHtml = rows.length
