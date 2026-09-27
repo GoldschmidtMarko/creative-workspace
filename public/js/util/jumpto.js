@@ -76,7 +76,11 @@ function renderPanel(panel) {
     panel.innerHTML = tabsHtml + fieldHtml + rowsHtml + browseHtml;
 
     panel.querySelectorAll("[data-tab]").forEach((btn) => {
-        btn.addEventListener("click", () => { activeTab = btn.dataset.tab; renderPanel(panel); });
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            activeTab = btn.dataset.tab;
+            renderPanel(panel);
+        });
     });
     const input = panel.querySelector("[data-jumpto-input]");
     if (input) {
