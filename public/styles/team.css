@@ -17,10 +17,10 @@
    muted, rather than tinting the winner's cell (feedback: the tinted
    cells/header pill were too heavy — but a colour-only difference was too
    faint on a phone in light mode, hence the weight change too). Every
-   player name in that table is accent-colored via .pl-table a, so colour
-   alone can't carry it: --success and --accent are the same #0f766e in
-   light mode, which is also why the winner isn't recoloured with
-   --success. A draw (neither side flagged) styles nothing. Applies to a
+   player name in that table is accent-colored via .pl-table a, so a second
+   colour layer (e.g. --success) would compete with that link colour rather
+   than read as a distinct win/loss cue — hence weight instead of colour.
+   A draw (neither side flagged) styles nothing. Applies to a
    game's side cell and to the two team names in the header. */
 .encounter-won .tm__name, .encounter-won .tm__name.player-link { font-weight: 700; }
 .encounter-won .tm__val { color: var(--ink); font-weight: 700; }
@@ -120,4 +120,45 @@ span.encounter-loser { color: var(--ink-dim); font-weight: 500; }
     .pcard--games { padding-left: 0.75rem; padding-right: 0.75rem; }
     .pl-table.enc-table td:nth-child(2), .pl-table.enc-table td:nth-child(4) { padding-left: 0.3rem; padding-right: 0.3rem; }
     .pl-table.enc-table td:nth-child(4) { padding-left: 0.5rem; }
+}
+
+/* Team Results/Upcoming tables on a phone — Date/H-A/Opponent/Score/Games
+   already shortened once (feedback: "the games button require[s]
+   horizontal scrolling" — H/A down to one letter, date dropped its year)
+   but a long opponent name still doesn't leave room for all 5 columns.
+   Same move as .enc-table above: each row becomes a small two-line block
+   instead of forcing a scrollbar. The H/A column folds into a small tag
+   in front of the opponent name (mv-venue, added unconditionally in
+   team.js — hidden here at desktop width where the dedicated column
+   already shows it). */
+.mv-venue {
+    display: none;
+    align-items: center; justify-content: center;
+    width: 1.05rem; height: 1.05rem;
+    border-radius: 4px;
+    font-size: 0.62rem; font-weight: 700;
+    margin-right: 0.35rem;
+    background: var(--card-2); color: var(--ink-dim);
+    vertical-align: middle;
+}
+@media (max-width: 480px) {
+    .pl-table.matches-table thead { display: none; }
+    .pl-table.matches-table, .pl-table.matches-table tbody { display: block; }
+    .pl-table.matches-table tbody tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: "when score" "opp games";
+        column-gap: 0.6rem;
+        row-gap: 0.3rem;
+        padding: 0.6rem 0.1rem;
+        border-bottom: 1px solid var(--border);
+    }
+    .pl-table.matches-table tbody tr:last-child { border-bottom: none; }
+    .pl-table.matches-table td { border-bottom: none; padding: 0; white-space: normal; }
+    .pl-table.matches-table td.when { grid-area: when; color: var(--ink-dim); font-size: 0.8rem; }
+    .pl-table.matches-table td.name { grid-area: opp; }
+    .pl-table.matches-table td:nth-child(2) { display: none; } /* dedicated H/A column — the name cell's mv-venue tag takes over */
+    .pl-table.matches-table td:nth-child(4) { grid-area: score; justify-self: end; }
+    .pl-table.matches-table td:nth-child(5) { grid-area: games; justify-self: end; align-self: end; }
+    .mv-venue { display: inline-flex; }
 }

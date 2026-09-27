@@ -733,10 +733,14 @@ function renderDistribution() {
         bars += `<rect class="pl-bar${mine ? " pl-bar--me" : ""}" x="${x0(i)}" y="${yy}" width="${barW}" height="${baseline - yy}" rx="1.5" data-tip="${escapeHtml(tip)}"/>`;
         if (i % labelStride === 0 || i === n - 1) xlabels += `<text class="pl-axis" x="${x0(i) + barW / 2}" y="${H - 10}" text-anchor="middle">${b}</text>`;
     }
-    // Player marker line.
+    // Player marker line. Same bucket-membership rule as the `mine` bar
+    // highlight above (b <= player < b + step) — this used to round to the
+    // nearest bucket instead of flooring into it, so the line landed one
+    // bucket to the right of the highlighted bar whenever the player's
+    // value was past its bucket's midpoint.
     let marker = "";
     if (player != null && buckets.length) {
-        const idx = Math.max(0, Math.min(n - 1, Math.round((player - buckets[0]) / step)));
+        const idx = Math.max(0, Math.min(n - 1, Math.floor((player - buckets[0]) / step)));
         const mx = x0(idx) + barW / 2;
         marker = `<line class="pl-marker" x1="${mx}" y1="${padT}" x2="${mx}" y2="${baseline}"/>` +
             `<text class="pl-marker-label" x="${mx}" y="${padT + 10}" text-anchor="middle">You · ${player}</text>`;

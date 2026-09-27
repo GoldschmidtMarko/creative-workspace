@@ -245,21 +245,17 @@ async function runAnalysis(disc, force = false) {
     stopTracking = stop;
     emptyState.style.display = "none";
     loader.style.display = "block";
-    // Skeleton team cards fill in beneath the progress bar so it reads as content
-    // loading rather than a blank wait.
+    // A skeleton field table fills in beneath the progress bar so it reads
+    // as content loading rather than a blank wait.
     resultsContainer.style.display = "block";
-    resultsGrid.innerHTML = Array.from({ length: 6 }, () => `
-        <div class="team-card is-skel" aria-hidden="true">
-            <div class="team-card__head">
-                <span class="skel skel-circle" style="width:1.6rem;height:1.6rem"></span>
-                <span class="skel skel-line" style="width:46px;height:1.2rem"></span>
-            </div>
-            <div class="team-card__members">
-                <span class="skel skel-line" style="width:82%"></span>
-                <span class="skel skel-line" style="width:64%;margin-top:0.4rem"></span>
-            </div>
-            <div class="team-card__stats"><span class="skel skel-line" style="width:100%"></span></div>
-        </div>`).join("");
+    resultsGrid.innerHTML = `<div class="field-tbl-wrap"><table class="field-tbl"><thead><tr>
+        <th style="width:3.5rem;">Rank</th><th>Team</th><th class="is-num">BAX</th>
+    </tr></thead><tbody>${Array.from({ length: 6 }, () => `
+        <tr class="is-skel" aria-hidden="true">
+            <td><span class="skel skel-circle" style="width:1.6rem;height:1.6rem"></span></td>
+            <td><span class="skel skel-line" style="width:70%"></span></td>
+            <td class="is-num"><span class="skel skel-line" style="width:2.4rem;margin-left:auto;"></span></td>
+        </tr>`).join("")}</tbody></table></div>`;
     chartContainer.style.display = "none";
     viewControls.style.display = "none";
     chartBody.innerHTML = "";
@@ -344,15 +340,11 @@ function renderWinners() {
     const byName = new Map();
     currentPlayers.forEach((m) => { if (m.full_name) byName.set(normName(m.full_name), m); });
 
-    const grid = document.createElement("div");
-    grid.className = "team-grid";
-    group.rows.forEach((row) => {
-        const card = document.createElement("div");
+    const rowsHtml = group.rows.map((row) => {
         // Shared placements are written like "3/4" — the leading number still
         // means a podium finish, so parse rather than match the exact string.
         const place = parseInt(row.rank, 10);
-        const podiumCls = place >= 1 && place <= 3 ? ` team-card--rank-${place}` : "";
-        card.className = "team-card team-card--result" + podiumCls;
+        const rankCls = place >= 1 && place <= 3 ? ` is-rank-${place}` : "";
         const membersHtml = row.players.map((p) => {
             const seed = p.seed ? `<span class="tm__val">#${escapeHtml(p.seed)}</span>` : "";
             const matched = byName.get(normName(p.name));
@@ -361,15 +353,14 @@ function renderWinners() {
                 `<a class="tm__name player-link" ${attrs}>${escapeHtml(p.name)}</a>` +
                 `</span>${seed}</div>`;
         }).join("");
-        card.innerHTML = `
-            <div class="team-card__head">
-                <div class="team-card__head-left"><span class="rank-badge">${escapeHtml(row.rank)}</span></div>
-            </div>
-            <div class="team-card__members">${membersHtml}</div>`;
-        grid.appendChild(card);
-    });
-    winnersBody.innerHTML = "";
-    winnersBody.appendChild(grid);
+        return `<tr class="${rankCls.trim()}">
+            <td><span class="rank-badge">${escapeHtml(row.rank)}</span></td>
+            <td><div class="field-tbl__team">${membersHtml}</div></td>
+        </tr>`;
+    }).join("");
+    winnersBody.innerHTML = `<div class="field-tbl-wrap"><table class="field-tbl field-tbl--results"><thead><tr>
+        <th style="width:3.5rem;">Rank</th><th>Team</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
 
 /* ---------------- view + rendering (ported) ------------------------------ */
@@ -402,7 +393,6 @@ function updateDisplay() {
 }
 
 function renderResults(players) {
-    resultsGrid.innerHTML = "";
     const teams = {};
     players.forEach((p) => {
         if (!teams[p.group]) teams[p.group] = { group: p.group, members: [], status: p.status || "", Einzel: p.Sum_Einzel || 0, Doppel: p.Sum_Doppel || 0, Mixed: p.Sum_Mixed || 0 };
@@ -415,35 +405,32 @@ function renderResults(players) {
     const discs = ["Einzel", "Doppel", "Mixed"];
     const metricLabel = currentDiscipline === "all" ? "Total" : currentDiscipline;
 
-    const renderCard = (team, rank) => {
+    const renderRow = (team, rank) => {
         const waiting = isWaitlisted(team.status);
-        const card = document.createElement("div");
-        card.className = "team-card" + (waiting ? " team-card--waiting" : "") + (rank === 1 ? " team-card--top" : "");
         const membersHtml = team.members.map((m) => {
             const val = currentDiscipline === "all" ? (m.Einzel + m.Doppel + m.Mixed) : m[currentDiscipline];
             return `<div class="tm"><span class="tm__lead">` +
                 `<a class="tm__name player-link" ${playerLinkAttrs(m)}>${escapeHtml(m.full_name)}</a>${leagueTagsHtml(m)}` +
                 `</span><span class="tm__val">${Math.round(val)}</span></div>`;
         }).join("");
-        const chipsHtml = discs.map((d) => {
+        const chipsHtml = currentDiscipline === "all" ? `<div class="field-tbl__chips">${discs.map((d) => {
             const active = currentDiscipline === d ? " active" : "";
             return `<span class="team-chip${active}" title="${disciplineLabel(d)}"><span class="team-chip__k">${disciplineLabel(d)[0]}</span>${Math.round(team[d])}</span>`;
-        }).join("");
-        const headLeft = waiting
+        }).join("")}</div>` : "";
+        const rankCell = waiting
             ? `<span class="waiting-tag">${escapeHtml(statusLabel(team.status))}</span>`
             : `<span class="rank-badge">${rank}</span>`;
-        card.innerHTML = `
-            <div class="team-card__head">
-                <div class="team-card__head-left">${headLeft}</div>
-                <span class="team-card__metric" title="${metricLabel} team BAX">${Math.round(metric(team))}</span>
-            </div>
-            <div class="team-card__members">${membersHtml}</div>
-            <div class="team-card__stats">${chipsHtml}</div>`;
-        resultsGrid.appendChild(card);
+        return `<tr class="${waiting ? "is-waiting" : ""}">
+            <td>${rankCell}</td>
+            <td><div class="field-tbl__team">${membersHtml}${chipsHtml}</div></td>
+            <td class="is-num"><span class="field-tbl__metric" title="${metricLabel} team BAX">${Math.round(metric(team))}</span></td>
+        </tr>`;
     };
     let rank = 0;
-    starters.forEach((t) => renderCard(t, ++rank));
-    waiters.forEach((t) => renderCard(t, null));
+    const rowsHtml = starters.map((t) => renderRow(t, ++rank)).join("") + waiters.map((t) => renderRow(t, null)).join("");
+    resultsGrid.innerHTML = `<div class="field-tbl-wrap"><table class="field-tbl"><thead><tr>
+        <th style="width:3.5rem;">Rank</th><th>Team</th><th class="is-num">BAX</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 }
 
 const DISC_CLASS = { Einzel: "bar-einzel", Doppel: "bar-doppel", Mixed: "bar-mixed" };

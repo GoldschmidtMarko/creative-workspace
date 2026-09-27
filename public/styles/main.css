@@ -1,39 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 /* Design tokens ------------------------------------------------------- */
-/* Two modes: light (default) uses a teal accent, dark uses a violet
-   accent — each mode keeps its own accent hue rather than sharing one.
-   Ported from the mtg-life-clicker design system. */
+/* "Instrument" direction: neutral grays, hairline borders, one precise
+   amber accent reserved for the tracked number / current selection /
+   primary action — never decoration. Same hue in light and dark, just
+   brightened for the dark ground. See PRODUCT.md + the redesign directions
+   artifact for the full rationale. */
 
 :root {
-  --bg: #faf9f7;
-  --bg-subtle: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(15, 118, 110, 0.07), transparent 70%);
+  --bg: #fafaf9;
+  --bg-subtle: none;
   --card: #ffffff;
-  --card-2: #f7f7f5;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
+  --card-2: #f4f4f3;
+  --border: #e7e6e2;
+  --border-strong: #d6d4ce;
   --ink: #18181b;
-  --ink-dim: #71717a;
-  --ink-faint: #a1a1aa;
-  --accent: #0f766e;
-  --accent-hover: #0c5f58;
-  --accent-ink: #ffffff;
+  --ink-dim: #71716c;
+  --ink-faint: #a3a29c;
+  --accent: #b4610d;
+  --accent-hover: #965109;
+  --accent-ink: #fff7ec;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
-  --success: #0f766e;
-  --success-hover: #0c5f58;
+  --success: #15803d;
+  --success-hover: #166534;
   --input-bg: #fafafa;
-  --secondary-bg: #f4f4f5;
-  --secondary-hover: #e9e9ec;
-  --secondary-border: #e4e4e7;
-  --ghost-border: #e4e4e7;
-  --ghost-ink: #3f3f46;
+  --secondary-bg: #f4f4f3;
+  --secondary-hover: #ececeb;
+  --secondary-border: #e7e6e2;
+  --ghost-border: #e7e6e2;
+  --ghost-ink: #3f3f3d;
   --scrim: rgba(24, 24, 27, 0.5);
-  --focus-ring: rgba(15, 118, 110, 0.25);
+  --focus-ring: rgba(180, 97, 13, 0.28);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 10px;
   --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
   --shadow-md: 0 8px 24px -8px rgba(24, 24, 27, 0.14);
   --shadow-lg: 0 24px 64px -16px rgba(24, 24, 27, 0.22);
@@ -51,30 +53,30 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b0b0e;
-    --bg-subtle: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(109, 94, 252, 0.10), transparent 70%);
-    --card: #16161a;
-    --card-2: #1b1b20;
-    --border: #26262c;
-    --border-strong: #34343c;
-    --ink: #fafafa;
-    --ink-dim: #8a8a94;
-    --ink-faint: #5c5c66;
-    --accent: #6d5efc;
-    --accent-hover: #7d6fff;
-    --accent-ink: #ffffff;
+    --bg: #0c0c0d;
+    --bg-subtle: none;
+    --card: #141416;
+    --card-2: #1a1a1c;
+    --border: #232326;
+    --border-strong: #313134;
+    --ink: #f2f2f0;
+    --ink-dim: #98978f;
+    --ink-faint: #5c5b56;
+    --accent: #e8912f;
+    --accent-hover: #f2a349;
+    --accent-ink: #1c1206;
     --danger: #ef4444;
     --danger-hover: #dc2626;
-    --success: #10b981;
-    --success-hover: #0da271;
-    --input-bg: #0f0f12;
-    --secondary-bg: #1e1e24;
-    --secondary-hover: #26262e;
-    --secondary-border: #2e2e36;
-    --ghost-border: #2a2a30;
-    --ghost-ink: #c9c9d2;
+    --success: #34a25a;
+    --success-hover: #2f8f4f;
+    --input-bg: #0f0f11;
+    --secondary-bg: #1a1a1c;
+    --secondary-hover: #222224;
+    --secondary-border: #2b2b2e;
+    --ghost-border: #26262a;
+    --ghost-ink: #cac9c4;
     --scrim: rgba(6, 6, 8, 0.65);
-    --focus-ring: rgba(109, 94, 252, 0.35);
+    --focus-ring: rgba(232, 145, 47, 0.32);
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
     --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
@@ -83,30 +85,30 @@
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0b0e;
-  --bg-subtle: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(109, 94, 252, 0.10), transparent 70%);
-  --card: #16161a;
-  --card-2: #1b1b20;
-  --border: #26262c;
-  --border-strong: #34343c;
-  --ink: #fafafa;
-  --ink-dim: #8a8a94;
-  --ink-faint: #5c5c66;
-  --accent: #6d5efc;
-  --accent-hover: #7d6fff;
-  --accent-ink: #ffffff;
+  --bg: #0c0c0d;
+  --bg-subtle: none;
+  --card: #141416;
+  --card-2: #1a1a1c;
+  --border: #232326;
+  --border-strong: #313134;
+  --ink: #f2f2f0;
+  --ink-dim: #98978f;
+  --ink-faint: #5c5b56;
+  --accent: #e8912f;
+  --accent-hover: #f2a349;
+  --accent-ink: #1c1206;
   --danger: #ef4444;
   --danger-hover: #dc2626;
-  --success: #10b981;
-  --success-hover: #0da271;
-  --input-bg: #0f0f12;
-  --secondary-bg: #1e1e24;
-  --secondary-hover: #26262e;
-  --secondary-border: #2e2e36;
-  --ghost-border: #2a2a30;
-  --ghost-ink: #c9c9d2;
+  --success: #34a25a;
+  --success-hover: #2f8f4f;
+  --input-bg: #0f0f11;
+  --secondary-bg: #1a1a1c;
+  --secondary-hover: #222224;
+  --secondary-border: #2b2b2e;
+  --ghost-border: #26262a;
+  --ghost-ink: #cac9c4;
   --scrim: rgba(6, 6, 8, 0.65);
-  --focus-ring: rgba(109, 94, 252, 0.35);
+  --focus-ring: rgba(232, 145, 47, 0.32);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
   --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
@@ -114,30 +116,30 @@
 }
 
 :root[data-theme="light"] {
-  --bg: #faf9f7;
-  --bg-subtle: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(15, 118, 110, 0.07), transparent 70%);
+  --bg: #fafaf9;
+  --bg-subtle: none;
   --card: #ffffff;
-  --card-2: #f7f7f5;
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
+  --card-2: #f4f4f3;
+  --border: #e7e6e2;
+  --border-strong: #d6d4ce;
   --ink: #18181b;
-  --ink-dim: #71717a;
-  --ink-faint: #a1a1aa;
-  --accent: #0f766e;
-  --accent-hover: #0c5f58;
-  --accent-ink: #ffffff;
+  --ink-dim: #71716c;
+  --ink-faint: #a3a29c;
+  --accent: #b4610d;
+  --accent-hover: #965109;
+  --accent-ink: #fff7ec;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
-  --success: #0f766e;
-  --success-hover: #0c5f58;
+  --success: #15803d;
+  --success-hover: #166534;
   --input-bg: #fafafa;
-  --secondary-bg: #f4f4f5;
-  --secondary-hover: #e9e9ec;
-  --secondary-border: #e4e4e7;
-  --ghost-border: #e4e4e7;
-  --ghost-ink: #3f3f46;
+  --secondary-bg: #f4f4f3;
+  --secondary-hover: #ececeb;
+  --secondary-border: #e7e6e2;
+  --ghost-border: #e7e6e2;
+  --ghost-ink: #3f3f3d;
   --scrim: rgba(24, 24, 27, 0.5);
-  --focus-ring: rgba(15, 118, 110, 0.25);
+  --focus-ring: rgba(180, 97, 13, 0.28);
 
   --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.05);
   --shadow-md: 0 8px 24px -8px rgba(24, 24, 27, 0.14);
@@ -155,7 +157,7 @@
 .hidden { display: none !important; }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Geist', system-ui, sans-serif;
   background: var(--bg-subtle), var(--bg);
   color: var(--ink);
   min-height: 100vh;
@@ -234,7 +236,7 @@ header p {
   user-select: none;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
 }
-.btn:active { transform: translateY(1px); }
+.btn:active { transform: scale(0.97); }
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
@@ -570,32 +572,38 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
 .nav-pill {
   justify-self: center;
   display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  gap: 1.4rem;
 }
 .nav-pill__link {
   display: inline-flex;
   align-items: center;
-  padding: 0.34rem 0.95rem;
-  border-radius: 7px;
+  padding-bottom: 2px;
   color: var(--ink-dim);
   font-weight: 500;
   font-size: 0.875rem;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  position: relative;
+  transition: color 0.15s ease;
+}
+.nav-pill__link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.15s ease-out;
 }
 .nav-pill__link:hover { color: var(--ink); }
 .nav-pill__link.is-active {
-  background: var(--card);
   color: var(--ink);
   font-weight: 600;
-  box-shadow: var(--shadow-sm);
 }
-.nav-pill__link:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.nav-pill__link.is-active::after { transform: scaleX(1); }
+.nav-pill__link:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); border-radius: 3px; }
 /* Icons were removed from nav links; keep any stray svg small just in case. */
 .nav-pill__link svg { width: 15px; height: 15px; }
 
@@ -607,6 +615,89 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
 }
 .site-nav .icon-btn { width: 2.1rem; height: 2.1rem; box-shadow: none; }
 
+/* Jump-to (⌘K) ----------------------------------------------------------
+   Quick-jump panel: real favorites (from favorites.js) plus a per-type
+   search box that deep-links to the existing player/club search pages
+   (player.html?q=…, club.html?q=…) rather than duplicating search logic. */
+.jumpto { position: relative; }
+.jumpto__btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  background: var(--card); border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-sm); padding: 0.4rem 0.55rem 0.4rem 0.65rem;
+  font: inherit; font-size: 0.8rem; color: var(--ink-dim); cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23,1,0.32,1), border-color 0.15s ease;
+}
+.jumpto__btn:hover { border-color: var(--border-strong); color: var(--ink); }
+.jumpto__btn:active { transform: scale(0.97); }
+.jumpto__btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.jumpto__btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.jumpto__kbd {
+  font-family: 'Geist Mono', monospace; font-size: 0.68rem;
+  background: var(--card-2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0.05rem 0.32rem; color: var(--ink-faint);
+}
+.jumpto__label { display: inline; }
+
+.jumpto__panel {
+  position: absolute; top: calc(100% + 8px); right: 0; width: 300px;
+  max-height: 70vh; overflow-y: auto;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg);
+  padding: 0.5rem; transform-origin: top right;
+  transform: scale(0.95); opacity: 0; pointer-events: none;
+  transition: transform 160ms cubic-bezier(0.23,1,0.32,1), opacity 140ms ease-out;
+  z-index: 60;
+}
+.jumpto__panel.is-open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.jumpto__tabs { display: flex; gap: 2px; padding: 2px; background: var(--card-2); border-radius: 7px; margin-bottom: 0.5rem; }
+.jumpto__tab {
+  flex: 1; font: inherit; font-size: 0.76rem; font-weight: 500; color: var(--ink-dim);
+  background: none; border: none; border-radius: 5px; padding: 0.38rem 0; cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.jumpto__tab.is-active { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm); }
+.jumpto__field {
+  width: 100%; background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.5rem 0.6rem; font: inherit; font-size: 0.85rem;
+  color: var(--ink); margin-bottom: 0.4rem;
+}
+.jumpto__field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.jumpto__group { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); padding: 0.5rem 0.4rem 0.3rem; }
+.jumpto__row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  padding: 0.5rem 0.55rem; border-radius: 6px; text-decoration: none; color: inherit;
+  font-size: 0.85rem; transition: background-color 120ms ease-out;
+}
+.jumpto__row:hover, .jumpto__row:focus-visible { background: var(--card-2); outline: none; }
+.jumpto__row span.mut { color: var(--ink-faint); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.jumpto__empty { padding: 1.1rem 0.6rem; text-align: center; color: var(--ink-faint); font-size: 0.8rem; }
+.jumpto__browse { display: block; text-align: center; margin-top: 0.3rem; padding: 0.5rem; border-radius: 6px; font-size: 0.8rem; color: var(--accent); text-decoration: none; }
+.jumpto__browse:hover { background: var(--card-2); }
+
+/* Bottom tab bar (mobile) ------------------------------------------------
+   Primary nav moves into thumb reach below 640px; replaces the stacked
+   two-row nav-pill that used to sit under the brand bar. */
+.bottom-tabbar {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 55;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.bottom-tabbar__item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.22rem; min-height: 58px; border: none; background: none; text-decoration: none;
+  font: inherit; cursor: pointer; color: var(--ink-faint);
+  transition: color 140ms ease-out, transform 140ms ease-out;
+}
+.bottom-tabbar__item:active { transform: scale(0.95); }
+.bottom-tabbar__item svg { width: 20px; height: 20px; }
+.bottom-tabbar__item span { font-size: 0.66rem; font-weight: 500; }
+.bottom-tabbar__item.is-active { color: var(--accent); }
+.bottom-tabbar__item.is-active span { font-weight: 600; }
+
 /* Page body sits directly under the sticky nav — compact tool-page headers
    (the big centered hero header is only for the home page's .hero). */
 .site-nav + .container { padding-top: 1rem; }
@@ -614,25 +705,39 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
 .site-nav + .container > header h1 { font-size: 1.75rem; margin-bottom: 0.2rem; }
 .site-nav + .container > header p { font-size: 0.98rem; }
 
-/* Phones: brand + actions on row 1, the four page links as a full-width
-   segmented bar on row 2. One row can't hold logo + 4 links + Sign in +
-   theme toggle (~500px of content) — the pill overflowed the viewport, so
-   the whole page could be panned sideways and Sign in / the theme toggle
-   sat off-screen. Two rows are too tall to pin, so the bar scrolls away
-   here (pinned things underneath, e.g. player.css's .subnav, use top:0). */
+/* Phones: primary nav moves to a fixed bottom tab bar (thumb reach) instead
+   of stacking a second row under the brand bar — the top bar stays a single
+   row (brand + jump-to + theme toggle), and .bottom-tabbar (below) takes
+   over Tournament/Player/Club navigation. */
 @media (max-width: 640px) {
   .site-nav {
-    position: relative;
-    height: auto;
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "brand actions" "links links";
-    gap: 0.4rem 0.5rem;
-    padding: 0.4rem 0.7rem 0.55rem;
+    /* A bare 1fr track's minimum size is its content's width, not zero — with
+       nowrap brand text that let the whole header force itself wider than the
+       viewport instead of letting the brand shrink/truncate. minmax(0, 1fr)
+       is the fix. */
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.5rem 0.7rem;
   }
-  .site-nav__brand { grid-area: brand; }
-  .site-nav__actions { grid-area: actions; }
-  .nav-pill { grid-area: links; justify-self: stretch; }
-  .nav-pill__link { flex: 1 1 auto; justify-content: center; padding: 0.4rem 0.25rem; font-size: 0.82rem; }
+  .site-nav__brand { min-width: 0; }
+  .site-nav__brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-pill { display: none; }
+  .jumpto__label { display: none; }
+  .jumpto__btn { padding: 0.45rem; }
+  .jumpto__kbd { display: none; }
+  .jumpto__panel { position: fixed; top: auto; bottom: 0; left: 0; right: 0; width: auto;
+    max-height: 70vh; border-radius: 14px 14px 0 0; transform-origin: bottom center;
+    transform: translateY(100%); transition: transform 260ms cubic-bezier(0.32,0.72,0,1), opacity 140ms ease-out; }
+  .jumpto__panel.is-open { transform: translateY(0); }
+
+  .bottom-tabbar { display: flex; }
+  body { padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Narrowest phones: logo + "BAX Checker" + jump-to + Sign in + theme toggle
+   is too much for ~360-390px even with the ellipsis fallback above — drop
+   the brand wordmark and keep just the logo mark. */
+@media (max-width: 400px) {
+  .site-nav__brand span { display: none; }
 }
 
 /* ======================================================================
@@ -664,12 +769,7 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   color: var(--ink);
   margin-bottom: 0.6rem;
 }
-.hero__title .accent {
-  background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--ink)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+.hero__title .accent { color: var(--accent); }
 .hero__sub {
   font-size: clamp(1rem, 2.4vw, 1.2rem);
   color: var(--ink-dim);
@@ -678,48 +778,50 @@ input[type="search"].field { -webkit-appearance: none; appearance: none; }
   margin: 0 auto;
 }
 
-/* Two big entry points */
+/* Three entry points, as a bordered row-list rather than equal-size cards —
+   this is data-dense product, not a marketing grid; density and scan speed
+   over decoration (see PRODUCT.md "scouting is time-pressured"). */
 .entry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.25rem;
-  max-width: 900px;
-  margin: 0 auto;
-}
-.entry-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 0.6rem;
-  padding: 1.5rem 1.5rem 1.35rem;
+  max-width: 900px;
+  margin: 0 auto;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+.entry-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.35rem;
+  border-bottom: 1px solid var(--border);
   text-decoration: none;
   color: inherit;
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: background-color 0.15s ease, transform 160ms cubic-bezier(0.23,1,0.32,1);
 }
+.entry-grid .entry-card:last-child { border-bottom: none; }
+.entry-card:hover { background: var(--card-2); }
+.entry-card:active { transform: scale(0.99); }
+.entry-card__body { display: flex; flex-direction: column; gap: 0.15rem; }
 .entry-card::after {
   content: "→";
-  position: absolute;
-  top: 1.35rem;
-  right: 1.4rem;
   color: var(--ink-faint);
-  font-size: 1.15rem;
+  font-size: 1.05rem;
+  flex-shrink: 0;
   transition: transform 0.18s ease, color 0.18s ease;
 }
-.entry-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--accent);
-  box-shadow: var(--shadow-lg);
+.entry-card:hover::after { color: var(--accent); transform: translateX(3px); }
+.entry-card h2 { font-size: 1.05rem; font-weight: 600; color: var(--ink); margin: 0; }
+.entry-card p { color: var(--ink-dim); font-size: 0.86rem; line-height: 1.45; margin: 0; }
+.entry-card__stat {
+  font-family: 'Geist Mono', monospace; font-size: 0.78rem; color: var(--ink-faint);
+  flex-shrink: 0; margin-left: auto; padding-right: 0.75rem;
 }
-.entry-card:hover::after { color: var(--accent); transform: translate(4px, -2px); }
-.entry-card h2 { font-size: 1.25rem; font-weight: 700; color: var(--ink); margin: 0; }
-.entry-card p { color: var(--ink-dim); font-size: 0.92rem; line-height: 1.5; margin: 0; }
+.entry-card__stat b { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .entry-card__stat { display: none; } }
 
 /* Small feature strip under the hero */
 .hero-features {

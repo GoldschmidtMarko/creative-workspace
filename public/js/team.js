@@ -218,11 +218,17 @@ function matchRow(m) {
     // a narrow screen (feedback: "the games button require[s] horizontal
     // scrolling"). Same reason the date drops its year below.
     const venue = m.is_home ? "H" : "A";
+    // Also folded into the name cell as a small tag (CSS shows one or the
+    // other depending on width) — the dedicated H/A column still doesn't
+    // leave room for a full opponent name on a phone even after shortening
+    // it to one letter, so mobile drops that column and reflows the row
+    // into two lines instead (see .matches-table in team.css).
+    const venueTag = `<span class="mv-venue mv-venue--${m.is_home ? "h" : "a"}" title="${m.is_home ? "Home" : "Away"}">${venue}</span>`;
     const dateLabel = m.date ? new Date(`${m.date}T00:00:00`).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }) : "—";
     const timeLabel = m.time ? ` ${escapeHtml(m.time)}` : "";
-    const opponentCell = m.opponent_team_id
+    const opponentCell = venueTag + (m.opponent_team_id
         ? `<a href="${escapeHtml(teamLinkUrl(leagueGuid, m.opponent_team_id, opponent))}">${escapeHtml(opponent)}</a>`
-        : escapeHtml(opponent);
+        : escapeHtml(opponent));
     const scoreCell = m.played && m.score
         ? `<span class="${matchResultClass(m.score, m.is_home)}">${escapeHtml(m.score)}</span>`
         : "—";
@@ -243,7 +249,7 @@ function matchRow(m) {
 
 function matchesTable(rows) {
     if (!rows.length) return `<div class="pl-empty">None.</div>`;
-    return `<div class="table-scroll"><table class="pl-table">
+    return `<div class="table-scroll"><table class="pl-table matches-table">
         <thead><tr><th>Date</th><th class="is-num">H/A</th><th>Opponent</th><th class="is-num">Score</th><th></th></tr></thead>
         <tbody>${rows.map(matchRow).join("")}</tbody>
     </table></div>`;
