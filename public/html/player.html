@@ -62,10 +62,16 @@
                          Autofill uses to decide a text input might be a
                          payment/address field — type="search" alone didn't
                          stop it (see 982967e), so this is a plain <div>
-                         with JS-driven submit instead (util/search-form.js). -->
+                         with JS-driven submit instead (util/search-form.js).
+                         The bare word "name" in the placeholder was ALSO
+                         part of the trigger (982967e's own diagnosis) — club
+                         search never had this problem because its
+                         placeholder says "club name", not just "name".
+                         Keep it qualified here too ("player name"), not
+                         shortened back to bare "name". -->
                     <div id="search-form">
                         <div class="search-row">
-                            <input type="search" id="search-q" class="field" placeholder="Search by name…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                            <input type="search" id="search-q" class="field" placeholder="Search by player name…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                             <button type="button" class="run-btn-premium" style="justify-content:center;">
                                 <span>Search</span>
                             </button>
