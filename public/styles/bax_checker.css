@@ -48,6 +48,66 @@
     border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
 }
 
+/* Field table (Table + Results views) — dense ranked list replacing the old
+   team-card grid: a scouting tool scans a table of 40 teams by BAX far
+   faster than a card per team. Same rank-badge/league-tag/team-chip/
+   waiting-tag/tm atoms as before, new container. */
+.field-tbl-wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+    background: var(--card);
+}
+table.field-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+.field-tbl th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-faint);
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-2);
+    white-space: nowrap;
+}
+.field-tbl th.is-num, .field-tbl td.is-num { text-align: right; }
+.field-tbl td {
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+.field-tbl tbody tr:last-child td { border-bottom: none; }
+.field-tbl tbody tr:hover td { background: var(--card-2); }
+.field-tbl tr.is-waiting td { background: color-mix(in srgb, var(--disc-waiting) 5%, var(--card)); }
+.field-tbl tr.is-waiting:hover td { background: color-mix(in srgb, var(--disc-waiting) 10%, var(--card)); }
+.field-tbl tr.is-waiting .tm__name { color: var(--disc-waiting); }
+
+.field-tbl__team { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.field-tbl__chips { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.1rem; }
+.field-tbl__metric {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+.field-tbl tr.is-waiting .field-tbl__metric { color: var(--disc-waiting); }
+
+/* Results (winners) view: no BAX column, rank + names only; podium ranks
+   get a filled medal-colored badge, same as the old card version. */
+.field-tbl tr.is-rank-1 .rank-badge { background: var(--rank-gold); border-color: transparent; color: #1a1408; }
+.field-tbl tr.is-rank-2 .rank-badge { background: var(--rank-silver); border-color: transparent; color: #1a1408; }
+.field-tbl tr.is-rank-3 .rank-badge { background: var(--rank-bronze); border-color: transparent; color: #1a1408; }
+
+@media (max-width: 560px) {
+    .field-tbl__chips { display: none; }
+    .field-tbl th, .field-tbl td { padding: 0.55rem 0.6rem; }
+}
+
 /* Podium finishes on the Results tab */
 .team-card--rank-1, .team-card--rank-2, .team-card--rank-3 {
     border-width: 1.5px;

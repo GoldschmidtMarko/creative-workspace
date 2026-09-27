@@ -527,19 +527,18 @@ function renderTeamsRecord(t) {
     const w = t.won != null ? t.won : 0;
     const d = t.drawn != null ? t.drawn : 0;
     const l = t.lost != null ? t.lost : 0;
-    const html = `<span class="club-team-card__wdl">
-        <span><b class="w">${w}</b><span class="club-team-card__wdl-label">W</span></span>
-        <span><b class="d">${d}</b><span class="club-team-card__wdl-label">D</span></span>
-        <span><b class="l">${l}</b><span class="club-team-card__wdl-label">L</span></span>
+    const html = `<span class="club-team-row__wdl">
+        <span><b class="w">${w}</b><span class="club-team-row__wdl-label">W</span></span>
+        <span><b class="d">${d}</b><span class="club-team-row__wdl-label">D</span></span>
+        <span><b class="l">${l}</b><span class="club-team-row__wdl-label">L</span></span>
     </span>`;
     return { html, plain: `${w}W ${d}D ${l}L` };
 }
 
-// One team, one card — name + rank up top (like a tournament team-card's
-// head), division/league tag and W/D/L below (feedback: "have the teams
-// with the league and score be together in a single button frame").
-// Reuses .team-card/.team-grid/.rank-badge/.league-tag as-is (feedback:
-// "copy the style of a tournament player pair") rather than a new table.
+// One team, one row — rank badge, name + division/league on one line, W/D/L
+// and a chevron trailing (feedback: "have the teams with the league and
+// score be together in a single button frame ... compressed matrix").
+// Reuses .rank-badge/.league-tag as-is.
 function teamCardHtml(t) {
     const href = teamPageUrl(t);
     const tag = t.abbr ? `<span class="league-tag">${escapeHtml(t.abbr)}</span>` : "";
@@ -549,20 +548,20 @@ function teamCardHtml(t) {
         .filter(Boolean).join(" · ");
     const tagName = href ? "a" : "div";
     const attrs = href ? ` href="${escapeHtml(href)}"` : ` aria-disabled="true"`;
-    // Only a card that actually leads somewhere gets the "View team" footer
-    // — a static card (no league_guid/team_id yet) stays visibly inert
-    // rather than promising a click that does nothing.
-    const cta = href
-        ? `<span class="club-team-card__cta">View team <i data-lucide="arrow-right"></i></span>`
+    // Only a row that actually leads somewhere gets the chevron — a static
+    // row (no league_guid/team_id yet) stays visibly inert rather than
+    // promising a click that does nothing.
+    const chev = href
+        ? `<svg class="club-team-row__chev" viewBox="0 0 20 20" fill="none"><path d="M8 5l6 5-6 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`
         : "";
-    return `<${tagName} class="team-card club-team-card${href ? "" : " club-team-card--static"}"${attrs} title="${escapeHtml(title)}">
-        <div class="team-card__head">
-            <span class="club-team-card__name">${escapeHtml(t.team)}</span>
-            <span class="rank-badge">${rank}</span>
-        </div>
-        ${t.division ? `<div class="club-team-card__division">${tag}<span>${escapeHtml(t.division)}</span></div>` : ""}
+    return `<${tagName} class="club-team-row${href ? "" : " club-team-row--static"}"${attrs} title="${escapeHtml(title)}">
+        <span class="rank-badge">${rank}</span>
+        <span class="club-team-row__body">
+            <span class="club-team-row__name">${escapeHtml(t.team)}</span>
+            ${t.division ? `<span class="club-team-row__division">${tag}<span>${escapeHtml(t.division)}</span></span>` : ""}
+        </span>
         ${record ? record.html : ""}
-        ${cta}
+        ${chev}
     </${tagName}>`;
 }
 
@@ -599,7 +598,7 @@ function renderTeams() {
     const hint = teams.some((t) => teamPageUrl(t))
         ? `<p class="teams-hint"><i data-lucide="mouse-pointer-click"></i> Select a team to see its standings, results and upcoming matches.</p>`
         : "";
-    el.innerHTML = `${hint}<div class="team-grid">${teams.map(teamCardHtml).join("")}</div>`;
+    el.innerHTML = `${hint}<div class="club-team-rows">${teams.map(teamCardHtml).join("")}</div>`;
     if (window.lucide) lucide.createIcons();
 }
 
