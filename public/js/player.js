@@ -700,9 +700,20 @@ function renderDistribution() {
         body.innerHTML = '<div class="pl-empty">No distribution data for this selection.</div>';
         return;
     }
-    const { buckets, freqs, player, total, scope, season } = d;
-    const n = Math.min(buckets.length, freqs.length);
-    const step = buckets.length > 1 ? (buckets[1] - buckets[0]) : 20;
+    const { player, total, scope, season } = d;
+    // The scraped bucket list can skip empty buckets (e.g. 240, 280, 300 …), so
+    // the step is the smallest gap — not buckets[1]-buckets[0] — and the series
+    // is re-laid on a continuous grid with the gaps zero-filled. Otherwise bars
+    // would be mis-spaced and the "you" bucket would be twice as wide as real.
+    const raw = d.buckets.map((b, i) => [b, d.freqs[i] || 0]).filter(([b]) => Number.isFinite(b)).sort((a, b) => a[0] - b[0]);
+    let step = Infinity;
+    for (let i = 1; i < raw.length; i++) { const g = raw[i][0] - raw[i - 1][0]; if (g > 0 && g < step) step = g; }
+    if (!Number.isFinite(step)) step = 20;
+    const byBucket = new Map(raw.map(([b, f]) => [b, f]));
+    const first = raw[0][0], last = raw[raw.length - 1][0];
+    const buckets = [], freqs = [];
+    for (let b = first; b <= last; b += step) { buckets.push(b); freqs.push(byBucket.get(b) || 0); }
+    const n = buckets.length;
 
     // See renderHistoryChart for why W tracks the container's real width.
     const W = Math.max(280, Math.round(body.clientWidth) || 900), padL = 40, padR = 12, padT = 12, padB = 28;

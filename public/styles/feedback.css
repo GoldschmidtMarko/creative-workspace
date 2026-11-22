@@ -13,6 +13,8 @@
     z-index: 40;
 }
 
+.fab-row[hidden] { display: none; }
+
 .fab {
     width: clamp(2.25rem, 2.5vw + 1.25rem, 2.75rem);
     height: clamp(2.25rem, 2.5vw + 1.25rem, 2.75rem);
@@ -32,6 +34,44 @@
 .fab:active { transform: translateY(0); }
 .fab:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 .fab svg { width: 1.05rem; height: 1.05rem; stroke: currentColor; }
+/* Phones: the bottom tab bar would cover the floating row, so feedback.js
+   hides it and adds a "More" tab to the bar that opens this menu instead. */
+.more-menu {
+    position: fixed;
+    right: 0.6rem;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 0.5rem);
+    z-index: 56;
+    min-width: 12.5rem;
+    padding: 0.35rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    transform-origin: bottom right;
+    animation: more-menu-in 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.more-menu[hidden] { display: none; }
+.more-menu__item {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    width: 100%;
+    padding: 0.7rem 0.75rem;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+}
+.more-menu__item:active { background: var(--card-2); }
+.more-menu__item svg { width: 1.1rem; height: 1.1rem; color: var(--ink-dim); }
+@keyframes more-menu-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+@media (min-width: 641px) { .more-menu { display: none; } }
+@media (prefers-reduced-motion: reduce) { .more-menu { animation: none; } }
 
 .fb-overlay {
     position: fixed;

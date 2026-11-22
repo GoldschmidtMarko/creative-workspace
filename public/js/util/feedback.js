@@ -130,7 +130,7 @@ function showFeedbackPopup() {
 }
 
 /* ---------------- bootstrap ---------------------------------------------- */
-function fab(icon, title, onClick) {
+function fab(icon, title, onClick, label) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "fab";
@@ -148,3 +148,51 @@ row.appendChild(fab("clock", "Why is this slow?", showSlowPopup));
 row.appendChild(fab("message-circle", "Feedback", showFeedbackPopup));
 document.body.appendChild(row);
 if (window.lucide) lucide.createIcons();
+
+// On phones the fixed bottom tab bar would cover a floating row, so the three
+// actions move into a "More" tab at the end of that bar, opening a small menu
+// above it. Pages without a tab bar keep the floating row.
+const phone = window.matchMedia("(max-width: 640px)");
+const tabbar = document.querySelector(".bottom-tabbar");
+if (tabbar) {
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "bottom-tabbar__item";
+    more.setAttribute("aria-haspopup", "true");
+    more.setAttribute("aria-expanded", "false");
+    more.innerHTML = `<i data-lucide="ellipsis"></i><span>More</span>`;
+
+    const menu = document.createElement("div");
+    menu.className = "more-menu";
+    menu.hidden = true;
+    menu.setAttribute("role", "menu");
+    const items = [
+        ["info", "About", showAboutPopup],
+        ["clock", "Why is this slow?", showSlowPopup],
+        ["message-circle", "Feedback", showFeedbackPopup],
+    ];
+    for (const [icon, label, fn] of items) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "more-menu__item";
+        b.setAttribute("role", "menuitem");
+        b.innerHTML = `<i data-lucide="${icon}"></i><span>${escapeHtml(label)}</span>`;
+        b.addEventListener("click", () => { setOpen(false); fn(); });
+        menu.appendChild(b);
+    }
+    function setOpen(open) {
+        menu.hidden = !open;
+        more.classList.toggle("is-active", open);
+        more.setAttribute("aria-expanded", String(open));
+    }
+    more.addEventListener("click", (e) => { e.stopPropagation(); setOpen(menu.hidden); });
+    document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) setOpen(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+    tabbar.appendChild(more);
+    document.body.appendChild(menu);
+    if (window.lucide) lucide.createIcons();
+
+    const sync = () => { row.hidden = phone.matches; if (!phone.matches) setOpen(false); };
+    sync();
+    phone.addEventListener("change", sync);
+}

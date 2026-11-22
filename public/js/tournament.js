@@ -62,10 +62,17 @@ const DISC_LABEL = { Einzel: "Singles", Doppel: "Doubles", Mixed: "Mixed", all: 
 function disciplineLabel(k) { return DISC_LABEL[k] || k; }
 function disciplineToFilter(name) {
     const n = (name || "").toLowerCase();
-    const c = ((name || "").match(/^\s*([A-Za-z]+)/) || [, ""])[1].toUpperCase();
-    if (n.includes("mixed") || c === "MX" || c === "GD") return "Mixed";
-    if (n.includes("doppel") || c.endsWith("D")) return "Doppel";
-    if (n.includes("einzel") || c.endsWith("E")) return "Einzel";
+    if (n.includes("mixed")) return "Mixed";
+    if (n.includes("doppel")) return "Doppel";
+    if (n.includes("einzel")) return "Einzel";
+    // Short codes like "HE", "MD O19", "U15 JE" or "BM HE" (a leading
+    // competition prefix such as "BM" must not hide the real discipline code),
+    // so look at every word rather than just the first.
+    for (const tok of (name || "").toUpperCase().split(/[^A-Z0-9]+/)) {
+        if (tok === "MX" || tok === "GD") return "Mixed";
+        if (/^[A-Z]{1,2}D$/.test(tok)) return "Doppel";
+        if (/^[A-Z]{1,2}E$/.test(tok)) return "Einzel";
+    }
     return "all";
 }
 function statusLabel(status) {
