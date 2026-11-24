@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Rank a badminton tournament's field by BAX for any discipline — a shareable link for the whole tournament.">
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="#0a7a4a">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>Tournament | BAX Checker</title>
     <script src="/js/util/themeInit.js"></script>
@@ -62,7 +62,12 @@
             </div>
         </div>
 
-        <main style="max-width:1000px; margin:0 auto;">
+        <main style="max-width:1100px; margin:0 auto;">
+            <div class="t-tabs" role="tablist" aria-label="Tournament view">
+                <button type="button" role="tab" class="t-tab" data-ttab="ranking" aria-selected="true" aria-controls="results-card">Ranking</button>
+                <button type="button" role="tab" class="t-tab" data-ttab="draw" aria-selected="false" aria-controls="draw-card">Draw <span class="mini-tag" id="draw-tag" hidden></span></button>
+            </div>
+
             <div id="discipline-bar" class="discipline-bar">
                 <div class="browse-status" style="padding:0.5rem 0;">Loading disciplines…</div>
             </div>
@@ -113,6 +118,12 @@
                     <div class="chart-main-card"><div id="chart-body"></div></div>
                 </div>
             </div>
+
+            <!-- Draw tab: the published bracket with BAX on every line (draws are
+                 parsed server-side by get_tournament_draw). -->
+            <section id="draw-card" class="draw-card" hidden>
+                <div id="draw-body"></div>
+            </section>
         </main>
 
         <footer class="site-footer">

@@ -177,7 +177,7 @@ function renderStandings(rows, division) {
         const points = r.points_won != null && r.points_lost != null ? `${r.points_won}:${r.points_lost}` : "—";
         return `
         <tr class="${r.is_this_team ? "is-us" : ""}">
-            <td class="is-num">${r.standing ? "#" + escapeHtml(r.standing) : "—"}</td>
+            <td>${r.standing ? `<span class="rank-badge">${escapeHtml(r.standing)}</span>` : "—"}</td>
             <td class="name">${nameCell}</td>
             <td class="is-num">${r.played != null ? r.played : "—"}</td>
             <td class="is-num">${points}</td>

@@ -18,6 +18,8 @@ TOURNAMENT_SEARCH_TTL = timedelta(hours=12)              # tournaments.py: find_
 TOURNAMENT_DISCIPLINES_TTL = timedelta(hours=24)         # tournaments.py: _get_tournament_disciplines
 TOURNAMENT_WINNERS_RESOLVED_TTL = timedelta(days=14)     # tournaments.py: _fetch_tournament_winners (results published)
 TOURNAMENT_WINNERS_UNRESOLVED_TTL = timedelta(hours=2)   # tournaments.py: _fetch_tournament_winners (not yet resolved)
+TOURNAMENT_DRAWS_TTL = timedelta(hours=1)                # draws.py: _fetch_draws (draw list; appears once entries close)
+TOURNAMENT_DRAW_TTL = timedelta(minutes=15)              # draws.py: _fetch_draw (one bracket; fills in as matches finish)
 PLAYER_PROFILE_TTL = timedelta(days=1)                   # bax.py: get_player_details
 TOURNAMENT_PLAYER_CARD_TTL = timedelta(hours=12)         # bax.py: _fetch_tournament_player_card
 PLAYER_LEAGUES_FALLBACK_TTL = timedelta(days=60)         # leagues.py: _scrape_leagues (fallback only)

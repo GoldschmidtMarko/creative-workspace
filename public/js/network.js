@@ -301,7 +301,7 @@ function cssVar(name, fallback) {
 }
 function palette() {
     return {
-        accent: cssVar("--accent", "#0f766e"), accentInk: cssVar("--accent-ink", "#0f766e"),
+        accent: cssVar("--accent", "#0a7a4a"), accentInk: cssVar("--accent-ink", "#f1fff7"),
         ink: cssVar("--ink", "#1a1a1a"), inkFaint: cssVar("--ink-faint", "#94a3b8"),
         card: cssVar("--card", "#fff"), border: cssVar("--border", "#e2e8f0"),
         teammate: cssVar("--net-teammate", "#1baf7a"), opponent: cssVar("--net-opponent", "#c9971f"),

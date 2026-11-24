@@ -543,7 +543,7 @@ function teamCardHtml(t) {
     const href = teamPageUrl(t);
     const tag = t.abbr ? `<span class="league-tag">${escapeHtml(t.abbr)}</span>` : "";
     const record = renderTeamsRecord(t);
-    const rank = t.standing ? "#" + escapeHtml(t.standing) : "—";
+    const rank = t.standing ? escapeHtml(t.standing) : "–";
     const title = [t.division, record ? record.plain : null, href ? "See this team's season" : null]
         .filter(Boolean).join(" · ");
     const tagName = href ? "a" : "div";

@@ -118,6 +118,8 @@ existing convention.
 | `find_tournaments` | `scraping/tournaments.py` | Search dbv tournaments (POST `/find/tournament/DoSearch`). | none |
 | `get_tournament_disciplines` | `scraping/tournaments.py` | A tournament's disciplines + its **name/dates** (for bare shareable links). | none |
 | `get_tournament_winners` | `scraping/tournaments.py` | Final placements per discipline once published. | none |
+| `get_tournament_draws` | `scraping/draws.py` | A tournament's draw list (name, size, format, stage); empty until dbv publishes the draw. | none (`force` rate‑limited) |
+| `get_tournament_draw` | `scraping/draws.py` | One draw. Knockouts (KO-System, Spielsystem, Ranglistensystem; old table and newer `GetDrawContent` layouts) → rounds of slots plus placement brackets; round robin / Swiss ladder → `kind: "group"`/`"swiss"` with standings + match list (`GetStandings` / `GetMatchesContent` XHRs). Anything else returns `kind: "other"` and the page links to dbv. Cached docs carry `DRAW_PARSER_VERSION`. | none (`force` rate‑limited) |
 | `get_player_leagues` | `scraping/leagues.py` | Per‑season league memberships/records (also reused inside the analysis and the network feature). | none |
 | `get_player_network` | `scraping/network.py` | Teammates/opponents aggregated from tournament + league match history. | none |
 | `get_player_bax` | `scraping/player.py` | Identity + full per‑season **BAX history** + **LV/DBV standing histograms** (badminton‑bax.de). | none |
@@ -164,6 +166,8 @@ only the fallback used when that date can't be read):
 | `tournament_search_cache` | md5(filters) | 12 h | `TOURNAMENT_SEARCH_TTL` |
 | `tournament_disciplines_cache` | tournament GUID | 24 h (+ name/dates) | `TOURNAMENT_DISCIPLINES_TTL` |
 | `tournament_winners_cache` | tournament GUID | 14 d if resolved, else 2 h | `TOURNAMENT_WINNERS_RESOLVED_TTL` / `_UNRESOLVED_TTL` |
+| `tournament_draws_cache` | tournament GUID | 1 h | `TOURNAMENT_DRAWS_TTL` |
+| `tournament_draw_cache` | `<GUID>_<draw>` | 15 min | `TOURNAMENT_DRAW_TTL` |
 | `player_profile_cache` | md5(profile_url) | 1 day | `PLAYER_PROFILE_TTL` |
 | `tournament_player_card_cache` | md5(player.aspx URL) | 12 h | `TOURNAMENT_PLAYER_CARD_TTL` |
 | `bax_values_cache` | sp_code | valid while `= "(Turniere)"` date; 30 d fallback | `BAX_VALUES_FALLBACK_TTL` |

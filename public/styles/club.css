@@ -15,9 +15,8 @@
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 #c-stats .stat { min-height: 74px; }
-#c-stats .stat:nth-child(1) { border-left: 3px solid var(--disc-einzel); }
-#c-stats .stat:nth-child(2) { border-left: 3px solid var(--disc-doppel); }
-#c-stats .stat:nth-child(3) { border-left: 3px solid var(--disc-waiting); }
+/* Club figures aren't per discipline, so no discipline colours here. */
+#c-stats .stat { border-top-color: var(--accent); }
 #c-stats .stat__sub {
     overflow: hidden;
     display: -webkit-box;
@@ -196,7 +195,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.club-team-row__division .league-tag { background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink); flex-shrink: 0; }
+.club-team-row__division .league-tag { flex: none; background: none; border: 1.5px solid var(--ink); color: var(--ink); }
 
 /* Explicit, labeled, colored W/D/L (feedback: "not clear ... make them
    explicit") — compact inline group instead of the card's stacked block. */
