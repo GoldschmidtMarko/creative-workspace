@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="BAX Checker — scout any badminton tournament on dbv.turnier.de and explore any player's BAX rating, history, leagues and win/loss.">
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="#0a7a4a">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>BAX Checker — badminton tournament &amp; player analysis</title>
     <meta property="og:type" content="website">
@@ -15,33 +15,6 @@
     <link rel="stylesheet" href="/styles/main.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/styles/feedback.css">
-    <style>
-        /* "Your Favorites" — signed-in only (see html.is-authed gating below,
-           the same class auth.js already toggles for other auth-gated UI). */
-        .favorites-section { display: none; max-width: 900px; margin: 0 auto 1.5rem; }
-        html.is-authed .favorites-section { display: block; }
-        .favorites-section h2 {
-            font-size: 1.05rem; color: var(--ink); margin: 0 0 0.6rem;
-            text-align: center;
-        }
-        .fav-group { margin-bottom: 0.7rem; }
-        .fav-group.hidden { display: none; }
-        .fav-group__head {
-            display: flex; align-items: center; gap: 0.35rem;
-            background: none; border: none; padding: 0; margin: 0 0 0.5rem; cursor: pointer;
-            font: inherit; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-            color: var(--ink-faint);
-        }
-        .fav-group__head:hover { color: var(--ink-dim); }
-        .fav-group__chev { width: 14px; height: 14px; transition: transform 0.15s ease; }
-        .fav-group.is-collapsed .fav-group__chev { transform: rotate(-90deg); }
-        .fav-group.is-collapsed .fav-chips { display: none; }
-        .favorites-empty {
-            text-align: center; color: var(--ink-faint); font-size: 0.88rem;
-            border: 1px dashed var(--border); border-radius: var(--radius); padding: 1.5rem;
-        }
-        .favorites-empty.hidden { display: none; }
-    </style>
 </head>
 <body>
     <header class="site-nav">
@@ -75,59 +48,38 @@
     </header>
 
     <div class="container">
-        <section class="hero">
-            <h1 class="hero__title">Scout any match.<br>Know every <span class="accent">player</span>.</h1>
-            <p class="hero__sub">BAX ratings, history and standings for German badminton.</p>
+        <section class="home-hero">
+            <h1 class="home-hero__title">Look up any player, club or tournament</h1>
+            <p class="home-hero__sub">BAX ratings, history and standings for German badminton, from dbv.turnier.de and badminton-bax.de.</p>
+            <!-- Plain <div>, not a <form>: Chrome's card autofill treats a form's
+                 text input as a cardholder-name field (see player.html). -->
+            <div class="home-search" id="home-search">
+                <svg class="home-search__ico" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><path d="M14 14l4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <input type="search" id="home-q" name="q" class="home-search__input" placeholder="Player or club name, or a dbv.turnier.de link" autocomplete="one-time-code" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search players, clubs or paste a dbv.turnier.de link">
+                <div class="home-search__go">
+                    <button type="button" class="btn btn-primary btn-sm" data-search="player">Players</button>
+                    <button type="button" class="btn btn-secondary btn-sm" data-search="club">Clubs</button>
+                </div>
+            </div>
+            <p class="home-search__hint" id="home-hint">Press Enter to search players. A pasted tournament link opens that tournament.</p>
         </section>
 
-        <section id="favorites-section" class="favorites-section">
-            <h2>Your Favorites</h2>
-            <div class="fav-group hidden" id="fav-group-tournament">
-                <button class="fav-group__head" type="button" data-fav-toggle="tournament">
-                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Tournaments</span>
-                </button>
-                <div class="fav-chips" id="fav-list-tournament"></div>
-            </div>
-            <div class="fav-group hidden" id="fav-group-discipline">
-                <button class="fav-group__head" type="button" data-fav-toggle="discipline">
-                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Disciplines</span>
-                </button>
-                <div class="fav-chips" id="fav-list-discipline"></div>
-            </div>
-            <div class="fav-group hidden" id="fav-group-player">
-                <button class="fav-group__head" type="button" data-fav-toggle="player">
-                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Players</span>
-                </button>
-                <div class="fav-chips" id="fav-list-player"></div>
-            </div>
-            <div class="fav-group hidden" id="fav-group-club">
-                <button class="fav-group__head" type="button" data-fav-toggle="club">
-                    <i data-lucide="chevron-down" class="fav-group__chev"></i><span>Clubs</span>
-                </button>
-                <div class="fav-chips" id="fav-list-club"></div>
-            </div>
-            <p class="favorites-empty" id="favorites-empty">Star a tournament, discipline, player or club to see it here.</p>
-        </section>
+        <main class="home-grid">
+            <section class="home-panel" id="favorites-section">
+                <div class="home-panel__head"><h2>Pinned</h2></div>
+                <div class="home-list" id="home-pinned"></div>
+                <p class="home-empty" id="favorites-empty">Star a tournament, player or club and it shows up here. Signing in keeps your stars across devices.</p>
+            </section>
 
-        <main class="entry-grid">
-            <a href="/html/tournaments.html" class="entry-card">
-                <span class="entry-card__body">
-                    <h2>Tournaments</h2>
-                    <p>Rank any tournament's field by BAX.</p>
-                </span>
-            </a>
-            <a href="/html/player.html" class="entry-card">
-                <span class="entry-card__body">
-                    <h2>Players</h2>
-                    <p>Every player's rating, history &amp; standing.</p>
-                </span>
-            </a>
-            <a href="/html/club.html" class="entry-card">
-                <span class="entry-card__body">
-                    <h2>Clubs</h2>
-                    <p>Team league rankings over time &amp; season rosters.</p>
-                </span>
-            </a>
+            <section class="home-panel">
+                <div class="home-panel__head"><h2>Next 10 days</h2><a class="home-panel__more" href="/html/tournaments.html?when=past">Past</a><a class="home-panel__more" href="/html/tournaments.html">All upcoming</a></div>
+                <div class="home-list" id="home-upcoming"><p class="home-empty"><span class="spinner"></span> Loading tournaments…</p></div>
+            </section>
+
+            <section class="home-panel home-panel--wide hidden" id="recent-section">
+                <div class="home-panel__head"><h2>Viewed in this tab</h2></div>
+                <div class="home-list home-list--cols" id="home-recent"></div>
+            </section>
         </main>
 
         <footer class="site-footer">

@@ -86,13 +86,25 @@ function renderPanel(panel) {
     if (input) {
         input.addEventListener("keydown", (e) => {
             if (e.key !== "Enter" || !input.value.trim()) return;
+            // A pasted dbv.turnier.de tournament link opens that tournament.
+            const v = input.value.trim();
+            const gid = v.match(/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/);
+            if (gid && /turnier\.de|tournamentsoftware/i.test(v)) {
+                const ev = v.match(/[?&]event=(\d+)/i);
+                location.href = "/html/tournament.html?" + new URLSearchParams(ev ? { id: gid[0].toUpperCase(), event: ev[1] } : { id: gid[0].toUpperCase() }).toString();
+                return;
+            }
             const dest = activeTab === "club" ? "/html/club.html" : "/html/player.html";
             location.href = `${dest}?${new URLSearchParams({ q: input.value.trim() }).toString()}`;
         });
     }
 }
 
-function setOpen(panel, btn, open) {
+// Opened from the keyboard (⌘K / Esc) the panel appears and disappears with
+// no transition — a shortcut used many times a day shouldn't wait on an
+// animation. A click still eases it in.
+function setOpen(panel, btn, open, instant = false) {
+    panel.classList.toggle("is-instant", instant);
     panel.classList.toggle("is-open", open);
     btn.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -121,9 +133,9 @@ function initPanel(btn, panel) {
     document.addEventListener("keydown", (e) => {
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
             e.preventDefault();
-            setOpen(panel, btn, !panel.classList.contains("is-open"));
+            setOpen(panel, btn, !panel.classList.contains("is-open"), true);
         } else if (e.key === "Escape" && panel.classList.contains("is-open")) {
-            setOpen(panel, btn, false);
+            setOpen(panel, btn, false, true);
         }
     });
 

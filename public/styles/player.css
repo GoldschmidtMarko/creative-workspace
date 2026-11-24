@@ -8,20 +8,26 @@
 .pcard {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius);
     padding: 1.1rem 1.25rem;
     margin-bottom: 1.25rem;
 }
 .pcard__head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
     flex-wrap: wrap;
     margin-bottom: 0.9rem;
 }
-.pcard__head h2 { font-size: 1.05rem; color: var(--ink); margin: 0; }
+/* Hallenboden section heading: wide caps followed by a 2px "court line"
+   that runs to whatever sits on the right of the head (hint, toggles). */
+.pcard__head h2 {
+    flex: 1 1 auto; display: flex; align-items: center; gap: 0.75rem; min-width: 0; margin: 0;
+    color: var(--ink); font-size: 0.8125rem; font-weight: 760; font-stretch: 112%;
+    text-transform: uppercase; letter-spacing: 0.07em; line-height: 1.2;
+}
+.pcard__head h2::after { content: ""; flex: 1 1 2rem; height: 2px; background: var(--border); }
 .pcard__head .hint { color: var(--ink-faint); font-size: 0.8rem; }
 
 /* --- Search view --- */
@@ -66,7 +72,7 @@
     gap: 1rem;
     flex-wrap: wrap;
 }
-.identity__name { font-size: clamp(1.3rem, 5vw, 1.6rem); font-weight: 800; color: var(--ink); line-height: 1.15; letter-spacing: -0.02em; }
+.identity__name { font-size: clamp(1.45rem, 5vw, 2rem); font-weight: 780; font-stretch: var(--stretch-display); color: var(--ink); line-height: 1.08; letter-spacing: -0.01em; }
 .identity__meta { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; color: var(--ink-dim); font-size: 0.9rem; }
 .identity__meta code { font-family: monospace; color: var(--ink-dim); }
 /* The club is the one meta item that actually goes somewhere (into the new
@@ -154,21 +160,22 @@
     margin-top: 1rem;
 }
 .stat {
-    background: var(--card-2);
+    background: var(--card);
     border: 1px solid var(--border);
+    border-top: 3px solid var(--border-strong);
     border-radius: var(--radius);
-    padding: 0.5rem 0.7rem;
+    padding: 0.55rem 0.75rem 0.6rem;
 }
-.stat__label { color: var(--ink-dim); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-.stat__value { color: var(--ink); font-size: 1.35rem; font-weight: 800; line-height: 1.15; margin-top: 0.1rem; font-variant-numeric: tabular-nums; }
+.stat__label { color: var(--ink-dim); font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.stat__value { color: var(--ink); font-size: 1.6rem; font-weight: 780; font-stretch: var(--stretch-display); line-height: 1.1; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
 .stat__value .w { color: var(--success); }
 .stat__value .l { color: var(--danger); }
 .stat__value .sep { color: var(--ink-faint); margin: 0 0.15rem; font-weight: 600; }
 .stat__sub { color: var(--ink-faint); font-size: 0.72rem; margin-top: 0.1rem; }
-.stat--einzel { border-left: 3px solid var(--disc-einzel); }
-.stat--doppel { border-left: 3px solid var(--disc-doppel); }
-.stat--mixed  { border-left: 3px solid var(--disc-mixed); }
-.stat--wl { border-left: 3px solid var(--accent); }
+.stat--einzel { border-top-color: var(--disc-einzel); }
+.stat--doppel { border-top-color: var(--disc-doppel); }
+.stat--mixed  { border-top-color: var(--disc-mixed); }
+.stat--wl { border-top-color: var(--accent); }
 
 /* Fancy "back to tournament" button (only when arriving from a tournament) */
 .tournament-return {
@@ -252,10 +259,11 @@
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 .subnav__tab svg { width: 15px; height: 15px; }
-.subnav__tab:hover { color: var(--ink); background: var(--card-2); }
+.subnav__tab:hover { color: var(--ink); }
 .subnav__tab.is-active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--ink);
+    border-radius: 0;
+    box-shadow: inset 0 -3px 0 var(--accent);
 }
 /* player.html wraps its .subnav in .subnav-wrap so the scroll arrows can
    float over the scrolling bar (see util/scrollTabs.js for why they can't
@@ -326,11 +334,6 @@
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--disc-waiting) 45%, transparent);
 }
 
-/* main.css stops pinning the site nav on phones (it's two rows there), so
-   the pinned tab bar sits at the very top instead of under a 56px bar. */
-@media (max-width: 640px) {
-    .subnav, .subnav-wrap { top: 0; }
-}
 
 /* Highlighted Upcoming panel card */
 .pcard--upcoming {
@@ -338,10 +341,12 @@
     background: linear-gradient(180deg, color-mix(in srgb, var(--disc-waiting) 7%, var(--card)), var(--card) 55%);
 }
 
+/* Tabbed panels (club page). The player profile is one scrolling page
+   instead: every section shows and its sub-nav is an index. */
 .tab-panel { display: none; }
-.tab-panel.is-active { display: block; animation: tabfade 0.18s ease; }
-@keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .tab-panel.is-active { animation: none; } }
+.tab-panel.is-active { display: block; }
+#profile-view .tab-panel { display: block; }
+#profile-view .tab-panel + .tab-panel { margin-top: 2rem; }
 
 /* Win / loss */
 .wl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.7rem; }
@@ -576,4 +581,30 @@ a.disc-badge--link:hover { border-color: var(--accent); color: var(--accent); }
 
 @media (max-width: 768px) {
     .identity__name { font-size: 1.5rem; }
+}
+
+/* Past tournaments (player profile) — rows into this site's tournament page */
+.pt-list { border: 1px solid var(--border); border-radius: var(--radius); }
+.pt-row { display: flex; align-items: center; border-top: 1px solid var(--border); }
+.pt-row:first-child { border-top: 0; }
+.pt-row__link { flex: 1; min-width: 0; display: grid; grid-template-columns: 11.5rem minmax(0, 1fr) 14px; gap: 0.85rem; align-items: center; padding: 0.65rem 0.75rem; color: inherit; text-decoration: none; transition: background-color 120ms ease; }
+.pt-row__date { font-size: 0.8rem; font-weight: 650; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.pt-row__main { display: grid; min-width: 0; }
+.pt-row__name { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-row__loc { font-size: 0.78rem; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-row__chev { width: 14px; height: 14px; fill: none; stroke: var(--ink-faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pt-row__dbv { flex: none; margin-right: 0.6rem; padding: 0.2rem 0.45rem; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.72rem; font-weight: 600; color: var(--ink-dim); text-decoration: none; }
+.pt-row__dbv:hover { color: var(--accent); border-color: var(--accent); }
+.pt-more { margin: 0.7rem 0 0; font-size: 0.85rem; }
+.pt-more a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.pt-more a:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) {
+    .pt-row__link:hover { background: var(--card-2); }
+    .pt-row__link:hover .pt-row__name { color: var(--accent); }
+}
+@media (max-width: 560px) {
+    .pt-row__link { grid-template-columns: minmax(0, 1fr) 14px; gap: 0.15rem 0.6rem; }
+    .pt-row__date { grid-column: 1; font-size: 0.74rem; }
+    .pt-row__main { grid-column: 1; }
+    .pt-row__chev { grid-column: 2; grid-row: 1 / span 2; }
 }

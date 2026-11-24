@@ -4,7 +4,8 @@
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { onSnapshot, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { functions, db } from "./util/firebase.js";
-import { mountFavoriteStar } from "./util/favorites.js";
+import { mountFavoriteStar, currentFavorites } from "./util/favorites.js";
+import { createDrawTab } from "./tournamentDraw.js";
 
 const getBaxData = httpsCallable(functions, "get_player_bax_data", { timeout: 540000 });
 const getDisciplines = httpsCallable(functions, "get_tournament_disciplines", { timeout: 60000 });
@@ -35,6 +36,10 @@ const qName = params.get("name") || "";
 const qStart = params.get("start") || "";
 const qEnd = params.get("end") || "";
 const qCity = params.get("city") || "";
+// Arriving from a player profile's past tournaments: that player's entry is
+// picked out in the draw and the ranking.
+const qPlayer = (params.get("player") || "").trim();
+const isFocusPlayer = (name) => !!qPlayer && String(name || "").trim().toLowerCase().replace(/\s+/g, " ") === qPlayer.toLowerCase().replace(/\s+/g, " ");
 
 let disciplines = [];
 let tournamentName = qName || "Tournament";
@@ -126,8 +131,8 @@ function renderHeader(name, start, end, city) {
     document.title = `${name} | BAX Checker`;
     const meta = [];
     const dt = start ? (end && end !== start ? `${fmt(start)} – ${fmt(end)}` : fmt(start)) : "";
-    if (dt) meta.push(`📅 ${dt}`);
-    if (city) meta.push(`📍 ${city}`);
+    if (dt) meta.push(dt);
+    if (city) meta.push(city);
     const badge = winnersResolved ? '<span class="mini-tag mini-tag--done">Completed</span>' : "";
     $("t-meta").innerHTML = badge + meta.map((m) => `<span>${escapeHtml(m)}</span>`).join("");
 
@@ -200,8 +205,12 @@ function selectDiscipline(d) {
     if (qStart) q.set("start", qStart);
     if (qEnd) q.set("end", qEnd);
     if (qCity) q.set("city", qCity);
+    if (qPlayer) q.set("player", qPlayer);
+    if (activeTab === "draw") q.set("view", "draw");
     history.replaceState(null, "", location.pathname + "?" + q.toString());
+    drawTab.resetSelection();
     runAnalysis(d);
+    if (activeTab === "draw") drawTab.render();
 }
 
 /* ---------------- analysis ---------------------------------------------- */
@@ -234,6 +243,7 @@ function showResults(players) {
     emptyState.style.display = "none";
     viewControls.style.display = "flex";
     updateDisplay();
+    if (activeTab === "draw") drawTab.render();   // BAX values just arrived — fill them into the bracket
 }
 
 async function runAnalysis(disc, force = false) {
@@ -427,7 +437,8 @@ function renderResults(players) {
         const rankCell = waiting
             ? `<span class="waiting-tag">${escapeHtml(statusLabel(team.status))}</span>`
             : `<span class="rank-badge">${rank}</span>`;
-        return `<tr class="${waiting ? "is-waiting" : ""}">
+        const focus = team.members.some((m) => isFocusPlayer(m.full_name));
+        return `<tr class="${[waiting ? "is-waiting" : "", focus ? "is-focus" : ""].join(" ").trim()}">
             <td>${rankCell}</td>
             <td><div class="field-tbl__team">${membersHtml}${chipsHtml}</div></td>
             <td class="is-num"><span class="field-tbl__metric" title="${metricLabel} team BAX">${Math.round(metric(team))}</span></td>
@@ -568,6 +579,36 @@ if (shareBtn) shareBtn.addEventListener("click", async () => {
     }
 });
 
+/* ---------------- Ranking / Draw tabs --------------------------------------- */
+const resultsCard = $("results-card");
+const drawCard = $("draw-card");
+let activeTab = params.get("view") === "draw" ? "draw" : "ranking";
+let userPickedTab = params.has("view");
+const normFavName = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+const drawTab = createDrawTab({
+    tournamentId, escapeHtml, disciplineToFilter, playerLinkAttrs,
+    selected: () => currentAnalysis,
+    playersFor: (d) => analysisCache.get(d.url),
+    isStarredPlayer: (name) => isFocusPlayer(name) || Object.values(currentFavorites().player || {}).some((f) => normFavName(f && f.name) === normFavName(name)),
+    isFocusPlayer,
+    focusPlayer: qPlayer,
+});
+function setTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll("[data-ttab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.ttab === tab)));
+    resultsCard.hidden = tab !== "ranking";
+    drawCard.hidden = tab !== "draw";
+    const q = new URLSearchParams(location.search);
+    if (tab === "draw") q.set("view", "draw"); else q.delete("view");
+    history.replaceState(null, "", location.pathname + "?" + q.toString());
+    if (tab === "draw") drawTab.render();
+}
+document.querySelectorAll("[data-ttab]").forEach((b) => b.addEventListener("click", () => {
+    userPickedTab = true;
+    if (b.dataset.ttab !== activeTab) setTab(b.dataset.ttab);
+}));
+setTab(activeTab);
+
 /* ---------------- boot ---------------------------------------------------- */
 async function boot() {
     if (!/^[0-9A-F-]{36}$/.test(tournamentId)) {
@@ -579,6 +620,10 @@ async function boot() {
         `<span class="skel" style="display:inline-block;width:${72 + (i % 3) * 26}px;height:34px;border-radius:999px"></span>`).join("");
     renderHeader(tournamentName, qStart, qEnd, qCity);
     loadWinners(); // fire-and-forget: fills in the "Completed" badge + enables the Results tab
+    // Fire-and-forget: marks the Draw tab "Published" / "Not out yet". A
+    // published draw becomes the default view unless the visitor already
+    // chose a tab (or the link named one).
+    drawTab.loadList().then(() => { if (!userPickedTab && drawTab.hasDraws() && activeTab !== "draw") setTab("draw"); });
     try {
         const res = await getDisciplines({ id: tournamentId, name: qName });
         if (res.data.error) throw new Error(res.data.error);
@@ -595,7 +640,7 @@ async function boot() {
         const ev = params.get("event");
         if (ev) {
             const d = disciplines.find((x) => x.event === ev);
-            if (d) { markActiveChip(ev); runAnalysis(d); }
+            if (d) { markActiveChip(ev); runAnalysis(d); if (activeTab === "draw") drawTab.render(); }
         }
     } catch (err) {
         console.error("Failed to load disciplines:", err);

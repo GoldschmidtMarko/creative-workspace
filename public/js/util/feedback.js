@@ -146,7 +146,26 @@ row.className = "fab-row";
 row.appendChild(fab("info", "About", showAboutPopup));
 row.appendChild(fab("clock", "Why is this slow?", showSlowPopup));
 row.appendChild(fab("message-circle", "Feedback", showFeedbackPopup));
-document.body.appendChild(row);
+// Pages with a site footer get the three actions as footer links instead of
+// a floating row — the floating row sat on top of list content on desktop.
+// Pages without a footer keep the floating row.
+const footerLinks = document.querySelector(".site-footer__links");
+if (footerLinks) {
+    row.hidden = true;
+    for (const [label, fn] of [["About", showAboutPopup], ["Why is this slow?", showSlowPopup], ["Feedback", showFeedbackPopup]]) {
+        const dot = document.createElement("span");
+        dot.setAttribute("aria-hidden", "true");
+        dot.innerHTML = "&middot;";
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "site-footer__action";
+        b.textContent = label;
+        b.addEventListener("click", fn);
+        footerLinks.append(dot, b);
+    }
+} else {
+    document.body.appendChild(row);
+}
 if (window.lucide) lucide.createIcons();
 
 // On phones the fixed bottom tab bar would cover a floating row, so the three
@@ -192,7 +211,7 @@ if (tabbar) {
     document.body.appendChild(menu);
     if (window.lucide) lucide.createIcons();
 
-    const sync = () => { row.hidden = phone.matches; if (!phone.matches) setOpen(false); };
+    const sync = () => { row.hidden = phone.matches || !!footerLinks; if (!phone.matches) setOpen(false); };
     sync();
     phone.addEventListener("change", sync);
 }

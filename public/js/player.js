@@ -265,6 +265,7 @@ function showProfileView() {
     showProfileSkeleton();
     setupTournamentReturn();
     setupMatchReturn();
+    jumpToInitialHash();
 }
 
 // Reveal the "back to match" button when we arrived from a team
@@ -314,22 +315,75 @@ function showError(msg) {
     st.classList.remove("hidden");
 }
 
-/* Sub-navigation: switch which section panel is visible (no scrolling). */
+/* Section index: the profile is one scrolling page; the sub-nav jumps to a
+   section and follows the scroll position (the active tab is whichever
+   section's top has passed under the sticky bars). */
 const _tabs = document.querySelectorAll(".subnav__tab");
-const _panels = document.querySelectorAll(".tab-panel");
+const _panels = Array.from(document.querySelectorAll(".tab-panel"));
 const subnavScroll = enhanceScrollTabs($("subnav-wrap"));
-function activateTab(name) {
-    if (!Array.from(_tabs).some((t) => t.getAttribute("data-tab") === name)) return;
-    _tabs.forEach((t) => t.classList.toggle("is-active", t.getAttribute("data-tab") === name));
-    subnavScroll.reveal(document.querySelector(".subnav__tab.is-active"));
-    _panels.forEach((p) => p.classList.toggle("is-active", p.getAttribute("data-panel") === name));
+let _spyLock = 0;
+function markTab(name) {
+    let changed = false;
+    _tabs.forEach((t) => {
+        const on = t.getAttribute("data-tab") === name;
+        if (on !== t.classList.contains("is-active")) changed = true;
+        t.classList.toggle("is-active", on);
+    });
+    if (changed) subnavScroll.reveal(document.querySelector(".subnav__tab.is-active"));
+}
+function stickyOffset() {
+    const nav = document.querySelector(".site-nav"), sub = $("subnav-wrap");
+    return (nav ? nav.offsetHeight : 56) + (sub ? sub.offsetHeight : 46) + 8;
+}
+function jumpTo(name, smooth = true) {
+    const panel = _panels.find((p) => p.getAttribute("data-panel") === name);
+    if (!panel) return;
+    markTab(name);
+    _spyLock = Date.now() + 700;
+    const top = panel.getBoundingClientRect().top + window.scrollY - stickyOffset();
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top, behavior: smooth && !reduce ? "smooth" : "auto" });
 }
 _tabs.forEach((t) => t.addEventListener("click", () => {
     const name = t.getAttribute("data-tab");
-    activateTab(name);
+    jumpTo(name);
     history.replaceState(null, "", location.pathname + location.search + "#" + name);
 }));
-if (location.hash) activateTab(location.hash.slice(1));
+window.addEventListener("scroll", () => {
+    if (Date.now() < _spyLock || $("profile-view").classList.contains("hidden")) return;
+    const line = stickyOffset() + 24;
+    let current = _panels[0] && _panels[0].getAttribute("data-panel");
+    for (const p of _panels) if (p.getBoundingClientRect().top <= line) current = p.getAttribute("data-panel");
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = _panels[_panels.length - 1].getAttribute("data-panel");
+    markTab(current);
+}, { passive: true });
+// An old deep link (#network etc.) jumps to that section once the profile
+// shows. Reads the hash at call time: showProfileView can run before this
+// part of the module has been evaluated, so no module-level const here.
+// Sections above the target keep growing while their data loads, so the jump
+// is repeated as the page settles (for a few seconds) — unless the visitor
+// has started scrolling on their own.
+function jumpToInitialHash() {
+    // Deferred a tick: showProfileView can run while this module is still
+    // being evaluated, before _panels/jumpTo below exist.
+    setTimeout(jumpToInitialHashNow, 0);
+}
+// Sections renamed in the redesign: old links still land somewhere sensible.
+const LEGACY_SECTION = { schedule: "tournaments" };
+function jumpToInitialHashNow() {
+    const raw = location.hash.slice(1);
+    const name = LEGACY_SECTION[raw] || raw;
+    if (!name || !_panels.some((p) => p.getAttribute("data-panel") === name)) return;
+    let userMoved = false;
+    const stop = () => { userMoved = true; };
+    ["wheel", "touchstart", "keydown", "mousedown"].forEach((ev) => window.addEventListener(ev, stop, { once: true, passive: true }));
+    requestAnimationFrame(() => jumpTo(name, false));
+    const view = $("profile-view");
+    if (!window.ResizeObserver || !view) return;
+    const ro = new ResizeObserver(() => { if (!userMoved) jumpTo(name, false); });
+    ro.observe(view);
+    setTimeout(() => ro.disconnect(), 6000);
+}
 
 function updateUrl(sp, pid, name) {
     const q = new URLSearchParams();
@@ -781,7 +835,7 @@ async function loadDbvStats(pid, name) {
         if (res.data.error) throw new Error(res.data.error);
         renderWinLoss(res.data.win_loss || {});
         renderTitles(res.data.titles || []);
-        renderTournaments(res.data.tournaments || []);
+        renderTournaments(res.data.tournaments || [], name);
     } catch (err) {
         console.error("dbv stats failed:", err);
         const msg = `<div class="pl-empty">Could not load: ${escapeHtml(err.message)}</div>`;
@@ -861,21 +915,32 @@ function renderTitles(titles) {
     if (window.lucide) lucide.createIcons();
 }
 
-function renderTournaments(tours) {
+// Past tournaments open this site's own tournament page (draw + field by
+// BAX), carrying the player's name so the draw picks out their entry; dbv
+// stays one click away as a secondary link.
+function renderTournaments(tours, name) {
     const el = $("tournaments-body");
-    if (!tours.length) { el.innerHTML = '<div class="pl-empty">No tournaments listed.</div>'; return; }
+    if (!tours.length) { el.innerHTML = '<div class="pl-empty">No past tournaments listed on dbv.</div>'; return; }
+    const shown = ($("p-name").textContent || "").trim();
+    const playerName = (name || (shown && shown !== "—" && shown !== "Player" ? shown : "")).trim();
     const rows = tours.map((t) => {
-        const url = `https://dbv.turnier.de/sport/tournament?id=${t.id}`;
+        const q = new URLSearchParams({ id: t.id });
+        if (t.name) q.set("name", t.name);
+        if (t.start) q.set("start", t.start);
+        if (t.end) q.set("end", t.end);
+        if (playerName) q.set("player", playerName);
         const date = t.start ? (t.end && t.end !== t.start ? `${t.start} – ${t.end}` : t.start) : "";
-        return `<tr>
-            <td class="name"><a href="${url}" target="_blank" rel="noopener">${escapeHtml(t.name || "Tournament")}</a>
-                ${t.location ? `<div class="when">${escapeHtml(t.location)}</div>` : ""}</td>
-            <td class="when">${escapeHtml(date)}</td>
-        </tr>`;
+        return `<div class="pt-row">
+            <a class="pt-row__link" href="/html/tournament.html?${escapeHtml(q.toString())}">
+                <span class="pt-row__date">${escapeHtml(date)}</span>
+                <span class="pt-row__main"><span class="pt-row__name">${escapeHtml(t.name || "Tournament")}</span>${t.location ? `<span class="pt-row__loc">${escapeHtml(t.location)}</span>` : ""}</span>
+                <svg class="pt-row__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+            </a>
+            <a class="pt-row__dbv" href="https://dbv.turnier.de/sport/tournament?id=${escapeHtml(t.id)}" target="_blank" rel="noopener" title="Open on dbv.turnier.de">dbv</a>
+        </div>`;
     }).join("");
-    el.innerHTML = `<div class="table-scroll"><table class="pl-table">
-        <thead><tr><th>Tournament</th><th>Date</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>`;
+    el.innerHTML = `<div class="pt-list">${rows}</div>
+        <p class="pt-more"><a href="/html/tournaments.html?when=past">Browse all past tournaments</a></p>`;
 }
 
 /* ------------------------------------------------------------------ */

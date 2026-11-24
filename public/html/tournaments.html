@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Browse and search badminton tournaments on dbv.turnier.de, then rank every team by BAX for any discipline.">
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="#0a7a4a">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>Tournaments | BAX Checker</title>
     <script src="/js/util/themeInit.js"></script>
@@ -51,11 +51,15 @@
         </header>
 
         <main style="max-width: 1000px; margin: 0 auto;">
+            <div class="t-tabs t-when" role="tablist" aria-label="Which tournaments">
+                <button type="button" role="tab" class="t-tab" data-when="upcoming" aria-selected="true">Upcoming</button>
+                <button type="button" role="tab" class="t-tab" data-when="past" aria-selected="false">Past</button>
+            </div>
             <div class="card input-card" id="filter-card" style="align-items: stretch; text-align: left; padding: 0.85rem 1.1rem;">
                 <div class="input-head">
                     <div class="mode-tabs">
-                        <button id="tab-favorites" class="mode-tab active" type="button">Favorites</button>
-                        <button id="tab-filters" class="mode-tab" type="button">Search filters</button>
+                        <button id="tab-filters" class="mode-tab active" type="button">Search filters</button>
+                        <button id="tab-favorites" class="mode-tab" type="button">Favorites</button>
                         <button id="tab-url" class="mode-tab" type="button">Direct link</button>
                     </div>
                     <button class="fold-btn" id="filter-toggle" type="button" aria-expanded="true"
@@ -146,7 +150,8 @@
             </div>
 
             <div id="browse-status" class="browse-status hidden"></div>
-            <div id="tournament-list" class="tournament-grid" style="margin-top:1.25rem;"></div>
+            <div id="tournament-list" class="t-list" style="margin-top:1.25rem;"></div>
+            <div class="t-more"><button type="button" id="load-more" class="btn btn-secondary" hidden>Show more</button></div>
         </main>
 
         <footer class="site-footer">
